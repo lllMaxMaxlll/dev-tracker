@@ -45,11 +45,19 @@ function connectionString(): string {
   // `pg` intenta resolverlo por DNS y falla con "connection attempt failed".
   // Así que en dev vamos directo a DATABASE_URL, que apunta al session pooler
   // de Supabase (la conexión directa es IPv6-only; ver .env.example).
-  if (process.env.NODE_ENV === "production") {
-    return hyperdrive?.connectionString ?? env().DATABASE_URL
+  if (process.env.NODE_ENV === "production" && hyperdrive?.connectionString) {
+    return hyperdrive.connectionString
   }
 
-  return env().DATABASE_URL
+  const url = env().DATABASE_URL
+
+  if (!url) {
+    throw new Error(
+      "No hay conexión a la base: falta el binding HYPERDRIVE (producción) o DATABASE_URL (desarrollo). Ver .env.example."
+    )
+  }
+
+  return url
 }
 
 /**

@@ -19,7 +19,7 @@
       // Caché de datos de vinext (ISR). Crear con:
       //   npx wrangler kv namespace create VINEXT_KV_CACHE
       "binding": "VINEXT_KV_CACHE",
-      "id": "<your-kv-namespace-id>"
+      "id": "e9923cdff6ec474f8541f476e16785f1"
     }
   ],
 
@@ -33,7 +33,7 @@
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "<your-hyperdrive-id>"
+      "id": "08c3d7744a014414baa5909a117b5a20"
     }
   ],
 

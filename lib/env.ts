@@ -23,7 +23,11 @@ const csv = z
   )
 
 const serverEnvSchema = z.object({
-  DATABASE_URL: z.string().min(1, "Falta DATABASE_URL"),
+  // Opcional a propósito: en producción la conexión sale del binding de
+  // Hyperdrive, así que exigirla obligaría a cargar un secreto redundante.
+  // Fuera de Workers (desarrollo, drizzle-kit) sí hace falta, y quien la
+  // necesita avisa con un error claro. Ver lib/db/index.ts.
+  DATABASE_URL: z.string().optional(),
   DIRECT_URL: z.string().optional(),
 
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),

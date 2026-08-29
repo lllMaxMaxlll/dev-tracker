@@ -154,6 +154,13 @@ Las tres capas están a propósito. Ninguna sola alcanza.
 bun run build && bun run deploy
 ```
 
+Desplegado en: **https://devtracker.max-herr-88.workers.dev**
+
+> ⚠️ **Después del primer deploy**, agregá la URL de producción en Supabase:
+> **Authentication → URL Configuration → Redirect URLs** →
+> `https://devtracker.max-herr-88.workers.dev/auth/callback`.
+> Sin eso el login falla, porque Supabase rechaza el redirect.
+
 Para probar el Worker buildeado localmente antes de desplegar:
 
 ```bash
@@ -168,7 +175,11 @@ Las variables de runtime van como secretos del Worker, no en el repo:
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 ```
 
-Lo mismo con `ENCRYPTION_KEY`, `DATABASE_URL`, `CRON_SECRET`, `ALLOWED_EMAILS` y `ALLOWED_GITHUB_LOGINS`.
+Los que hacen falta son `ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` y, para que la instancia sea de uso personal, `ALLOWED_GITHUB_LOGINS`.
+
+`DATABASE_URL` **no** hace falta como secreto: en producción la conexión sale del binding de Hyperdrive.
+
+> Sin `ALLOWED_GITHUB_LOGINS` ni `ALLOWED_EMAILS`, cualquiera con una cuenta de GitHub puede entrar a la instancia desplegada y crear sus propios datos.
 
 > No hay API key de IA: Workers AI se accede por el binding `AI` declarado en `wrangler.jsonc`.
 
