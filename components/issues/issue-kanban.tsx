@@ -96,7 +96,7 @@ function Columna({
   const { setNodeRef, isOver } = useDroppable({ id: estado })
 
   return (
-    <div className="flex min-w-64 flex-1 flex-col gap-2">
+    <div className="flex w-64 shrink-0 flex-col gap-2">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-sm font-medium">{ETIQUETAS_ESTADO[estado]}</h2>
         <Badge variant="secondary">{issues.length}</Badge>
@@ -203,9 +203,9 @@ export function IssueKanban({ issues }: { issues: IssueListItem[] }) {
   return (
     <ClientOnly
       fallback={
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex w-full min-w-0 gap-4 overflow-x-auto pb-4">
           {ESTADOS.map((estado) => (
-            <div key={estado} className="flex min-w-64 flex-1 flex-col gap-2">
+            <div key={estado} className="flex w-64 shrink-0 flex-col gap-2">
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-sm font-medium">
                   {ETIQUETAS_ESTADO[estado]}
@@ -230,7 +230,7 @@ export function IssueKanban({ issues }: { issues: IssueListItem[] }) {
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex w-full min-w-0 gap-4 overflow-x-auto pb-4">
           {ESTADOS.map((estado) => (
             <Columna
               key={estado}

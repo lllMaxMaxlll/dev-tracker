@@ -22,7 +22,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AppSidebar />
 
-      <SidebarInset>
+      {/* `min-w-0` es lo que permite que los hijos con overflow-x (el kanban,
+          la tabla de problemas) scrolleen adentro en vez de estirar la página.
+          Sin esto, un elemento flex no baja de su ancho de contenido y el
+          desborde se propaga hasta el body. */}
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-4" />
@@ -38,7 +42,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

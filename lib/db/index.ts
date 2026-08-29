@@ -73,10 +73,16 @@ function connectionString(): string {
 function nuevoPool() {
   return new Pool({
     connectionString: connectionString(),
-    // Hyperdrive (o el pooler de Supabase en dev) ya poolea del lado del
-    // servidor. Con pocas conexiones por request alcanza, y así no se agota
-    // el límite del pooler, que en Supabase corta en 15 clientes.
-    max: 3,
+    // UNA conexión por request.
+    //
+    // El pool se mantiene abierto mientras dura la request, y algunas duran
+    // diez segundos o más porque esperan a Workers AI (el dashboard genera
+    // insights). Con varias conexiones por request, un par de cargas
+    // superpuestas agotaban el límite de 15 clientes del pooler de Supabase.
+    //
+    // Las consultas de una misma página se serializan, pero son de
+    // milisegundos: lo que tarda es la inferencia, no la base.
+    max: 1,
     connectionTimeoutMillis: 10_000,
   })
 }
