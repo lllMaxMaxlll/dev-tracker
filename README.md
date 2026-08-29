@@ -1,6 +1,6 @@
 # DevTracker
 
-Dashboard personal para registrar y seguir los problemas, bugs e ideas que aparecen mientras desarrollás — el reemplazo del cuaderno de papel. Integrado con GitHub y con una capa de IA sobre OpenRouter.
+Dashboard personal para registrar y seguir los problemas, bugs e ideas que aparecen mientras desarrollás — el reemplazo del cuaderno de papel. Integrado con GitHub y con una capa de IA sobre Cloudflare Workers AI.
 
 El plan completo de implementación, con las decisiones de arquitectura y sus porqués, está en [PLAN.md](./PLAN.md).
 
@@ -14,7 +14,7 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 | ORM | Drizzle (esquema, migraciones y consultas) |
 | Auth | Supabase Auth con GitHub como proveedor OAuth |
 | GitHub | Octokit |
-| IA | OpenRouter vía SDK de OpenAI (sólo servidor) |
+| IA | Cloudflare Workers AI, binding `AI` (sólo servidor) |
 | Embeddings | Cloudflare Workers AI (`@cf/baai/bge-m3`), binding `AI` |
 | Deploy | Cloudflare Workers (+ Hyperdrive, KV, Workers AI) |
 
@@ -24,7 +24,7 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 - ✅ **Fase 2** — CRUD de problemas y proyectos (tabla + kanban)
 - ✅ **Fase 3** — dashboard de métricas
 - ⬜ Fase 4 — integración con GitHub
-- ⬜ Fase 5 — capa de IA, Ajustes y captura en lenguaje natural
+- ⬜ Fase 5 — capa de IA (Workers AI), Ajustes y captura en lenguaje natural
 - ⬜ Fase 6 — duplicados, vinculación de commits, resumen semanal, insights y consumo
 
 ---
@@ -37,7 +37,18 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 2. Guardá la contraseña de la base: aparece una sola vez.
 3. **Project Settings → Data API**: copiá el *Project URL* y la *anon public key*.
 4. **Project Settings → API Keys**: copiá la *service_role key*.
-5. **Project Settings → Database → Connection string → URI**: copiá la cadena del puerto **5432**, la **conexión directa**, no la pooled. Hyperdrive hace el pooling por su cuenta.
+5. **Connection strings**: necesitás **las dos**, y no son intercambiables.
+
+   | Cuál | Para qué | Dónde |
+   |---|---|---|
+   | **Directa** (`db.<ref>.supabase.co:5432`) | crear el binding de Hyperdrive (producción) | Connect → *Direct connection* |
+   | **Session pooler** (`aws-N-<region>.pooler.supabase.com:5432`) | `.env.local`: desarrollo y migraciones | Connect → *Session pooler* |
+
+   > ⚠️ **Por qué dos.** Desde enero de 2024 la conexión directa resuelve **sólo a IPv6**. Desde una red IPv4 tira `getaddrinfo ENOTFOUND`, así que no sirve para trabajar localmente ni para correr las migraciones desde tu máquina. Cloudflare sí la alcanza, y Hyperdrive pide explícitamente la directa porque el pooling lo hace él.
+   >
+   > Del pooler usá el puerto **5432** (session mode), no el **6543** (transaction mode): ese último no soporta bien los prepared statements ni el DDL de las migraciones.
+   >
+   > Si preferís una sola string, Supabase vende un add-on de IPv4 que hace la directa alcanzable por IPv4.
 
 > Las extensiones `vector` y `pg_trgm` las habilita la primera migración; no hace falta tocarlas a mano.
 
@@ -78,7 +89,7 @@ openssl rand -base64 32   # → ENCRYPTION_KEY
 openssl rand -hex 32      # → CRON_SECRET
 ```
 
-`ENCRYPTION_KEY` cifra el provider token de GitHub y tu API key de OpenRouter antes de guardarlos en la base. **Si la perdés o la rotás, esos secretos quedan ilegibles** y hay que reconectar GitHub y volver a cargar la API key.
+`ENCRYPTION_KEY` cifra el provider token de GitHub antes de guardarlo en la base. **Si la perdés o la rotás, ese token queda ilegible** y hay que reconectar GitHub.
 
 ### 5. Migraciones
 
@@ -157,13 +168,15 @@ Las variables de runtime van como secretos del Worker, no en el repo:
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 ```
 
-Lo mismo con `ENCRYPTION_KEY`, `DATABASE_URL`, `OPENROUTER_API_KEY`, `CRON_SECRET`, `ALLOWED_EMAILS` y `ALLOWED_GITHUB_LOGINS`.
+Lo mismo con `ENCRYPTION_KEY`, `DATABASE_URL`, `CRON_SECRET`, `ALLOWED_EMAILS` y `ALLOWED_GITHUB_LOGINS`.
+
+> No hay API key de IA: Workers AI se accede por el binding `AI` declarado en `wrangler.jsonc`.
 
 Las **`NEXT_PUBLIC_*` son distintas**: se hornean en el bundle del cliente durante `vinext build`, así que tienen que estar en el entorno **al buildear**. Cambiarlas exige rebuild, no basta con redesplegar.
 
 ### Plan requerido
 
-**Workers Paid ($5/mes).** En el plan Free el límite de 10 ms de CPU por request hace inviable el SSR, y el bundle tiene tope de 3 MiB comprimido (10 MiB en Paid). El tiempo de espera de I/O —las llamadas a OpenRouter— no cuenta como CPU, así que el streaming de resúmenes no es problema.
+**Workers Paid ($5/mes).** En el plan Free el límite de 10 ms de CPU por request hace inviable el SSR, y el bundle tiene tope de 3 MiB comprimido (10 MiB en Paid). El tiempo de espera de I/O —las llamadas de inferencia— no cuenta como CPU, así que el streaming de resúmenes no es problema.
 
 ### Migraciones
 

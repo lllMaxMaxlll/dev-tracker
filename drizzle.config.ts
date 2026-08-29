@@ -1,8 +1,21 @@
+import { existsSync } from "node:fs"
+
 import { defineConfig } from "drizzle-kit"
 
-// Las migraciones usan SIEMPRE la conexión directa (no el pooler): drizzle-kit
-// necesita transacciones y sentencias DDL que el pooler en modo transaction no
-// soporta.
+// drizzle-kit evalúa este archivo en un proceso propio que no hereda las
+// variables que carga el runtime, así que el .env.local se lee acá a mano.
+for (const archivo of [".env.local", ".env"]) {
+  if (existsSync(archivo)) {
+    process.loadEnvFile(archivo)
+    break
+  }
+}
+
+// Las migraciones necesitan transacciones y DDL, así que van por session mode
+// (puerto 5432), nunca por transaction mode (6543).
+//
+// Ojo: la conexión DIRECTA de Supabase (db.<ref>.supabase.co) resuelve sólo a
+// IPv6; desde una red IPv4 hay que usar el session pooler. Ver .env.example.
 const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL
 
 if (!url) {

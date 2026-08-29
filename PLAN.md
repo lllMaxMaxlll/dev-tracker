@@ -1,6 +1,6 @@
 # DevTracker — Plan de implementación
 
-> Dashboard personal para registrar problemas, bugs e ideas de desarrollo, integrado con GitHub y con una capa de IA sobre OpenRouter.
+> Dashboard personal para registrar problemas, bugs e ideas de desarrollo, integrado con GitHub y con una capa de IA sobre Cloudflare Workers AI.
 > Documento de planificación. **No incluye código**: define arquitectura, esquema, orden de trabajo y criterios de verificación por fase.
 
 **Decisiones tomadas** (29/08/2026):
@@ -8,8 +8,7 @@
 - **Supabase Cloud**, plan gratuito (sección 1.10). Postgres se alcanza vía **Hyperdrive** con el driver `pg`.
 - Se usa **`proxy.ts`**, la convención nueva de Next 16: vinext la soporta.
 - **`cacheComponents` DESACTIVADO**: vinext lo marca como experimental e incompleto. El caché va con ISR + el adaptador de KV de Cloudflare.
-- **Embeddings: Cloudflare Workers AI (`@cf/baai/bge-m3`)** por el binding `AI` (sección 1.5).
-- Workers AI queda además disponible como **proveedor secundario para las tareas `fast`**, con OpenRouter como principal (sección 10.6).
+- **IA: Cloudflare Workers AI** por el binding `AI`, tanto para chat como para embeddings (secciones 1.5 y 1.11). Reemplaza a OpenRouter, que era el proveedor del pedido original.
 
 ---
 
@@ -34,7 +33,7 @@ Lo que ya existe en el repo (verificado):
 `AGENTS.md` avisa que esta versión de Next tiene *breaking changes* respecto de lo conocido. Verificado en `node_modules/next/dist/docs/`:
 
 1. **`middleware.ts` está deprecado y se renombró a `proxy.ts`.** El archivo va en la raíz, exporta una función `proxy` (default o nombrada) y su `config.matcher`. Todo lo que el pedido llama "middleware de sesión" se implementa en `proxy.ts`.
-2. **Modelo de caché nuevo**: Next 16 ofrece `cacheComponents: true` con la directiva `'use cache'` + `cacheLife(...)`. **No lo usamos**: vinext marca `cacheComponents` como soporte experimental con comportamiento incompleto. El caché de GitHub y del catálogo de OpenRouter va con `revalidate` de ISR sobre el adaptador de KV de Cloudflare, que vinext soporta por completo.
+2. **Modelo de caché nuevo**: Next 16 ofrece `cacheComponents: true` con la directiva `'use cache'` + `cacheLife(...)`. **No lo usamos**: vinext marca `cacheComponents` como soporte experimental con comportamiento incompleto. El caché de GitHub y del catálogo de modelos va con `revalidate` de ISR sobre el adaptador de KV de Cloudflare, que vinext soporta por completo.
 3. Antes de escribir código de cada fase se leen los docs locales correspondientes en `node_modules/next/dist/docs/` (proxy, use-cache, route handlers, server actions).
 
 ---
@@ -48,6 +47,7 @@ Lo que ya existe en el repo (verificado):
   - Los Workers **no pueden abrir sockets TCP crudos** a Postgres. Hyperdrive es el puente, y además poolea del lado del servidor.
   - Driver: **node-postgres (`pg`)**, el recomendado por Cloudflare por su compatibilidad con el caché de Hyperdrive (mínimo 8.16.3). `postgres-js` **no corre** nativamente en Workers.
   - La connection string que se le da a Hyperdrive es la **directa** de Supabase (`:5432`), no la pooled: el pooling ya lo hace Hyperdrive.
+  - ⚠️ Pero la directa (`db.<ref>.supabase.co`) resuelve **sólo a IPv6** desde enero de 2024. Desde una red IPv4 da `getaddrinfo ENOTFOUND`. Por eso el desarrollo local y `drizzle-kit` usan el **session pooler** (`aws-N-<region>.pooler.supabase.com:5432`, IPv4), y la directa queda sólo para el binding de Hyperdrive, que sí la alcanza desde la red de Cloudflare. Del pooler va el puerto 5432 (session mode), no el 6543: transaction mode no soporta bien prepared statements ni el DDL de las migraciones.
   - En runtime la URL sale del binding (`env.HYPERDRIVE.connectionString`); `DATABASE_URL` queda como fallback y para `drizzle-kit`, que corre fuera del Worker.
   - El `Pool` vive a nivel de módulo, o sea uno por isolate, con `max: 5`. Hyperdrive hace que abrir conexiones sea barato, así que no hace falta crear y cerrar un cliente por request.
 
@@ -68,7 +68,7 @@ Drizzle se conecta con el rol `postgres` / usuario de la base, que **bypassea RL
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | env de servidor | nunca `NEXT_PUBLIC_`, nunca importada en un componente cliente |
 | Provider token de GitHub | tabla `github_credentials`, **cifrado** | AES-256-GCM con `ENCRYPTION_KEY` (32 bytes, base64) vía `node:crypto`; se guarda en el callback de OAuth porque Supabase no persiste `provider_token` más allá de la respuesta inicial de la sesión |
-| API key propia de OpenRouter (por usuario) | tabla `user_ai_settings`, **cifrada** | mismo esquema de cifrado; fallback a `OPENROUTER_API_KEY` global |
+| ~~API key de OpenRouter~~ | — | Ya no aplica: Workers AI se accede por binding, sin keys (ver 1.11). La columna cifrada queda para un eventual proveedor externo |
 | `CRON_SECRET` | env | validado en el route handler del cron (`Authorization: Bearer`) |
 
 Módulo único `lib/crypto.ts` con `encrypt()` / `decrypt()`; el ciphertext guarda `iv:authTag:data` en base64 para poder rotar el formato después.
@@ -81,9 +81,9 @@ Los tokens OAuth de GitHub App expiran; los de OAuth App clásica no, pero puede
 - Wrapper de Octokit que ante `401`/`403 bad credentials` marca la credencial como inválida (`is_valid = false`) y la UI muestra un banner "Reconectá tu cuenta de GitHub" que reinicia el flujo OAuth con `scopes: 'read:user repo'`.
 - Los flujos de IA que dependen de commits degradan a "sin datos de GitHub" en vez de romper.
 
-### 1.5 Embeddings: OpenRouter no tiene ese endpoint → Cloudflare Workers AI
+### 1.5 Embeddings: `@cf/baai/bge-m3` por el binding `AI`
 
-**Riesgo detectado en el pedido.** OpenRouter es una API de *chat completions*; no ofrece `/v1/embeddings`. La detección de duplicados (punto 9) necesita embeddings reales.
+La detección de duplicados (punto 9 del pedido) necesita embeddings reales. Nota histórica: esto fue lo primero que obligó a mirar más allá de OpenRouter, que es una API de *chat completions* y no ofrece `/v1/embeddings`. Con el cambio a Workers AI (1.11) el problema desapareció: el mismo binding sirve para chat y para embeddings.
 
 **Opción elegida — Cloudflare Workers AI (`@cf/baai/bge-m3`)**
 
@@ -139,6 +139,27 @@ Los componentes se agregan con `npx shadcn@latest add <componente>` y salen sobr
 - **Drag & drop del kanban**: no hay componente shadcn para esto → **`@dnd-kit/core` + `@dnd-kit/sortable`**.
 - **Tablas**: `@tanstack/react-table` + el `data-table` de shadcn.
 
+### 1.11 El proveedor de IA: Workers AI en lugar de OpenRouter
+
+El pedido original especificaba **OpenRouter**, consumido con el SDK de OpenAI. Se cambió a **Workers AI**, y no es una concesión: desde el **7 de agosto de 2026 Cloudflare unificó Workers AI y AI Gateway**, así que el mismo binding `env.AI.run()` y la misma REST API alcanzan tanto los modelos alojados en Workers AI como los de **proveedores externos soportados**, con un solo saldo de facturación y un catálogo de modelos unificado.
+
+Qué gana el proyecto:
+
+| | Con OpenRouter | Con Workers AI |
+|---|---|---|
+| Autenticación | API key en variable de entorno, más la key propia por usuario cifrada en la base | **binding `AI`**: sin keys, sin cifrado, sin rotación |
+| Latencia | salto de red a un tercero | dentro del mismo runtime |
+| Facturación | tarjeta en OpenRouter | **10.000 Neurons/día gratis**, después $0,011 por 1.000 |
+| Modelos externos | su razón de ser | siguen disponibles vía AI Gateway, con el mismo binding |
+
+**Tool calling**: sigue siendo obligatorio para toda salida estructurada (requisito transversal del pedido), y Workers AI lo soporta en modelos grandes — Kimi K2.5, DeepSeek V4, Qwen 3.8, GLM-4.7-Flash, Gemma-4. No hay que bajar de categoría de modelo para conservar el contrato de "tool calling + validación con Zod, nunca parseo de texto libre".
+
+**Costo real**: Llama 3.1 70B cuesta ~26.700 Neurons por millón de tokens de entrada y ~205.000 por millón de salida. Un resumen semanal de ~4.000 tokens de entrada y 800 de salida son **unos 270 Neurons**. Con 10.000 gratis por día, el uso de un tablero personal no llega a rozar el piso.
+
+**Lo que se cae del pedido**: la opción de que cada usuario cargue su propia API key de OpenRouter (punto 7). Con un binding no hay ninguna key que cargar. La columna `openrouter_api_key_encrypted` queda en el esquema por si algún día se habilita un proveedor externo que la necesite, pero no tiene interfaz.
+
+**Lo que se conserva**: la abstracción por proveedor en `lib/ai/settings.ts` (`provider: 'workers-ai' | 'openrouter'`). Volver a OpenRouter, o sumarlo en paralelo, es implementar una función más, no rehacer la capa.
+
 ### 1.10 Dónde vive Supabase: Supabase Cloud
 
 **Decidido**: Supabase Cloud, plan gratuito. Se descartó el self-hosted que estaba corriendo junto a Coolify.
@@ -172,8 +193,8 @@ drizzle-kit @types/pg -D
 octokit
 
 # ia
-openai
 zod
+# El SDK de OpenAI ya no hace falta: Workers AI se usa por el binding `AI`.
 # embeddings: Workers AI se consume por REST, sin SDK (ver 1.5)
 # @huggingface/transformers  — sólo si se elige el proveedor `local`
 
@@ -254,7 +275,7 @@ Es la fuente de verdad para tiempos de resolución y para el resumen semanal. Se
 Regeneración máxima 1 vez por día → se sirve el cacheado si `generated_at > now() - 24h`.
 
 **`user_ai_settings`** — 1 fila por usuario
-`user_id` (PK) · `openrouter_api_key_encrypted` (nullable) · `default_model` · `fast_model` (nullable = hereda) · `reasoning_model` (nullable = hereda) · `embedding_provider` · `embedding_model` · `embedding_dimensions` · `fast_temperature` · `fast_max_tokens` · `reasoning_temperature` · `reasoning_max_tokens` · `require_tool_calling boolean default true` · `updated_at`
+`user_id` (PK) · `openrouter_api_key_encrypted` (nullable, sin interfaz; ver 1.11) · `default_model` · `fast_model` (nullable = hereda) · `reasoning_model` (nullable = hereda) · `embedding_provider` · `embedding_model` · `embedding_dimensions` · `fast_temperature` · `fast_max_tokens` · `reasoning_temperature` · `reasoning_max_tokens` · `require_tool_calling boolean default true` · `updated_at`
 
 **`ai_usage_log`**
 `id` · `user_id` · `task` (`ai_task_kind`) · `model` · `provider` · `prompt_tokens` · `completion_tokens` · `total_tokens` · `estimated_cost_usd` (numeric 12,6) · `latency_ms` · `success boolean` · `error_message` (nullable) · `created_at`
@@ -315,7 +336,7 @@ lib/
   crypto.ts
   github/{client,queries}.ts
   ai/
-    client.ts                       # SDK OpenAI → baseURL OpenRouter + headers
+    client.ts                       # binding AI: chat con tool calling
     models.ts                       # catálogo cacheado + precios
     settings.ts                     # resolución de modelo por tarea
     embeddings.ts
@@ -350,15 +371,9 @@ CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=   # sólo desarrollo
 # Cifrado de secretos en base (32 bytes base64). AES-GCM vía WebCrypto.
 ENCRYPTION_KEY=
 
-# OpenRouter
-OPENROUTER_API_KEY=
-OPENROUTER_SITE_URL=     # HTTP-Referer
-OPENROUTER_APP_NAME=DevTracker   # X-Title
-
-# Embeddings — Workers AI vía el binding `AI`: no hacen falta account id ni token
-EMBEDDINGS_PROVIDER=workers-ai       # workers-ai | openai
+# IA — Workers AI vía el binding `AI` de wrangler.jsonc.
+# No hay API keys: ni para chat ni para embeddings (ver 1.11).
 EMBEDDINGS_MODEL=@cf/baai/bge-m3     # 1024 dims, multilingüe
-# OPENAI_API_KEY=                     # sólo si EMBEDDINGS_PROVIDER=openai
 
 # Cron
 CRON_SECRET=
@@ -479,8 +494,8 @@ Nota sobre `shadcn/chart`: el bloque **sí** existe para `base-nova` (era un rie
 
 ### Fase 5 — Capa de IA, Ajustes y captura en lenguaje natural
 
-1. `lib/ai/client.ts`: SDK de OpenAI con `baseURL` de OpenRouter, `apiKey` = key del usuario (descifrada) o la global, y `defaultHeaders` con `HTTP-Referer` y `X-Title`. Timeout por request y reintento acotado.
-2. `lib/ai/models.ts`: catálogo desde el endpoint de modelos de OpenRouter, cacheado (`'use cache'`, ~1 h), normalizado a `{ id, name, provider, contextLength, pricePerMTokenIn, pricePerMTokenOut, supportsTools }`.
+1. `lib/ai/client.ts`: envoltorio del binding `env.AI.run(modelo, { messages, tools })`, con timeout por request y reintento acotado. Sin API keys ni cabeceras de identificación: no aplican con un binding (ver 1.11).
+2. `lib/ai/models.ts`: catálogo de modelos de Workers AI, cacheado con ISR sobre KV (~1 h), normalizado a `{ id, name, provider, contextLength, neuronsPerMTokenIn, neuronsPerMTokenOut, supportsTools }`.
 3. `lib/ai/settings.ts`: lee `user_ai_settings`, resuelve el modelo efectivo por tarea (`fast` / `reasoning`, con herencia del default), temperatura y `max_tokens`.
 4. `lib/ai/usage.ts`: envuelve cada llamada, mide latencia, lee `usage` de la respuesta, calcula costo estimado con los precios del catálogo y escribe en `ai_usage_log` (también cuando falla).
 5. Contrato de salida estructurada: **siempre tool calling** + validación Zod del `arguments`. Si el modelo no soporta tools → error tipado `MODEL_NO_TOOL_SUPPORT` con mensaje claro y sugerencia de cambiar de modelo en Ajustes. Sin parseo de texto libre en ningún caso.
@@ -489,7 +504,6 @@ Nota sobre `shadcn/chart`: el bloque **sí** existe para `base-nova` (era un rie
    - filtro "sólo modelos con tool calling" y aviso si el elegido no lo soporta;
    - modelo por tarea (rápidas / razonamiento) con opción "heredar del default";
    - sliders de temperatura y máximo de tokens por tarea, con defaults razonables (rápidas: 0.2 / 1024; razonamiento: 0.7 / 2048);
-   - API key propia de OpenRouter (input tipo password, se guarda cifrada, se muestra sólo como `sk-or-…últimos 4`, botón para borrarla);
    - configuración de embeddings (proveedor + modelo + dimensiones).
 7. **Captura rápida en lenguaje natural** (funcionalidad prioritaria):
    - dialog global con atajo de teclado, un `textarea` único;
@@ -550,7 +564,7 @@ Nota sobre `shadcn/chart`: el bloque **sí** existe para `base-nova` (era un rie
 
 | # | Tema | Estado |
 |---|---|---|
-| 1 | **OpenRouter no tiene endpoint de embeddings** | **Resuelto**: Cloudflare Workers AI `@cf/baai/bge-m3` (1024 dims, multilingüe), gratis hasta 10k Neurons/día, por REST desde cualquier host (1.5) |
+| 1 | ~~OpenRouter no tiene endpoint de embeddings~~ | **Obsoleto**: toda la IA pasó a Workers AI (1.11). Embeddings con `@cf/baai/bge-m3` por el binding |
 | 2 | Cambiar de modelo de embeddings implica migración de esquema (dimensión fija) | Mitigado: dimensión centralizada + job de regeneración por lotes; `pg_trgm` como fallback si la API falla |
 | 3 | shadcn `base-nova` puede no traer el bloque `chart` | **Resuelto**: existe y trae recharts 3.8.0. Lo que sí hubo que corregir es su paleta `--chart-*`, gris e invisible en tema claro (ver Fase 3) |
 | 4 | Cron | **Resuelto**: Cron Triggers nativos de Workers (1.7). ⚠️ Falta verificar que vinext exponga el handler `scheduled`; si no, un Worker aparte de diez líneas |
@@ -631,15 +645,15 @@ Consecuencia: `encrypt()` y `decrypt()` son **async**.
 | Tema | Detalle |
 |---|---|
 | **Plan** | **Paid ($5/mes)**. En Free el límite de 10 ms de CPU por request es inviable para SSR, y el bundle tiene tope de 3 MiB comprimido (10 MiB en Paid) |
-| CPU | 30 s en Paid. La espera de I/O (las llamadas a OpenRouter) **no cuenta**, así que el streaming de resúmenes no es problema |
+| CPU | 30 s en Paid. La espera de I/O (las llamadas de inferencia) **no cuenta**, así que el streaming de resúmenes no es problema |
 | Hyperdrive | Incluido en Free y Paid; en Free hay tope de 100.000 queries/día |
 | Variables build-time | Las `NEXT_PUBLIC_*` se hornean durante `vinext build`: cambiarlas exige rebuild |
 
-### 10.6 Workers AI como proveedor secundario de IA
+### 10.6 Workers AI como única capa de IA
 
-Más allá de los embeddings, los modelos con function calling de Workers AI (familia Llama) sirven para las tareas `fast` del plan: captura en lenguaje natural y vinculación de commits. Se suma como un proveedor más en `lib/ai/settings.ts` (`provider: 'openrouter' | 'workers-ai'`), con OpenRouter como principal.
+Toda la IA del proyecto pasa por el binding `AI` (ver 1.11): chat con tool calling para las salidas estructuradas, y `@cf/baai/bge-m3` para los embeddings.
 
-Ojo con el logging: Workers AI reporta el uso en **Neurons**, no en dólares por token. Por eso `ai_usage_log` tiene una columna `neurons` además de los tokens — sin eso el panel de consumo mezclaría unidades distintas.
+Ojo con el registro de consumo: Workers AI factura en **Neurons**, no en dólares por token. Por eso `ai_usage_log` tiene una columna `neurons` además de los tokens — sin eso el panel de consumo mezclaría unidades. La conversión a dólares es $0,011 por cada 1.000 Neurons.
 
 ### 10.7 URLs a registrar
 
@@ -648,7 +662,6 @@ Ojo con el logging: Workers AI reporta el uso en **Neurons**, no en dólares por
 | GitHub OAuth App → *Authorization callback URL* | `https://<ref>.supabase.co/auth/v1/callback` |
 | Supabase Auth → *Site URL* | la URL del Worker o tu dominio |
 | Supabase Auth → *Redirect URLs* | `https://<tu-dominio>/auth/callback` y `http://localhost:3000/auth/callback` |
-| OpenRouter → `HTTP-Referer` | tu dominio |
 
 ### 10.8 Migraciones
 

@@ -35,7 +35,18 @@ function connectionString(): string {
     cloudflareEnv as { HYPERDRIVE?: { connectionString: string } }
   ).HYPERDRIVE
 
-  return hyperdrive?.connectionString ?? env().DATABASE_URL
+  // En producción manda el binding de Hyperdrive.
+  //
+  // En desarrollo NO se puede usar: wrangler emula el binding devolviendo un
+  // host ficticio `<hash>.hyperdrive.local`, que sólo workerd sabe interceptar.
+  // `pg` intenta resolverlo por DNS y falla con "connection attempt failed".
+  // Así que en dev vamos directo a DATABASE_URL, que apunta al session pooler
+  // de Supabase (la conexión directa es IPv6-only; ver .env.example).
+  if (process.env.NODE_ENV === "production") {
+    return hyperdrive?.connectionString ?? env().DATABASE_URL
+  }
+
+  return env().DATABASE_URL
 }
 
 /**
