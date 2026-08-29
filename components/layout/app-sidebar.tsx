@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { NotebookPenIcon } from "lucide-react"
+import { Logotipo } from "@/components/icons/logo"
 
 import {
   Sidebar,
@@ -31,9 +31,7 @@ export function AppSidebar() {
               tooltip="DevTracker"
               render={<Link href="/" />}
             >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <NotebookPenIcon className="size-4" />
-              </div>
+              <Logotipo className="size-8 shrink-0 rounded-lg" />
               <div className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold">DevTracker</span>
                 <span className="text-xs text-muted-foreground">

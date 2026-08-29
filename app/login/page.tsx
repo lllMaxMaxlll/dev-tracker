@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
-import { NotebookPenIcon } from "lucide-react"
+import { Logotipo } from "@/components/icons/logo"
 
 import {
   Card,
@@ -38,9 +38,7 @@ async function LoginCard({
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="items-center text-center">
-        <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <NotebookPenIcon className="size-5" />
-        </div>
+        <Logotipo className="mb-2 size-11 rounded-xl" />
         <CardTitle className="text-xl">DevTracker</CardTitle>
         <CardDescription>
           Tu cuaderno de problemas, bugs e ideas — conectado a tus repos.

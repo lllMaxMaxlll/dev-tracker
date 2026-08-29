@@ -128,6 +128,17 @@ Corre sobre **workerd** (el mismo runtime que producción), no sobre Node. En `h
 
 ---
 
+## Sobre buscadores
+
+La app está **entera detrás del login**, así que no hay nada que posicionar:
+los metadatos declaran `noindex, nofollow`. Que la instancia aparezca en
+buscadores no aportaría nada y expondría su existencia.
+
+Lo que sí está cuidado es el resto del paquete: título de pestaña, favicon,
+color de la barra del navegador y un `manifest.webmanifest` que hace que
+«agregar a pantalla de inicio» funcione bien en el celular — que es
+justamente el caso de uso de anotar un problema en el momento.
+
 ## Sobre la seguridad de los datos
 
 **Row Level Security no es lo que te aísla de otros usuarios en esta app.** Vale la pena entender por qué:
@@ -154,12 +165,15 @@ Las tres capas están a propósito. Ninguna sola alcanza.
 bun run build && bun run deploy
 ```
 
-Desplegado en: **https://devtracker.max-herr-88.workers.dev**
+Desplegado en: **https://devtracker.maxherr.com** (dominio propio sobre el Worker `devtracker.max-herr-88.workers.dev`).
 
 > ⚠️ **Después del primer deploy**, agregá la URL de producción en Supabase:
 > **Authentication → URL Configuration → Redirect URLs** →
-> `https://devtracker.max-herr-88.workers.dev/auth/callback`.
+> `https://devtracker.maxherr.com/auth/callback`.
 > Sin eso el login falla, porque Supabase rechaza el redirect.
+>
+> El dominio propio está configurado desde el panel de Cloudflare, no en
+> `wrangler.jsonc`. Los despliegues no lo tocan.
 
 Para probar el Worker buildeado localmente antes de desplegar:
 
