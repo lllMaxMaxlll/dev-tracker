@@ -102,30 +102,22 @@ export async function GET(request: NextRequest) {
         // pero Supabase no expone su vencimiento acá. En vez de inventar una
         // fecha, dejamos `expiresAt` en null y detectamos la expiración cuando
         // Octokit devuelve 401 (ver lib/github/client.ts, Fase 4).
+        const credenciales = {
+          accessTokenEncrypted: await encrypt(session.provider_token),
+          refreshTokenEncrypted: session.provider_refresh_token
+            ? await encrypt(session.provider_refresh_token)
+            : null,
+          scopes: ["read:user", "repo"],
+          isValid: true,
+          lastCheckedAt: new Date(),
+        }
+
         await tx
           .insert(githubCredentials)
-          .values({
-            userId: user.id,
-            accessTokenEncrypted: encrypt(session.provider_token),
-            refreshTokenEncrypted: session.provider_refresh_token
-              ? encrypt(session.provider_refresh_token)
-              : null,
-            scopes: ["read:user", "repo"],
-            isValid: true,
-            lastCheckedAt: new Date(),
-          })
+          .values({ userId: user.id, ...credenciales })
           .onConflictDoUpdate({
             target: githubCredentials.userId,
-            set: {
-              accessTokenEncrypted: encrypt(session.provider_token),
-              refreshTokenEncrypted: session.provider_refresh_token
-                ? encrypt(session.provider_refresh_token)
-                : null,
-              scopes: ["read:user", "repo"],
-              isValid: true,
-              lastCheckedAt: new Date(),
-              updatedAt: new Date(),
-            },
+            set: { ...credenciales, updatedAt: new Date() },
           })
       }
     })

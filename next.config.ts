@@ -1,11 +1,15 @@
 import type { NextConfig } from "next"
 
+/**
+ * vinext lee este archivo para la configuración compartida (imágenes, etc.),
+ * pero el build lo hace Vite, no `next build`.
+ *
+ * `cacheComponents` quedó DESACTIVADO a propósito: vinext lo marca como
+ * soporte experimental con comportamiento incompleto. El caché de las
+ * respuestas de GitHub (Fase 4) va con `revalidate` de ISR más el adaptador
+ * de KV de Cloudflare, que sí está soportado por completo.
+ */
 const nextConfig: NextConfig = {
-  // Necesario para la directiva `use cache` (caché de GitHub y del catálogo de
-  // modelos de OpenRouter en fases posteriores).
-  cacheComponents: true,
-  // Imagen chica para el contenedor de Coolify.
-  output: "standalone",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "avatars.githubusercontent.com" },

@@ -1,19 +1,25 @@
 import "server-only"
 
-import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js"
-import postgres from "postgres"
+import { env as cloudflareEnv } from "cloudflare:workers"
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
+import { Pool } from "pg"
 
 import { env } from "@/lib/env"
 import * as schema from "@/lib/db/schema"
 
 /**
- * Conexión a Postgres (Supabase).
+ * Conexión a Postgres (Supabase) desde Cloudflare Workers.
  *
- * Corremos en un proceso Node de larga vida (contenedor en Coolify), así que
- * usamos la conexión DIRECTA con un pool chico y prepared statements activos.
- * Si algún día se pasa a serverless o a varias réplicas, alcanza con apuntar
- * DATABASE_URL al transaction pooler (:6543): el `prepare: false` se activa
- * solo al detectar el puerto.
+ * Los Workers no pueden abrir sockets TCP crudos a Postgres, así que la
+ * conexión pasa por **Hyperdrive**, que además poolea del lado del servidor.
+ * El driver es **node-postgres (`pg`)**: es el recomendado por Cloudflare por
+ * su compatibilidad con el caché de Hyperdrive.
+ *
+ * En la connection string va la conexión DIRECTA de Supabase (puerto 5432),
+ * no la pooled: el pooling lo hace Hyperdrive.
+ *
+ * Se cae a `DATABASE_URL` cuando no hay binding (por ejemplo al correr
+ * drizzle-kit fuera del Worker).
  *
  * ⚠️ Esta conexión BYPASSEA Row Level Security: se conecta con el rol dueño de
  * la base. RLS es defensa en profundidad contra la API REST de Supabase (la
@@ -21,59 +27,42 @@ import * as schema from "@/lib/db/schema"
  * filtrando SIEMPRE por el user_id de la sesión verificada en el servidor.
  * Ver lib/auth/require-user.ts.
  */
-type Db = PostgresJsDatabase<typeof schema>
+type Db = NodePgDatabase<typeof schema>
 
-// En desarrollo el hot reload recrearía el pool en cada cambio y agotaría las
-// conexiones de Supabase, así que lo guardamos en el objeto global.
-const globalForDb = globalThis as unknown as {
-  __devtrackerSql?: ReturnType<typeof postgres>
-  __devtrackerDb?: Db
+function connectionString(): string {
+  // El binding sólo existe dentro de workerd.
+  const hyperdrive = (
+    cloudflareEnv as { HYPERDRIVE?: { connectionString: string } }
+  ).HYPERDRIVE
+
+  return hyperdrive?.connectionString ?? env().DATABASE_URL
 }
-
-function createDb(): Db {
-  if (globalForDb.__devtrackerDb) {
-    return globalForDb.__devtrackerDb
-  }
-
-  const url = env().DATABASE_URL
-  const isPooled = url.includes(":6543")
-
-  const client =
-    globalForDb.__devtrackerSql ??
-    postgres(url, {
-      max: 10,
-      idle_timeout: 20,
-      connect_timeout: 10,
-      prepare: !isPooled,
-    })
-
-  const instance = drizzle(client, { schema })
-
-  if (process.env.NODE_ENV !== "production") {
-    globalForDb.__devtrackerSql = client
-    globalForDb.__devtrackerDb = instance
-  }
-
-  return instance
-}
-
-let instancia: Db | undefined
 
 /**
- * Conexión perezosa: no se abre (ni se validan las variables de entorno) hasta
- * la primera consulta real. Es lo que permite que `next build` recolecte las
- * páginas sin necesitar credenciales de base de datos.
+ * El pool vive a nivel de módulo, o sea una vez por isolate. Hyperdrive hace
+ * que abrir conexiones sea barato y mantiene el pool real del lado del
+ * servidor, así que no hace falta crear y cerrar un cliente por request.
  */
+let instancia: Db | undefined
+
 export function getDb(): Db {
-  instancia ??= createDb()
+  if (!instancia) {
+    const pool = new Pool({
+      connectionString: connectionString(),
+      // Hyperdrive ya poolea: acá alcanza con pocas conexiones por isolate.
+      max: 5,
+    })
+
+    instancia = drizzle(pool, { schema })
+  }
 
   return instancia
 }
 
 /**
  * Azúcar sintáctico sobre `getDb()` para poder escribir `db.select()...` en
- * todo el código sin arrastrar la llamada. El Proxy sólo difiere la creación
- * del cliente hasta el primer acceso a una propiedad.
+ * todo el código. El Proxy difiere la creación del cliente hasta el primer
+ * acceso, que es lo que permite que el build no necesite credenciales.
  */
 export const db = new Proxy({} as Db, {
   get(_target, prop, receiver) {

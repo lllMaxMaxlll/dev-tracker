@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "devtracker",
+  "compatibility_date": "2026-08-29",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "cache": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    {
+      // Caché de datos de vinext (ISR). Crear con:
+      //   npx wrangler kv namespace create VINEXT_KV_CACHE
+      "binding": "VINEXT_KV_CACHE",
+      "id": "<your-kv-namespace-id>"
+    }
+  ],
+
+  // Los Workers no pueden abrir sockets TCP crudos a Postgres: Hyperdrive es
+  // el que hace de puente y además poolea las conexiones del lado del servidor.
+  // Crear con la connection string DIRECTA de Supabase (puerto 5432):
+  //   npx wrangler hyperdrive create devtracker-db --connection-string="postgresql://..."
+  //
+  // Para desarrollo local no hace falta poner la string acá: wrangler lee
+  // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE del entorno.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "<your-hyperdrive-id>"
+    }
+  ],
+
+  // Embeddings con Workers AI (@cf/baai/bge-m3), Fase 6. Con el binding no
+  // hacen falta CLOUDFLARE_ACCOUNT_ID ni CLOUDFLARE_API_TOKEN.
+  "ai": {
+    "binding": "AI"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

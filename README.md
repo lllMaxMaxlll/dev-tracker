@@ -8,15 +8,15 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 
 | Capa | Herramienta |
 |---|---|
-| Framework | Next.js 16 (App Router, Server Actions, Cache Components) |
+| Framework | Next.js 16 (App Router, Server Actions) sobre **vinext** (Vite) |
 | UI | shadcn/ui sobre Base UI (estilo `base-nova`) + Tailwind v4 |
 | Base de datos | Supabase Cloud (Postgres + pgvector) |
 | ORM | Drizzle (esquema, migraciones y consultas) |
 | Auth | Supabase Auth con GitHub como proveedor OAuth |
 | GitHub | Octokit |
 | IA | OpenRouter vía SDK de OpenAI (sólo servidor) |
-| Embeddings | Cloudflare Workers AI (`@cf/baai/bge-m3`) |
-| Deploy | Coolify (contenedor Docker), en el mismo equipo que Supabase |
+| Embeddings | Cloudflare Workers AI (`@cf/baai/bge-m3`), binding `AI` |
+| Deploy | Cloudflare Workers (+ Hyperdrive, KV, Workers AI) |
 
 ## Estado
 
@@ -91,13 +91,29 @@ Aplica dos migraciones:
 - `0000_inicial` — extensiones, enums, 14 tablas e índices (incluido el HNSW de pgvector).
 - `0001_rls_y_triggers` — Row Level Security en todas las tablas, triggers de `updated_at` e índices de búsqueda por texto.
 
-### 6. Levantar la app
+### 6. Crear los bindings de Cloudflare
+
+```bash
+npx wrangler kv namespace create VINEXT_KV_CACHE
+```
+
+```bash
+npx wrangler hyperdrive create devtracker-db --connection-string="<la connection string directa de Supabase>"
+```
+
+Copiá los dos ids que devuelven a `wrangler.jsonc`, reemplazando `<your-kv-namespace-id>` y `<your-hyperdrive-id>`. Después regenerá los tipos:
+
+```bash
+bun run cf-typegen
+```
+
+### 7. Levantar la app
 
 ```bash
 bun run dev
 ```
 
-En `http://localhost:3000` deberías caer en `/login` y poder entrar con GitHub.
+Corre sobre **workerd** (el mismo runtime que producción), no sobre Node. En `http://localhost:3000` deberías caer en `/login` y poder entrar con GitHub.
 
 ---
 
@@ -113,55 +129,57 @@ Las tres capas están a propósito. Ninguna sola alcanza.
 
 ---
 
-## Despliegue en Coolify
+## Despliegue en Cloudflare Workers
 
-### Recurso
+### Por qué Workers y no Pages
 
-1. Nueva aplicación → repositorio Git → rama `main` → build pack **Dockerfile** → puerto `3000`.
-2. Dominio con HTTPS (Coolify emite el certificado con Let's Encrypt). **Sin HTTPS el OAuth no funciona.**
-3. Health check apuntando a `/api/health`.
+- **Pages Functions no soporta cron triggers**: el resumen semanal de los viernes no podría correr.
+- Cloudflare absorbió Pages dentro de Workers; las features nuevas salen sólo ahí.
+- Para Next.js, Cloudflare recomienda hoy **vinext**. OpenNext quedó como legacy.
 
-### Variables: build-time vs runtime
+### Desplegar
 
-Esta distinción rompe deploys si se pasa por alto.
-
-**Build args** (se hornean en el bundle del cliente — cambiarlas exige *rebuild*, no un restart):
-
-```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-NEXT_PUBLIC_APP_URL
+```bash
+bun run build && bun run deploy
 ```
 
-**Runtime** (nunca llegan al navegador):
+Para probar el Worker buildeado localmente antes de desplegar:
 
+```bash
+bun run preview
 ```
-DATABASE_URL  DIRECT_URL  SUPABASE_SERVICE_ROLE_KEY  ENCRYPTION_KEY
-OPENROUTER_API_KEY  CLOUDFLARE_ACCOUNT_ID  CLOUDFLARE_API_TOKEN
-CRON_SECRET  ALLOWED_EMAILS  ALLOWED_GITHUB_LOGINS
+
+### Secretos
+
+Las variables de runtime van como secretos del Worker, no en el repo:
+
+```bash
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 ```
+
+Lo mismo con `ENCRYPTION_KEY`, `DATABASE_URL`, `OPENROUTER_API_KEY`, `CRON_SECRET`, `ALLOWED_EMAILS` y `ALLOWED_GITHUB_LOGINS`.
+
+Las **`NEXT_PUBLIC_*` son distintas**: se hornean en el bundle del cliente durante `vinext build`, así que tienen que estar en el entorno **al buildear**. Cambiarlas exige rebuild, no basta con redesplegar.
+
+### Plan requerido
+
+**Workers Paid ($5/mes).** En el plan Free el límite de 10 ms de CPU por request hace inviable el SSR, y el bundle tiene tope de 3 MiB comprimido (10 MiB en Paid). El tiempo de espera de I/O —las llamadas a OpenRouter— no cuenta como CPU, así que el streaming de resúmenes no es problema.
 
 ### Migraciones
 
-**No** las corras en el arranque del contenedor: con varias réplicas se pisan. Corrélas como paso explícito antes de desplegar, desde tu máquina o como comando manual en Coolify:
+No se corren desde el Worker. Aplicalas como paso explícito antes de desplegar, desde tu máquina contra `DIRECT_URL`:
 
 ```bash
 bun run db:migrate
 ```
 
-### Tarea programada (Fase 6)
+### Cron (Fase 6)
 
-Coolify → *Scheduled Tasks* → `0 18 * * 5` (viernes 18:00):
+En `wrangler.jsonc`:
 
-```bash
-curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/weekly-summary
+```jsonc
+"triggers": { "crons": ["0 18 * * 5"] }
 ```
-
-### Recursos del servidor
-
-Mínimo 1 GB de RAM; 4 GB si además buildeás en la misma máquina. Si el server es chico, buildeá la imagen en GitHub Actions, publicala en `ghcr.io` y que Coolify sólo la despliegue.
-
----
 
 ## Acceso restringido (opcional)
 
@@ -179,8 +197,11 @@ Se validan en el callback de OAuth: si el usuario no está en la lista, se cierr
 ## Comandos
 
 ```bash
-bun run dev          # servidor de desarrollo
-bun run build        # build de producción
+bun run dev          # servidor de desarrollo (vinext, sobre workerd)
+bun run build        # build del Worker
+bun run preview      # correr el Worker buildeado con wrangler
+bun run deploy       # desplegar a Cloudflare
+bun run cf-typegen   # regenerar los tipos de los bindings
 bun run typecheck    # tsc --noEmit
 bun run lint         # eslint
 bun run format       # prettier
@@ -188,3 +209,5 @@ bun run db:generate  # generar migración desde el esquema
 bun run db:migrate   # aplicar migraciones
 bun run db:studio    # explorador de la base
 ```
+
+> No hay `next dev` ni `next build`: el build lo hace Vite vía vinext. Mantener los de Next daría una verificación falsa, porque pueden pasar mientras el build del Worker falla.
