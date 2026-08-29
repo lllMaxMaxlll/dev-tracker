@@ -244,3 +244,141 @@ export async function pedirTexto(params: {
       : new ErrorIA("PROVEEDOR", "Workers AI no pudo generar el texto.")
   }
 }
+
+/**
+ * Igual que `pedirTexto`, pero devuelve el texto a medida que llega.
+ *
+ * Cuatro detalles que Workers AI no documenta y que salieron de sondearlo:
+ *
+ * 1. Los eventos SSE **se parten entre trozos**: un `data: {...}` puede llegar
+ *    en tres pedazos. Hay que bufferear y cortar por `\n\n`.
+ * 2. Los modelos con razonamiento (gpt-oss-120b) emiten `delta.reasoning`
+ *    además de `delta.content`. Sólo se transmite el contenido: lo otro es el
+ *    razonamiento interno, no la respuesta.
+ * 3. Ese razonamiento puede ser **la mayoría del stream**: en una prueba,
+ *    69 eventos de razonamiento antes de los 28 con texto visible.
+ * 4. El `usage` viene **incremental** en cada trozo, no acumulado al final.
+ *
+ * Va con `TransformStream` y no con un `ReadableStream` propio por el punto 3:
+ * en workerd, si el `pull` de un ReadableStream no encola nada, no se lo vuelve
+ * a llamar, así que con decenas de trozos seguidos de puro razonamiento el
+ * stream se congelaba y el cliente no recibía un solo byte. El `transform` de
+ * un TransformStream se ejecuta por cada trozo de origen, encole o no.
+ */
+export async function pedirTextoEnStream(params: {
+  userId: string
+  tarea: TipoTarea
+  tipoRegistro: AiTaskKind
+  mensajes: Mensaje[]
+  /** Se llama al terminar, con el texto completo. */
+  alTerminar?: (texto: string) => Promise<void>
+}): Promise<ReadableStream<Uint8Array>> {
+  const config = await getConfigTarea(params.userId, params.tarea)
+  const inicio = Date.now()
+
+  const respuesta = (await conTimeout(
+    ai().run(config.modelo, {
+      messages: params.mensajes,
+      temperature: config.temperatura,
+      max_tokens: config.maxTokens,
+      stream: true,
+    })
+  )) as ReadableStream<Uint8Array>
+
+  const decodificador = new TextDecoder()
+  const codificador = new TextEncoder()
+
+  let buffer = ""
+  let completo = ""
+  const consumo: ConsumoCrudo = {
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    total_tokens: 0,
+    neurons: 0,
+  }
+
+  function procesarEvento(
+    json: string,
+    controlador: TransformStreamDefaultController<Uint8Array>
+  ) {
+    if (!json || json === "[DONE]") return
+
+    let dato: {
+      choices?: { delta?: { content?: string | null } }[]
+      usage?: ConsumoCrudo
+    }
+
+    try {
+      dato = JSON.parse(json)
+    } catch {
+      return
+    }
+
+    if (dato.usage) {
+      consumo.prompt_tokens! += dato.usage.prompt_tokens ?? 0
+      consumo.completion_tokens! += dato.usage.completion_tokens ?? 0
+      consumo.total_tokens! += dato.usage.total_tokens ?? 0
+      consumo.neurons! += dato.usage.neurons ?? 0
+    }
+
+    const trozo = dato.choices?.[0]?.delta?.content
+
+    if (trozo) {
+      completo += trozo
+      controlador.enqueue(codificador.encode(trozo))
+    }
+  }
+
+  function procesarBloque(
+    bloque: string,
+    controlador: TransformStreamDefaultController<Uint8Array>
+  ) {
+    for (const linea of bloque.split("\n")) {
+      const limpia = linea.trim()
+
+      if (limpia.startsWith("data:")) {
+        procesarEvento(limpia.slice(5).trim(), controlador)
+      }
+    }
+  }
+
+  const transformador = new TransformStream<Uint8Array, Uint8Array>({
+    transform(trozo, controlador) {
+      buffer += decodificador.decode(trozo, { stream: true })
+
+      const eventos = buffer.split("\n\n")
+      // El último puede estar incompleto: vuelve al buffer.
+      buffer = eventos.pop() ?? ""
+
+      for (const evento of eventos) {
+        procesarBloque(evento, controlador)
+      }
+    },
+
+    async flush(controlador) {
+      // Lo que quedó sin cerrar con `\n\n`.
+      if (buffer.trim()) {
+        procesarBloque(buffer, controlador)
+      }
+
+      await registrarUso({
+        userId: params.userId,
+        tarea: params.tipoRegistro,
+        modelo: config.modelo,
+        consumo,
+        latenciaMs: Date.now() - inicio,
+        exito: true,
+      })
+
+      try {
+        await params.alTerminar?.(completo)
+      } catch (error) {
+        // El texto ya se le mostró al usuario; que falle el guardado no debe
+        // romper el stream a esta altura.
+        console.error("[pedirTextoEnStream] falló el guardado final", error)
+      }
+    },
+  })
+
+  return respuesta.pipeThrough(transformador)
+}

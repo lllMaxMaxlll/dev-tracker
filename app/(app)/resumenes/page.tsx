@@ -23,9 +23,9 @@ export default function ResumenesPage() {
       <PageHeader
         title="Resúmenes"
         description="Qué avanzaste, qué quedó trabado y qué conviene atacar. Se generan solos los viernes."
-      >
-        <GenerateSummaryButton />
-      </PageHeader>
+      />
+
+      <GenerateSummaryButton />
 
       <Suspense
         fallback={
