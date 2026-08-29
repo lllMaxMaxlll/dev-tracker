@@ -6,6 +6,7 @@
 **Decisiones tomadas** (29/08/2026):
 - **Hosting: Coolify** en servidor propio (sección 10). Cloudflare Workers queda documentado como alternativa en la sección 11, descartado por ahora.
 - Como corremos en un proceso Node de larga vida, se usa **`proxy.ts`** (la convención nueva de Next 16) y conexión directa a Postgres, sin los workarounds que exigiría Workers.
+- **Supabase self-hosted** en el mismo equipo que Coolify (Supabase en el puerto 8000, Coolify en el 8001). Ver sección 1.10.
 - **Embeddings: Cloudflare Workers AI (`@cf/baai/bge-m3`) por REST** (sección 1.5) — es independiente del hosting, así que probamos Workers AI sin atarnos a desplegar en Workers.
 - Workers AI queda además disponible como **proveedor secundario para las tareas `fast`** de la capa de IA, con OpenRouter como principal (sección 11.4).
 
@@ -130,16 +131,43 @@ Los componentes se agregan con `npx shadcn@latest add <componente>` y salen sobr
 - **Drag & drop del kanban**: no hay componente shadcn para esto → **`@dnd-kit/core` + `@dnd-kit/sortable`**.
 - **Tablas**: `@tanstack/react-table` + el `data-table` de shadcn.
 
-### 1.10 Dónde vive Supabase
+### 1.10 Dónde vive Supabase: self-hosted, junto a Coolify
 
-Dos caminos válidos, y el código es **idéntico** en ambos (sólo cambian variables de entorno):
+**Decidido**: Supabase corre **self-hosted en el mismo equipo que Coolify**.
 
-- **Supabase Cloud, plan gratuito (recomendado para empezar).** Auth con GitHub, `pgvector` y backups ya resueltos. El plan gratuito pausa el proyecto tras ~1 semana sin actividad — con uso diario no te afecta, y el cron semanal lo mantiene despierto.
-- **Supabase self-hosted en Coolify** (tiene servicio de un click). Todo en tu máquina, sin pausas ni límites, pero pasás a administrar GoTrue, Kong, Postgres y los backups vos.
+| Servicio | Puerto |
+|---|---|
+| Supabase (gateway Kong) | **8000** |
+| Coolify | **8001** |
 
-Recomendación: **arrancar con Cloud** y migrar a self-hosted si querés, cuando la app ya funcione. Migrar es un `pg_dump`/`pg_restore` más cambiar `NEXT_PUBLIC_SUPABASE_URL`, las keys y `DATABASE_URL`. Nada en el código queda atado a Supabase Cloud.
+El código de la app es idéntico al que usaría contra Supabase Cloud — sólo cambian variables de entorno. Pero hay cuatro diferencias operativas que no se ven desde el código y que conviene tener presentes:
 
-Si vas por self-hosted desde el día uno, dos detalles: hay que habilitar `vector` y `pg_trgm` a mano en el Postgres del stack, y la callback de OAuth de GitHub apunta a tu dominio de Supabase (`https://supabase.tu-dominio.com/auth/v1/callback`) en lugar de `https://<ref>.supabase.co/...`.
+**1. El proveedor de GitHub se configura por variables de entorno, no por dashboard.**
+En Cloud es un toggle en Authentication → Providers. En self-hosted, GoTrue lee su configuración del `.env` del stack de Supabase:
+
+```
+GOTRUE_EXTERNAL_GITHUB_ENABLED=true
+GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=...
+GOTRUE_EXTERNAL_GITHUB_SECRET=...
+GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=http://<host>:8000/auth/v1/callback
+SITE_URL=https://devtracker.tu-dominio.com
+ADDITIONAL_REDIRECT_URLS=http://localhost:3000/auth/callback,https://devtracker.tu-dominio.com/auth/callback
+```
+
+Hay que reiniciar el contenedor de `auth` después de cambiarlas.
+
+**2. La callback del OAuth App de GitHub apunta al Supabase propio**, no a `*.supabase.co`:
+`http://<host>:8000/auth/v1/callback`.
+
+**3. ⚠️ `NEXT_PUBLIC_SUPABASE_URL` tiene que ser alcanzable desde el NAVEGADOR**, no sólo desde el contenedor de la app. `@supabase/ssr` usa la misma URL en el servidor y en el cliente, y el cliente la necesita para el redirect de OAuth y el refresco de token.
+
+Esto choca de frente con un requisito del pedido: **anotar problemas desde el celular**. Si la URL es `http://192.168.x.x:8000`, la app sólo funciona dentro de la LAN. Para usarla desde afuera hace falta exponer Supabase con un dominio y TLS (Coolify puede ponerle un proxy con Let's Encrypt adelante, igual que a la app). **Recomendación**: darle a Supabase un subdominio propio (`https://supabase.tu-dominio.com`) desde el principio, en vez de usar `IP:8000`.
+
+Detalle relacionado: sobre HTTP plano, las cookies de sesión no pueden ir con el flag `Secure`. Un dominio con TLS resuelve eso también.
+
+**4. Sin pooler de Supabase Cloud**: `DATABASE_URL` apunta directo al Postgres del stack. Es justo lo que ya asume el plan (conexión directa, pool chico, prepared statements activos — sección 1.1).
+
+Las extensiones `vector` y `pg_trgm` vienen en la imagen de Postgres de Supabase y las habilita la primera migración; en self-hosted el usuario de la base es superusuario, así que el `CREATE EXTENSION` funciona sin permisos extra.
 
 ---
 
@@ -365,7 +393,7 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 
 1. Instalar dependencias de datos/auth; agregar los componentes shadcn base (`card input label sonner dropdown-menu avatar skeleton dialog sheet separator`).
 2. Configurar `next.config.ts` (`cacheComponents: true`) y el layout raíz en español (`<html lang="es">`), `ThemeProvider` con toggle y `<Toaster />` de sonner.
-3. Proyecto en Supabase (Cloud o self-hosted en Coolify, ver 1.10): habilitar `vector` y `pg_trgm`; crear el GitHub OAuth App y configurar el provider en Supabase. Registrar las **dos** callback URLs desde el principio (localhost y dominio de producción) para no tener que tocarlo al desplegar.
+3. Supabase self-hosted ya corriendo en el puerto 8000 (ver 1.10): crear el GitHub OAuth App con la callback apuntando a ese Supabase, y configurar `GOTRUE_EXTERNAL_GITHUB_*`, `SITE_URL` y `ADDITIONAL_REDIRECT_URLS` en el `.env` del stack. Registrar las **dos** redirect URLs desde el principio (localhost y dominio de producción).
 4. Drizzle: `drizzle.config.ts`, `lib/db/schema.ts` completo (sección 3), `bun drizzle-kit generate` + `migrate`. SQL de RLS versionado.
 5. `@supabase/ssr`: cliente de navegador, cliente de servidor (con `cookies()`), y **`proxy.ts`** que refresca la sesión y redirige a `/login` si no hay usuario (matcher que excluye `_next/static`, `_next/image`, favicon y assets; `/login` y `/auth/*` públicos).
 6. `/login`: pantalla mínima con un botón "Continuar con GitHub" (`signInWithOAuth` con `scopes: 'read:user repo'`, `redirectTo` al callback).
@@ -514,6 +542,7 @@ Desvíos respecto de lo planificado:
 | 6 | Web Speech API no existe en Firefox y es parcial en iOS | Degradación silenciosa: el textarea siempre funciona |
 | 7 | Costo de las llamadas de IA | Todo queda logueado en `ai_usage_log`; insights cacheados 24 h; los duplicados caen dentro del piso gratuito de Workers AI |
 | 8 | El caché de Next (`'use cache'`) es por instancia | Con una sola réplica no es problema. Si algún día hay varias, hace falta un cache handler compartido (Redis) — se documenta, no se implementa ahora |
+| 9b | Supabase self-hosted expuesto por IP:8000 impide usar la app desde el celular fuera de la LAN | Recomendación: subdominio con TLS para Supabase desde el principio (1.10) |
 | 9 | Builds de Next consumen bastante RAM en el server | Si el server es chico, buildear en GitHub Actions y que Coolify despliegue la imagen del registry |
 
 ---
@@ -563,10 +592,13 @@ Cambiar una `NEXT_PUBLIC_*` exige **rebuild**, no sólo restart.
 
 | Dónde | Valor |
 |---|---|
-| GitHub OAuth App → *Authorization callback URL* | `https://<ref>.supabase.co/auth/v1/callback` (o tu Supabase self-hosted) |
-| Supabase Auth → *Site URL* | `https://devtracker.tu-dominio.com` |
-| Supabase Auth → *Redirect URLs* | `https://devtracker.tu-dominio.com/auth/callback` y `http://localhost:3000/auth/callback` |
+| GitHub OAuth App → *Authorization callback URL* | `https://supabase.tu-dominio.com/auth/v1/callback` (el Supabase propio del puerto 8000) |
+| Stack de Supabase → `SITE_URL` | `https://devtracker.tu-dominio.com` |
+| Stack de Supabase → `ADDITIONAL_REDIRECT_URLS` | `https://devtracker.tu-dominio.com/auth/callback,http://localhost:3000/auth/callback` |
+| App → `NEXT_PUBLIC_SUPABASE_URL` | `https://supabase.tu-dominio.com` — **alcanzable desde el navegador**, ver 1.10 |
 | OpenRouter → `HTTP-Referer` | `https://devtracker.tu-dominio.com` |
+
+Los dos servicios conviven en el mismo equipo (Supabase 8000, Coolify 8001), así que el contenedor de la app también podría hablarle a Supabase por la red interna de Docker. **No lo hacemos**: `@supabase/ssr` usa una sola URL para servidor y navegador, y partirla en dos complica más de lo que ahorra.
 
 ### 10.5 Recursos del servidor
 
