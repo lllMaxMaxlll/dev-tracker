@@ -47,7 +47,9 @@ async function mantenerBaseDespierta(env: Env) {
   const respuesta = await fetch(`${env.APP_URL}/api/health`)
   const cuerpo = await respuesta.text()
 
-  console.log(`[cron] ping a la base → ${respuesta.status} ${cuerpo.slice(0, 120)}`)
+  console.log(
+    `[cron] ping a la base → ${respuesta.status} ${cuerpo.slice(0, 120)}`
+  )
 
   if (!respuesta.ok) {
     // Que falle importa: si se repite una semana, Supabase pausa el proyecto.
@@ -55,8 +57,12 @@ async function mantenerBaseDespierta(env: Env) {
   }
 }
 
-export default {
-  async scheduled(evento: ScheduledController, env: Env, ctx: ExecutionContext) {
+const worker = {
+  async scheduled(
+    evento: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext
+  ) {
     const tarea =
       evento.cron === RESUMEN_SEMANAL
         ? resumenSemanal(env)
@@ -101,3 +107,5 @@ export default {
     }
   },
 }
+
+export default worker
