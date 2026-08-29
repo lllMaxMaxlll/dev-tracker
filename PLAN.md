@@ -125,7 +125,9 @@ Cloudflare Workers tiene **Cron Triggers** nativos. Se declaran en `wrangler.jso
 - El endpoint sigue protegido por `CRON_SECRET` y sigue siendo **idempotente** por `(user_id, week_start)`.
 - Botón "Generar resumen ahora" en la página Resúmenes (mismo código, disparo manual), para poder probarlo sin esperar al viernes.
 
-⚠️ **A verificar en la Fase 6**: la documentación de vinext no cubre el handler `scheduled`. Si su worker no lo expone, el plan B es un **Worker aparte de diez líneas** con sólo el cron, que le pega al endpoint `/api/cron/weekly-summary` de la app. Funciona igual y es trivial de desplegar.
+✅ **Verificado (mal augurio confirmado)**: vinext **no** expone un handler `scheduled`. Su entrypoint (`vinext/server/fetch-handler`) exporta sólo `fetch`, y el bundle desplegado no contiene ninguna referencia a `scheduled`. El trigger declarado en el Worker de la app se disparaba contra un Worker incapaz de atenderlo, así que el resumen semanal **nunca habría corrido en producción**.
+
+Se aplicó el plan B: un Worker aparte (`workers/cron`) con dos horarios, que sólo llama a los endpoints de la app. Se aprovechó para sumar un **ping diario** que evita que Supabase pause el proyecto del plan gratuito por inactividad (pausa a los 7 días, y sólo cuentan las consultas reales a la base).
 
 ### 1.8 Streaming
 
@@ -614,7 +616,7 @@ Costo total de todas las pruebas de la fase: **547 Neurons y $0,0054**.
 | 1 | ~~OpenRouter no tiene endpoint de embeddings~~ | **Obsoleto**: toda la IA pasó a Workers AI (1.11). Embeddings con `@cf/baai/bge-m3` por el binding |
 | 2 | Cambiar de modelo de embeddings implica migración de esquema (dimensión fija) | Mitigado: dimensión centralizada + job de regeneración por lotes; `pg_trgm` como fallback si la API falla |
 | 3 | shadcn `base-nova` puede no traer el bloque `chart` | **Resuelto**: existe y trae recharts 3.8.0. Lo que sí hubo que corregir es su paleta `--chart-*`, gris e invisible en tema claro (ver Fase 3) |
-| 4 | Cron | **Resuelto**: Cron Triggers nativos de Workers (1.7). ⚠️ Falta verificar que vinext exponga el handler `scheduled`; si no, un Worker aparte de diez líneas |
+| 4 | Cron | **Resuelto por el plan B**: vinext no expone `scheduled`, así que las tareas viven en el Worker `devtracker-cron` (1.7) |
 | 5 | El `provider_token` de GitHub no lo persiste Supabase | Mitigado: se guarda cifrado en el callback + flujo de reconexión |
 | 6 | Web Speech API no existe en Firefox y es parcial en iOS | Degradación silenciosa: el textarea siempre funciona |
 | 7 | Costo de las llamadas de IA | Todo queda logueado en `ai_usage_log`; insights cacheados 24 h; los duplicados caen dentro del piso gratuito de Workers AI |

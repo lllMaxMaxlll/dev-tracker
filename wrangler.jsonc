@@ -43,10 +43,10 @@
     "binding": "AI"
   },
 
-  // Resumen semanal: viernes 18:00 UTC. Ver app/api/cron/weekly-summary.
-  "triggers": {
-    "crons": ["0 18 * * 5"]
-  },
+  // Sin `triggers` a propósito: vinext exporta sólo un handler de `fetch`, así
+  // que un cron declarado acá se dispararía contra un Worker que no lo atiende.
+  // Las tareas programadas viven en el Worker `devtracker-cron` (workers/cron),
+  // que le pega a los endpoints de esta app.
 
   "observability": {
     "enabled": true

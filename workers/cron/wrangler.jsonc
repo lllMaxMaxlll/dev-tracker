@@ -1,0 +1,24 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "devtracker-cron",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-29",
+
+  "triggers": {
+    "crons": [
+      // Ping diario para que Supabase no pause el proyecto por inactividad.
+      // El plan gratuito pausa a los 7 días sin consultas reales a la base.
+      "0 12 * * *",
+      // Resumen semanal, viernes 18:00 UTC.
+      "0 18 * * 5"
+    ]
+  },
+
+  "vars": {
+    "APP_URL": "https://devtracker.maxherr.com"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

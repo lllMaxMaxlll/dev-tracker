@@ -259,3 +259,46 @@ bun run db:studio    # explorador de la base
 ```
 
 > No hay `next dev` ni `next build`: el build lo hace Vite vía vinext. Mantener los de Next daría una verificación falsa, porque pueden pasar mientras el build del Worker falla.
+
+### Tareas programadas
+
+Viven en un **Worker aparte** (`workers/cron`), no en el de la app:
+
+```bash
+bun run deploy:cron
+```
+
+> **Por qué separado.** vinext expone únicamente un handler de `fetch`
+> (`vinext/server/fetch-handler`), no uno de `scheduled`. Un `triggers.crons`
+> declarado en el Worker de la app haría que Cloudflare dispare el evento
+> contra un Worker que no sabe atenderlo, y la tarea nunca correría. El Worker
+> de cron no tiene lógica propia: sólo llama a los endpoints de la app.
+
+Dos horarios:
+
+| Cron | Qué hace |
+|---|---|
+| `0 18 * * 5` | Resumen semanal, viernes 18:00 UTC |
+| `0 12 * * *` | Ping diario a `/api/health` para que Supabase no pause el proyecto |
+
+El ping existe porque **Supabase pausa los proyectos del plan gratuito tras 7
+días sin actividad de base de datos**, y sólo cuentan las consultas reales:
+entrar al panel no alcanza. `/api/health` hace un `select 1` a través de
+Hyperdrive, así que sirve como señal de vida. Corre a diario y no semanal para
+que una corrida fallida no deje el proyecto al borde de pausarse.
+
+Necesita su propio `CRON_SECRET`, el mismo que la app:
+
+```bash
+wrangler secret put CRON_SECRET --config workers/cron/wrangler.jsonc --cwd workers/cron
+```
+
+Para probar sin esperar al horario:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" "https://devtracker-cron.max-herr-88.workers.dev/?tarea=ping"
+```
+
+Cambiá `tarea=ping` por `tarea=resumen` para disparar el resumen semanal.
+También hay un botón «Generar resumen ahora» en la página Resúmenes.
+

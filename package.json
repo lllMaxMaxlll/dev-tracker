@@ -8,6 +8,7 @@
     "build": "vinext build",
     "preview": "wrangler dev --config dist/server/wrangler.json",
     "deploy": "vinext-cloudflare deploy --config dist/server/wrangler.json",
+    "deploy:cron": "wrangler deploy --config workers/cron/wrangler.jsonc --cwd workers/cron",
     "cf-typegen": "wrangler types",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
