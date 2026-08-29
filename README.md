@@ -10,7 +10,7 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 |---|---|
 | Framework | Next.js 16 (App Router, Server Actions, Cache Components) |
 | UI | shadcn/ui sobre Base UI (estilo `base-nova`) + Tailwind v4 |
-| Base de datos | Supabase **self-hosted** (Postgres + pgvector) |
+| Base de datos | Supabase Cloud (Postgres + pgvector) |
 | ORM | Drizzle (esquema, migraciones y consultas) |
 | Auth | Supabase Auth con GitHub como proveedor OAuth |
 | GitHub | Octokit |
@@ -31,55 +31,36 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 
 ## Puesta en marcha
 
-### 1. Supabase self-hosted
+### 1. Crear el proyecto en Supabase
 
-Supabase corre en el puerto **8000** (el gateway Kong), en el mismo equipo que Coolify (puerto **8001**).
+1. Creá un proyecto en [supabase.com](https://supabase.com) (el plan gratuito alcanza).
+2. Guardá la contraseña de la base: aparece una sola vez.
+3. **Project Settings → Data API**: copiá el *Project URL* y la *anon public key*.
+4. **Project Settings → API Keys**: copiá la *service_role key*.
+5. **Project Settings → Database → Connection string → URI**: copiá la cadena del puerto **5432**, la **conexión directa**, no la pooled. Hyperdrive hace el pooling por su cuenta.
 
-Del `.env` del stack de Supabase necesitás:
-
-| Variable del stack | Para qué |
-|---|---|
-| `ANON_KEY` | → `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| `SERVICE_ROLE_KEY` | → `SUPABASE_SERVICE_ROLE_KEY` |
-| `POSTGRES_PASSWORD` | para armar `DATABASE_URL` |
-
-Y la URL pública del gateway → `NEXT_PUBLIC_SUPABASE_URL`.
-
-> ⚠️ **`NEXT_PUBLIC_SUPABASE_URL` tiene que ser alcanzable desde el navegador**, no sólo desde el contenedor de la app: el cliente la usa para el redirect de OAuth y para refrescar el token.
->
-> Si ponés `http://192.168.x.x:8000`, la app **sólo funciona dentro de la LAN** — y uno de los objetivos es anotar problemas desde el celular. Lo recomendable es darle a Supabase un subdominio con TLS (`https://supabase.tu-dominio.com`), igual que a la app. Sobre HTTP plano las cookies de sesión tampoco pueden ir con el flag `Secure`.
-
-Las extensiones `vector` y `pg_trgm` las habilita la primera migración: en self-hosted el usuario de la base es superusuario, así que el `CREATE EXTENSION` funciona sin permisos extra.
+> Las extensiones `vector` y `pg_trgm` las habilita la primera migración; no hace falta tocarlas a mano.
 
 ### 2. Crear el GitHub OAuth App
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**.
 2. *Homepage URL*: `http://localhost:3000` (o tu dominio en producción).
-3. *Authorization callback URL*: **la de tu Supabase, no la de la app**:
+3. *Authorization callback URL*: **la de Supabase, no la de tu app**:
    ```
-   https://supabase.tu-dominio.com/auth/v1/callback
+   https://<ref-del-proyecto>.supabase.co/auth/v1/callback
    ```
 4. Generá un *Client secret* y guardá ambos valores.
 
-### 3. Habilitar el proveedor en el stack de Supabase
+### 3. Configurar el proveedor en Supabase
 
-En self-hosted **no hay un toggle en el dashboard**: GoTrue lee su configuración de las variables de entorno del stack. Agregá al `.env` de Supabase:
-
-```
-GOTRUE_EXTERNAL_GITHUB_ENABLED=true
-GOTRUE_EXTERNAL_GITHUB_CLIENT_ID=<client id del OAuth App>
-GOTRUE_EXTERNAL_GITHUB_SECRET=<client secret>
-GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI=https://supabase.tu-dominio.com/auth/v1/callback
-
-SITE_URL=https://devtracker.tu-dominio.com
-ADDITIONAL_REDIRECT_URLS=https://devtracker.tu-dominio.com/auth/callback,http://localhost:3000/auth/callback
-```
-
-Poné **las dos** redirect URLs desde el principio, así no hay que volver acá al desplegar. Después reiniciá el contenedor de `auth`:
-
-```bash
-docker compose up -d --force-recreate auth
-```
+1. **Authentication → Sign In / Providers → GitHub**: activalo y pegá el Client ID y el Client Secret.
+2. **Authentication → URL Configuration**:
+   - *Site URL*: `http://localhost:3000` en desarrollo, tu dominio en producción.
+   - *Redirect URLs*: agregá **las dos** desde el principio, así no hay que volver acá al desplegar:
+     ```
+     http://localhost:3000/auth/callback
+     https://devtracker.tu-dominio.com/auth/callback
+     ```
 
 ### 4. Variables de entorno
 
@@ -87,7 +68,7 @@ docker compose up -d --force-recreate auth
 cp .env.example .env.local
 ```
 
-Completá los valores del stack de Supabase (paso 1) y generá las claves propias:
+Completá los valores de Supabase y generá las claves propias:
 
 ```bash
 openssl rand -base64 32   # → ENCRYPTION_KEY
