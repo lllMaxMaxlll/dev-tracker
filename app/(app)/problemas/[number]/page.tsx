@@ -59,7 +59,12 @@ async function Detalle({ params }: { params: Params }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Button variant="ghost" size="sm" render={<Link href="/problemas" />}>
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/problemas" />}
+        >
           <ArrowLeftIcon data-icon="inline-start" />
           Volver a problemas
         </Button>

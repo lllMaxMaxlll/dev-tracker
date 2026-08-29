@@ -22,9 +22,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
+import { EnumSelect } from "@/components/ui/enum-select"
 import { toast } from "@/components/ui/toast"
 import { createProject, updateProject } from "@/actions/projects"
+import { listarReposParaSelector } from "@/actions/github"
 import type { ProjectWithCounts } from "@/lib/db/queries/projects"
+import type { RepoResumen } from "@/lib/github/queries"
 
 type Props = {
   open: boolean
@@ -38,6 +41,33 @@ export function ProjectFormDialog({ open, onOpenChange, proyecto }: Props) {
   const [errores, setErrores] = React.useState<Record<string, string[]>>({})
 
   const editando = Boolean(proyecto)
+
+  // Los repos se piden al abrir el diálogo, no al montar la página: no tiene
+  // sentido gastar una llamada a GitHub por si acaso.
+  const [repos, setRepos] = React.useState<RepoResumen[]>([])
+  const [cargandoRepos, setCargandoRepos] = React.useState(false)
+  const [errorRepos, setErrorRepos] = React.useState<string | null>(null)
+  const [repoElegido, setRepoElegido] = React.useState<string | null>(
+    proyecto?.githubRepoFullName ?? null
+  )
+  const [abiertoPrevio, setAbiertoPrevio] = React.useState(false)
+
+  if (open !== abiertoPrevio) {
+    setAbiertoPrevio(open)
+
+    if (open) {
+      setRepoElegido(proyecto?.githubRepoFullName ?? null)
+
+      if (repos.length === 0 && !cargandoRepos) {
+        setCargandoRepos(true)
+        listarReposParaSelector().then(({ repos: lista, error }) => {
+          setRepos(lista)
+          setErrorRepos(error)
+          setCargandoRepos(false)
+        })
+      }
+    }
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -119,15 +149,39 @@ export function ProjectFormDialog({ open, onOpenChange, proyecto }: Props) {
               <FieldLabel htmlFor="githubRepoFullName">
                 Repositorio de GitHub
               </FieldLabel>
-              <Input
-                id="githubRepoFullName"
+              {/* El valor viaja en un input oculto para que el submit lo lea
+                  del FormData igual que el resto de los campos. */}
+              <input
+                type="hidden"
                 name="githubRepoFullName"
-                defaultValue={proyecto?.githubRepoFullName ?? ""}
-                placeholder="usuario/repositorio"
+                value={repoElegido ?? ""}
               />
+              {errorRepos ? (
+                <Input
+                  id="githubRepoFullName"
+                  value={repoElegido ?? ""}
+                  onChange={(e) => setRepoElegido(e.target.value || null)}
+                  placeholder="usuario/repositorio"
+                />
+              ) : (
+                <EnumSelect
+                  id="githubRepoFullName"
+                  className="w-full"
+                  placeholder={
+                    cargandoRepos ? "Cargando repos…" : "Sin repositorio"
+                  }
+                  value={repoElegido}
+                  onValueChange={setRepoElegido}
+                  opciones={repos.map((repo) => ({
+                    label: repo.fullName,
+                    value: repo.fullName,
+                  }))}
+                />
+              )}
               <FieldDescription>
-                Opcional. En la Fase 4 esto pasa a ser un selector con tus repos
-                reales.
+                {errorRepos
+                  ? `No se pudieron cargar tus repos (${errorRepos}). Podés escribirlo a mano.`
+                  : "Opcional. Habilita los commits y el heatmap de este proyecto."}
               </FieldDescription>
               {errores.githubRepoFullName ? (
                 <FieldError>{errores.githubRepoFullName[0]}</FieldError>

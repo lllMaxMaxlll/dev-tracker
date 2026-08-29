@@ -477,7 +477,7 @@ Nota sobre `shadcn/chart`: el bloque **sí** existe para `base-nova` (era un rie
 
 ---
 
-### Fase 4 — Integración con GitHub
+### Fase 4 — Integración con GitHub ✅ COMPLETADA
 
 1. `lib/github/client.ts`: Octokit creado con el token descifrado del usuario; wrapper que detecta `401/403`, marca `is_valid = false` y lanza un error tipado que la UI traduce a "Reconectá GitHub".
 2. Funciones de datos con `'use cache'` + `cacheLife` de ~10–15 min, con clave por usuario y repo: lista de repos, commits recientes, PRs abiertos/cerrados, issues del repo, ramas.
@@ -491,6 +491,18 @@ Nota sobre `shadcn/chart`: el bloque **sí** existe para `base-nova` (era un rie
 5. Mostrar el rate limit restante en un rincón de la página (útil para diagnosticar).
 
 **Verificación**: build ok; los datos de un repo real cargan; segunda visita dentro de la ventana de caché no consume rate limit; revocar el token en GitHub muestra el banner de reconexión en vez de romper.
+
+**Resultado**: `typecheck`, `lint` y `build` en verde.
+
+La capa de GitHub se verificó **contra la cuenta real**, descifrando el token guardado en la base con el mismo algoritmo que usa la app: 79 repos, commits, ramas, PRs, issues, cuota 4999/5000, y un token inválido devolviendo 401. Los scopes que reporta GitHub son `read:user, repo, user:email`.
+
+Decisión de caché: se descartó el caché de Next (`revalidate`/ISR) porque estas páginas son **privadas y dependen del usuario**, y una entrada compartida filtraría datos de una cuenta a otra. Se usa una tabla `github_cache` con `user_id` en la clave, TTL de 12–15 min y RLS como el resto. Va en Postgres y no en KV para no sumar otro binding que configurar.
+
+Dos bugs encontrados y corregidos durante la verificación:
+- **El estado "calculando" se cacheaba.** GitHub calcula las estadísticas de commits de forma diferida y devuelve 202 con el cuerpo vacío; guardarlo dejaba el heatmap en blanco durante todo el TTL aunque GitHub ya hubiera terminado. Ahora `conCache` acepta un predicado `cachearSi` y ese estado no se guarda.
+- **Base UI avisaba por los botones que renderizan enlaces.** Cuatro `Button` con `render={<Link>}` o `render={<a>}` necesitaban `nativeButton={false}`.
+
+También se corrigió un antipatrón que marcó el linter: construir JSX dentro de un `try/catch` da falsa sensación de seguridad, porque React no renderiza en el momento de crear el elemento y los errores de render no se atrapan ahí. La carga se separó en `cargarSeguro()`, que devuelve un resultado en vez de lanzar.
 
 ---
 

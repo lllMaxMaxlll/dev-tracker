@@ -458,6 +458,31 @@ export const aiUsageLog = pgTable(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
+// github_cache — respuestas de la API de GitHub, cacheadas por usuario.
+//
+// Va en Postgres y no en KV a propósito: el aislamiento por user_id sale
+// gratis (con RLS como el resto), no suma un binding más que configurar, y se
+// puede inspeccionar cuando algo no cuadra. Los payloads son chicos.
+// ─────────────────────────────────────────────────────────────────────────────
+export const githubCache = pgTable(
+  "github_cache",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId,
+    cacheKey: text("cache_key").notNull(),
+    payload: jsonb("payload").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("github_cache_user_key_idx").on(t.userId, t.cacheKey),
+    index("github_cache_expires_idx").on(t.expiresAt),
+  ]
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Relaciones (para las queries relacionales de Drizzle).
 // ─────────────────────────────────────────────────────────────────────────────
 export const projectsRelations = relations(projects, ({ many }) => ({
