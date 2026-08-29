@@ -1,7 +1,10 @@
 import "server-only"
 
 import { env as cloudflareEnv } from "cloudflare:workers"
+import { AsyncLocalStorage } from "node:async_hooks"
+
 import { cache } from "react"
+import { after } from "next/server"
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
 import { Pool } from "pg"
@@ -59,33 +62,105 @@ function connectionString(): string {
  * primera request funcionaba y la segunda moría.
  *
  * `cache()` memoiza por request, así que todas las consultas de una misma
- * página comparten el pool en vez de abrir uno por consulta. Los sockets los
- * cierra workerd al terminar la request.
+ * página comparten el pool en vez de abrir uno por consulta.
+ *
+ * ⚠️ Y el pool se CIERRA al terminar la respuesta, con `after()`. Sin eso las
+ * conexiones se acumulan: el session pooler de Supabase corta en 15 clientes y
+ * empieza a devolver `EMAXCONNSESSION`. Los timers de pg (`idleTimeoutMillis`)
+ * no alcanzan, porque en workerd no siguen corriendo una vez que la request
+ * terminó.
  */
-const crearDb = cache((): Db => {
-  const pool = new Pool({
+function nuevoPool() {
+  return new Pool({
     connectionString: connectionString(),
     // Hyperdrive (o el pooler de Supabase en dev) ya poolea del lado del
-    // servidor: acá alcanza con unas pocas conexiones por request.
-    max: 5,
+    // servidor. Con pocas conexiones por request alcanza, y así no se agota
+    // el límite del pooler, que en Supabase corta en 15 clientes.
+    max: 3,
     connectionTimeoutMillis: 10_000,
   })
+}
+
+const crearDb = cache((): Db => {
+  const pool = nuevoPool()
+
+  try {
+    after(async () => {
+      try {
+        await pool.end()
+      } catch (error) {
+        console.error("[db] no se pudo cerrar el pool", error)
+      }
+    })
+  } catch {
+    // `after()` sólo existe dentro de una request.
+  }
 
   return drizzle(pool, { schema })
 })
 
+/**
+ * Contexto de conexión para los route handlers.
+ *
+ * `cache()` sólo memoiza dentro del scope de React, que en un route handler no
+ * existe. Con AsyncLocalStorage, `conDb()` deja la conexión disponible para
+ * TODO el código que corra dentro, incluidas las funciones de librería que
+ * importan el proxy `db` sin recibirlo por parámetro.
+ */
+const contexto = new AsyncLocalStorage<Db>()
+
 export function getDb(): Db {
-  return crearDb()
+  return contexto.getStore() ?? crearDb()
 }
 
 /**
  * Azúcar sintáctico sobre `getDb()` para poder escribir `db.select()...` en
  * todo el código sin arrastrar la llamada.
+ *
+ * ⚠️ Usar SÓLO en componentes de servidor y server actions.
+ *
+ * `cache()` memoiza por request únicamente dentro del scope de React. En un
+ * **route handler** ese scope no existe, así que cada acceso a una propiedad de
+ * este Proxy construiría un pool nuevo: medido, una sola query en un handler
+ * abría 4 conexiones, y el session pooler de Supabase corta en 15. En los route
+ * handlers usá `conDb()`.
  */
 export const db = new Proxy({} as Db, {
   get(_target, prop, receiver) {
     return Reflect.get(getDb(), prop, receiver)
   },
 })
+
+/**
+ * Conexión para **route handlers**, donde `cache()` no memoiza.
+ *
+ * Abre un pool, lo publica en el contexto para que el proxy `db` lo use, corre
+ * lo que le pasés y lo cierra siempre, incluso si falla.
+ *
+ * Envolvé el cuerpo COMPLETO del handler: cualquier función de librería que se
+ * llame adentro (`guardarEmbedding`, `registrarUso`, las queries) usa el proxy
+ * `db`, y sin el contexto cada acceso abriría su propia conexión.
+ */
+export async function conDb<T>(fn: (db: Db) => Promise<T>): Promise<T> {
+  const existente = contexto.getStore()
+
+  // Llamada anidada: ya hay conexión, se reusa.
+  if (existente) {
+    return fn(existente)
+  }
+
+  const pool = nuevoPool()
+  const instancia = drizzle(pool, { schema })
+
+  try {
+    return await contexto.run(instancia, () => fn(instancia))
+  } finally {
+    try {
+      await pool.end()
+    } catch (error) {
+      console.error("[conDb] no se pudo cerrar el pool", error)
+    }
+  }
+}
 
 export { schema }

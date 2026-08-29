@@ -18,6 +18,7 @@ import {
   linkIssueSchema,
   updateIssueSchema,
 } from "@/lib/schemas/issue"
+import { guardarEmbedding } from "@/lib/ai/embeddings"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 
 function revalidarVistas(numero?: number) {
@@ -94,6 +95,11 @@ export async function createIssue(
       return issue
     })
 
+    // El embedding se genera después de la transacción y sin await bloqueante
+    // del resultado: si Workers AI falla, el problema ya quedó guardado. La
+    // detección de duplicados es una ayuda, no un requisito para dar de alta.
+    await guardarEmbedding(user.id, creado.id, datos.title, datos.description)
+
     revalidarVistas(creado.number)
 
     return actionOk(creado)
@@ -152,6 +158,10 @@ export async function updateIssue(valores: unknown): Promise<ActionResult> {
         })
       }
     })
+
+    // `guardarEmbedding` compara el hash del contenido: si sólo cambió la
+    // prioridad o el proyecto, no gasta una llamada.
+    await guardarEmbedding(user.id, id, datos.title, datos.description)
 
     revalidarVistas(actual.number)
 
