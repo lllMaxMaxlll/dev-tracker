@@ -432,7 +432,7 @@ Desvíos respecto de lo planificado:
 
 ---
 
-### Fase 3 — Dashboard de métricas
+### Fase 3 — Dashboard de métricas ✅ COMPLETADA
 
 1. `lib/db/queries/metrics.ts`: consultas SQL agregadas (no traer todo a JS):
    - abiertos (estado ≠ resuelto/descartado), resueltos en la semana actual, bloqueados;
@@ -445,6 +445,18 @@ Desvíos respecto de lo planificado:
 5. Skeletons por sección con `<Suspense>`.
 
 **Verificación**: build ok; los números coinciden con lo cargado a mano; los gráficos se leen bien en dark y light y en móvil.
+
+**Resultado**: `typecheck`, `lint` y `build` en verde.
+
+El SQL de métricas se verificó contra Postgres real con datos sembrados a fechas conocidas: 16/16 comprobaciones. Cubre que el promedio de resolución use sólo los últimos 90 días (y descarte lo viejo), que la serie devuelva 12 semanas **incluidas las vacías** gracias al `generate_series`, que los agregados por tipo y proyecto agrupen bien (con los problemas sin proyecto juntos), y que un usuario sin datos devuelva 0 y `null` en vez de `NaN`.
+
+En el navegador se verificaron las tarjetas, los tres gráficos, la lista de recientes y el **estado vacío** completo, en tema claro y oscuro y a 375px.
+
+Dos problemas encontrados y corregidos:
+- **La paleta de gráficos del preset era inservible**: `base-nova` define `--chart-1..5` como la misma rampa de grises en ambos temas. En tema claro `--chart-1` es `oklch(0.87 0 0)`, casi blanco sobre fondo blanco: las series eran **invisibles**. Y en oscuro, dos grises no se distinguen cuando las líneas se cruzan. Se reemplazó por una paleta categórica de cinco tonos, con la luminosidad ajustada por tema.
+- **Animación de montaje de recharts**: el dashboard se re-renderiza en cada navegación y las series se volvían a dibujar cada vez, mostrando el gráfico vacío durante el primer segundo. Desactivada con `isAnimationActive={false}`.
+
+Nota sobre `shadcn/chart`: el bloque **sí** existe para `base-nova` (era un riesgo abierto del plan, punto 3 de la tabla) y trae recharts 3.8.0.
 
 ---
 
@@ -540,7 +552,7 @@ Desvíos respecto de lo planificado:
 |---|---|---|
 | 1 | **OpenRouter no tiene endpoint de embeddings** | **Resuelto**: Cloudflare Workers AI `@cf/baai/bge-m3` (1024 dims, multilingüe), gratis hasta 10k Neurons/día, por REST desde cualquier host (1.5) |
 | 2 | Cambiar de modelo de embeddings implica migración de esquema (dimensión fija) | Mitigado: dimensión centralizada + job de regeneración por lotes; `pg_trgm` como fallback si la API falla |
-| 3 | shadcn `base-nova` (Base UI) puede no traer el bloque `chart` tal cual | Se valida en Fase 3; fallback a Recharts + wrapper propio |
+| 3 | shadcn `base-nova` puede no traer el bloque `chart` | **Resuelto**: existe y trae recharts 3.8.0. Lo que sí hubo que corregir es su paleta `--chart-*`, gris e invisible en tema claro (ver Fase 3) |
 | 4 | Cron | **Resuelto**: Cron Triggers nativos de Workers (1.7). ⚠️ Falta verificar que vinext exponga el handler `scheduled`; si no, un Worker aparte de diez líneas |
 | 5 | El `provider_token` de GitHub no lo persiste Supabase | Mitigado: se guarda cifrado en el callback + flujo de reconexión |
 | 6 | Web Speech API no existe en Firefox y es parcial en iOS | Degradación silenciosa: el textarea siempre funciona |

@@ -22,7 +22,7 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 
 - ✅ **Fase 1** — proyecto, esquema con RLS, login con GitHub y protección de rutas
 - ✅ **Fase 2** — CRUD de problemas y proyectos (tabla + kanban)
-- ⬜ Fase 3 — dashboard de métricas
+- ✅ **Fase 3** — dashboard de métricas
 - ⬜ Fase 4 — integración con GitHub
 - ⬜ Fase 5 — capa de IA, Ajustes y captura en lenguaje natural
 - ⬜ Fase 6 — duplicados, vinculación de commits, resumen semanal, insights y consumo

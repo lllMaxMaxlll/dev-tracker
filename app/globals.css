@@ -66,11 +66,17 @@
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    /* Paleta categórica de gráficos.
+       El preset base-nova traía una rampa de grises idéntica en ambos temas:
+       sobre fondo blanco las series quedaban invisibles, y dos grises no se
+       distinguen cuando las líneas se cruzan. Estos valores mantienen la
+       estética sobria pero son legibles y separables por tono.
+       Tema claro: luminosidad baja para contrastar contra el fondo. */
+    --chart-1: oklch(0.55 0.16 255);
+    --chart-2: oklch(0.58 0.13 162);
+    --chart-3: oklch(0.62 0.15 68);
+    --chart-4: oklch(0.55 0.18 295);
+    --chart-5: oklch(0.58 0.18 15);
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -101,11 +107,13 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    /* Mismos tonos que en el tema claro, con la luminosidad subida para
+       contrastar contra el fondo oscuro. */
+    --chart-1: oklch(0.72 0.14 255);
+    --chart-2: oklch(0.74 0.12 162);
+    --chart-3: oklch(0.78 0.14 70);
+    --chart-4: oklch(0.72 0.16 295);
+    --chart-5: oklch(0.72 0.16 15);
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);
