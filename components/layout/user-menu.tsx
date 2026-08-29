@@ -43,16 +43,22 @@ export function UserMenu({ user }: { user: SessionUser }) {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>
-          <div className="flex flex-col gap-0.5">
-            <span className="truncate text-sm font-medium">
-              {user.displayName}
-            </span>
-            <span className="truncate text-xs font-normal text-muted-foreground">
-              {user.githubLogin ? `@${user.githubLogin}` : user.email}
-            </span>
-          </div>
-        </DropdownMenuLabel>
+        {/* La etiqueta va dentro de un grupo a la fuerza: Base UI lanza
+            "MenuGroupContext is missing" si Menu.GroupLabel no tiene un
+            Menu.Group como padre, y eso rompe toda la página al abrir el
+            menú. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            <div className="flex flex-col gap-0.5">
+              <span className="truncate text-sm font-medium">
+                {user.displayName}
+              </span>
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                {user.githubLogin ? `@${user.githubLogin}` : user.email}
+              </span>
+            </div>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
 
