@@ -402,7 +402,7 @@ Desvíos respecto de lo planificado:
 
 ---
 
-### Fase 2 — CRUD de problemas y proyectos
+### Fase 2 — CRUD de problemas y proyectos ✅ COMPLETADA
 
 1. Zod compartido: `issueSchema`, `projectSchema` (create/update), enums en español.
 2. Server actions `actions/projects.ts` y `actions/issues.ts`: crear, editar, borrar, cambiar estado (`changeIssueStatus` escribe en `issue_status_history` en la misma transacción y setea `resolved_at`/`first_in_progress_at`).
@@ -415,6 +415,20 @@ Desvíos respecto de lo planificado:
 7. Skeletons y estados vacíos con copy en español; toasts de error.
 
 **Verificación**: crear proyecto e issues, filtrar, buscar, arrastrar tarjetas entre columnas y ver el estado persistido tras recargar; el historial registra cada cambio; responsive en 375px.
+
+**Resultado**: `typecheck`, `lint` y `build` en verde.
+
+Se levantó un **Postgres real con pgvector** (instancia temporal, aislada) para verificar contra base de verdad, con un stub del esquema `auth` de Supabase. Ambas migraciones aplicaron limpias: 14 tablas, 56 políticas de RLS, RLS activo en las 14, 5 triggers de `updated_at`, índice HNSW y los dos trigram.
+
+20/20 comprobaciones del dominio en verde: numeración correlativa por usuario (y que cada usuario arranque en 1), historial escrito en el alta y en cada cambio, `resolvedAt`, agregados `count(...) filter`, filtros por estado/proyecto/texto (con acentos y buscando también en la descripción), orden por prioridad con el CASE, trigger de `updated_at`, y que borrar un proyecto deje sus problemas huérfanos en vez de borrarlos.
+
+**RLS verificado** (lo que quedó pendiente de la Fase 1): con el rol `authenticated`, cada usuario ve sólo sus filas; un insert a nombre de otro usuario es rechazado por la política; un `update` masivo afecta 0 filas ajenas; y el rol `anon` recibe *permission denied*.
+
+En la interfaz se verificó el render de las dos vistas, el formulario, los selects, el atajo `C` y el responsive a 375px.
+
+Desvíos respecto de lo planificado:
+- **Sin TanStack Table**: la v9 reescribió la API (`useReactTable` y `getCoreRowModel` ya no existen). Como el filtrado y el orden se resuelven en SQL —que además usa los índices— la tabla se armó con el `Table` de shadcn y cabeceras ordenables por URL. Menos código y una dependencia menos.
+- **`ClientOnly`**: dnd-kit y los diálogos de Base UI generan ids con contadores que arrancan distinto en servidor y cliente, y rompían la hidratación. Se envuelven en un helper que los renderiza sólo después de hidratar.
 
 ---
 

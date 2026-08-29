@@ -12,6 +12,10 @@ import {
   UserMenuFallback,
   UserMenuSlot,
 } from "@/components/layout/user-menu-slot"
+import {
+  QuickCaptureFallback,
+  QuickCaptureSlot,
+} from "@/components/capture/quick-capture-slot"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -24,6 +28,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Separator orientation="vertical" className="h-4" />
 
           <div className="ml-auto flex items-center gap-1">
+            <Suspense fallback={<QuickCaptureFallback />}>
+              <QuickCaptureSlot />
+            </Suspense>
             <ThemeToggle />
             <Suspense fallback={<UserMenuFallback />}>
               <UserMenuSlot />
