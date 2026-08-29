@@ -3,6 +3,12 @@
 > Dashboard personal para registrar problemas, bugs e ideas de desarrollo, integrado con GitHub y con una capa de IA sobre OpenRouter.
 > Documento de planificación. **No incluye código**: define arquitectura, esquema, orden de trabajo y criterios de verificación por fase.
 
+**Decisiones tomadas** (29/08/2026):
+- **Hosting: Coolify** en servidor propio (sección 10). Cloudflare Workers queda documentado como alternativa en la sección 11, descartado por ahora.
+- Como corremos en un proceso Node de larga vida, se usa **`proxy.ts`** (la convención nueva de Next 16) y conexión directa a Postgres, sin los workarounds que exigiría Workers.
+- **Embeddings: Cloudflare Workers AI (`@cf/baai/bge-m3`) por REST** (sección 1.5) — es independiente del hosting, así que probamos Workers AI sin atarnos a desplegar en Workers.
+- Workers AI queda además disponible como **proveedor secundario para las tareas `fast`** de la capa de IA, con OpenRouter como principal (sección 11.4).
+
 ---
 
 ## 0. Estado de la base actual
@@ -37,8 +43,9 @@ Lo que ya existe en el repo (verificado):
 
 - **Supabase JS (`@supabase/ssr`)** → **sólo autenticación**: intercambio de código OAuth, sesión en cookies, `getUser()`, logout. Nunca se usa para leer/escribir tablas de dominio.
 - **Drizzle ORM sobre Postgres** → **todas las consultas de dominio**. Conexión directa a la base de Supabase con el driver `postgres` (postgres-js).
-  - Runtime (Vercel serverless): **transaction pooler** (`:6543`, `prepare: false`).
-  - Migraciones (`drizzle-kit`): **conexión directa** (`:5432`), variable separada.
+  - Runtime: al correr en Coolify el proceso de Node es **largo y único** (no serverless), así que se usa **conexión directa** con un pool chico (`max: 10`) y prepared statements activos. La variable `DATABASE_URL` apunta a la conexión directa (`:5432`).
+  - Si en algún momento se escala a varias réplicas o se vuelve a un entorno serverless, se cambia `DATABASE_URL` al **transaction pooler** (`:6543`, `prepare: false`) sin tocar código: la decisión vive en `lib/db/index.ts` leyendo la URL.
+  - Migraciones (`drizzle-kit`): siempre conexión directa (`DIRECT_URL`).
 
 ### 1.2 RLS: para qué sirve realmente acá
 
@@ -70,29 +77,46 @@ Los tokens OAuth de GitHub App expiran; los de OAuth App clásica no, pero puede
 - Wrapper de Octokit que ante `401`/`403 bad credentials` marca la credencial como inválida (`is_valid = false`) y la UI muestra un banner "Reconectá tu cuenta de GitHub" que reinicia el flujo OAuth con `scopes: 'read:user repo'`.
 - Los flujos de IA que dependen de commits degradan a "sin datos de GitHub" en vez de romper.
 
-### 1.5 ⚠️ Embeddings: OpenRouter no expone endpoint de embeddings
+### 1.5 Embeddings: OpenRouter no tiene ese endpoint → Cloudflare Workers AI
 
 **Riesgo detectado en el pedido.** OpenRouter es una API de *chat completions*; no ofrece `/v1/embeddings`. La detección de duplicados (punto 9) necesita embeddings reales.
 
-Plan: se abstrae el proveedor de embeddings detrás de una interfaz propia (`lib/ai/embeddings.ts`) con variable `EMBEDDINGS_PROVIDER`:
+**Opción elegida — Cloudflare Workers AI (`@cf/baai/bge-m3`)**
 
-- `openai` (por defecto) → `text-embedding-3-small`, 1536 dims, con `OPENAI_API_KEY` propia.
-- `voyage` / `cohere` → alternativas configurables.
-- El selector de "modelo de embeddings" en Ajustes lista los modelos **del proveedor de embeddings configurado**, no los de OpenRouter.
+- **1024 dimensiones**, multilingüe de verdad (100+ idiomas), ventana de 60.000 tokens. Que sea multilingüe es clave: tus notas están en español y los modelos tipo `all-MiniLM-L6-v2` son sólo inglés y degradan bastante.
+- **Gratis en la práctica**: 10.000 Neurons por día sin cargo, que se reinician a las 00:00 UTC. Pasado eso, $0,012 por millón de tokens de entrada. Un issue tuyo son ~50 tokens: el uso real queda muy por debajo del piso gratuito.
+- **Se consume por REST**, con `CLOUDFLARE_ACCOUNT_ID` + un API token con permiso de Workers AI. Esto es importante: **no hace falta desplegar en Cloudflare para usarlo**. Funciona igual desde el server de Coolify que desde un Worker (donde además se usaría el binding `env.AI`, sin token).
+- Cero infraestructura propia: nada de pesos en la imagen, nada de RAM extra, nada de descargas en el build.
 
-Si preferís no sumar una segunda API key, la alternativa es degradar el punto 9 a similitud léxica (trigram / `pg_trgm` + `ts_vector`), que funciona razonablemente para títulos cortos. **Decisión pendiente tuya**; el plan asume la opción OpenAI y deja `pg_trgm` como fallback automático si no hay proveedor de embeddings configurado.
+**Alternativas contempladas**
+
+| Opción | Veredicto |
+|---|---|
+| `@huggingface/transformers` local (`Xenova/multilingual-e5-small`, 384 dims) | Gratis y totalmente offline, pero +120 MB de imagen y ~350 MB de RAM. Queda como proveedor `local` para el caso "no quiero depender de nadie". **No funciona en Workers** (onnxruntime-node es binario nativo) |
+| Ollama en contenedor aparte (`bge-m3`, 1024 dims) | Misma calidad que Workers AI y totalmente local, pero +2 GB de imagen y ~1 GB de RAM ociosa. Ventaja: mismas 1024 dims → **intercambiable sin migración** |
+| Gemini / Cohere / Voyage free tier | Gratis con rate limits, pero otra cuenta más |
+| OpenAI `text-embedding-3-small` | Barato, no gratis, y suma una segunda cuenta paga |
+| Sólo `pg_trgm` (léxico) | Cero infraestructura, pero no detecta "el login falla con mayúsculas" ≈ "problema de case sensitivity al iniciar sesión". Queda como **fallback automático** si el proveedor no responde |
+
+`lib/ai/embeddings.ts` expone `embed(texts: string[]): Promise<number[][]>` detrás de `EMBEDDINGS_PROVIDER` (`workers-ai` | `ollama` | `local` | `openai`). Como `workers-ai` y `ollama` comparten las 1024 dims de bge-m3, se puede saltar entre ambos sin tocar el esquema.
 
 ### 1.6 pgvector: dimensiones e índices
 
-- Los índices HNSW/IVFFlat de pgvector sobre el tipo `vector` soportan hasta **2000 dimensiones**. `text-embedding-3-small` (1536) entra; `text-embedding-3-large` (3072) **no** se puede indexar como `vector` (habría que reducir dimensiones con el parámetro `dimensions` o usar `halfvec`).
-- Columna fija `vector(1536)` + índice HNSW con `vector_cosine_ops`, más columnas `embedding_model` y `embedding_dimensions` en la tabla.
-- Si en Ajustes se elige un modelo con otra dimensión: se avisa, se ofrece "Regenerar embeddings" (job por lotes) y, si la dimensión nueva ≠ 1536, se exige `dimensions: 1536` cuando el proveedor lo soporte, o se bloquea el cambio con un mensaje claro.
+- La dimensión de una columna `vector` es **fija a nivel esquema**: cambiar de modelo con otra dimensión es una migración, no un setting. Por eso la dimensión vive en un solo lugar (`lib/ai/embeddings.ts` + la migración) y Ajustes avisa en vez de romper.
+- Columna **`vector(1024)`** (bge-m3) + índice **HNSW** con `vector_cosine_ops` (`m=16, ef_construction=64`), más columnas `embedding_model` y `embedding_dimensions` en la tabla para saber con qué se generó cada fila.
+- 1024 dims entra cómodo en el límite de índice de pgvector y permite mover el proveedor entre Workers AI y Ollama (mismo modelo) sin migrar nada.
+- Los índices HNSW/IVFFlat de pgvector soportan hasta **2000 dimensiones** sobre el tipo `vector`; si algún día se pasa a un modelo de 3072 hay que usar `halfvec` o reducir dimensiones.
+- Si en Ajustes se elige un modelo con otra dimensión: se avisa con un mensaje claro, se genera la migración correspondiente y se ofrece **"Regenerar embeddings"** (job por lotes con progreso). Nunca se mezclan vectores de modelos distintos en la misma columna.
 
-### 1.7 Vercel Cron
+### 1.7 Tareas programadas en Coolify (no Vercel Cron)
 
-- Hobby permite **1 cron job** con ejecución **una vez por día** y precisión de ~1 hora. Un cron semanal viernes (`0 18 * * 5`) es válido en Hobby: se dispara sólo los viernes.
-- El endpoint es idempotente por `(user_id, week_start)`: si ya existe un resumen de esa semana, no lo duplica.
-- Además del cron, botón "Generar resumen ahora" en la página Resúmenes (mismo código, disparo manual), así no dependés del cron para probarlo.
+Coolify tiene **Scheduled Tasks** por recurso: un cron que ejecuta un comando dentro del contenedor de la aplicación. Reemplaza a Vercel Cron sin cambiar nada del diseño:
+
+- Tarea programada con expresión `0 18 * * 5` (viernes 18:00) que hace un `curl` al route handler `/api/cron/weekly-summary` contra `localhost:3000`, con `Authorization: Bearer $CRON_SECRET`.
+- Ventaja sobre Vercel: **no hay límite de una ejecución diaria** ni imprecisión de una hora; podés poner la frecuencia que quieras (por ejemplo, un reintento el sábado si el viernes falló).
+- El endpoint sigue protegido por `CRON_SECRET` y sigue siendo **idempotente** por `(user_id, week_start)`: si ya existe el resumen de esa semana, no lo duplica.
+- Botón "Generar resumen ahora" en la página Resúmenes (mismo código, disparo manual), para poder probarlo sin esperar al viernes.
+- Alternativa equivalente si preferís no usar Scheduled Tasks: un contenedor `ofelia`/`cron` aparte en el mismo proyecto de Coolify pegándole al mismo endpoint.
 
 ### 1.8 Streaming
 
@@ -105,6 +129,17 @@ Los componentes se agregan con `npx shadcn@latest add <componente>` y salen sobr
 - **Charts**: el bloque `chart` de shadcn trae Recharts. Se verifica compatibilidad al agregarlo en Fase 3; si el registry `base-nova` no lo trae, se instala Recharts y se adapta el wrapper `ChartContainer`.
 - **Drag & drop del kanban**: no hay componente shadcn para esto → **`@dnd-kit/core` + `@dnd-kit/sortable`**.
 - **Tablas**: `@tanstack/react-table` + el `data-table` de shadcn.
+
+### 1.10 Dónde vive Supabase
+
+Dos caminos válidos, y el código es **idéntico** en ambos (sólo cambian variables de entorno):
+
+- **Supabase Cloud, plan gratuito (recomendado para empezar).** Auth con GitHub, `pgvector` y backups ya resueltos. El plan gratuito pausa el proyecto tras ~1 semana sin actividad — con uso diario no te afecta, y el cron semanal lo mantiene despierto.
+- **Supabase self-hosted en Coolify** (tiene servicio de un click). Todo en tu máquina, sin pausas ni límites, pero pasás a administrar GoTrue, Kong, Postgres y los backups vos.
+
+Recomendación: **arrancar con Cloud** y migrar a self-hosted si querés, cuando la app ya funcione. Migrar es un `pg_dump`/`pg_restore` más cambiar `NEXT_PUBLIC_SUPABASE_URL`, las keys y `DATABASE_URL`. Nada en el código queda atado a Supabase Cloud.
+
+Si vas por self-hosted desde el día uno, dos detalles: hay que habilitar `vector` y `pg_trgm` a mano en el Postgres del stack, y la callback de OAuth de GitHub apunta a tu dominio de Supabase (`https://supabase.tu-dominio.com/auth/v1/callback`) en lugar de `https://<ref>.supabase.co/...`.
 
 ---
 
@@ -122,6 +157,8 @@ octokit
 # ia
 openai
 zod
+# embeddings: Workers AI se consume por REST, sin SDK (ver 1.5)
+# @huggingface/transformers  — sólo si se elige el proveedor `local`
 
 # ui / interacción
 @tanstack/react-table
@@ -177,7 +214,7 @@ Se crea/actualiza (upsert) en el callback de OAuth.
 Es la fuente de verdad para tiempos de resolución y para el resumen semanal. Se escribe **siempre** desde una única función de dominio `changeIssueStatus()`, nunca con un update suelto.
 
 **`issue_embeddings`**
-`issue_id` (PK) · `user_id` · `embedding vector(1536)` · `embedding_model` · `embedding_dimensions` · `content_hash` (para no regenerar si el texto no cambió) · `updated_at`
+`issue_id` (PK) · `user_id` · `embedding vector(1024)` · `embedding_model` · `embedding_dimensions` · `content_hash` (para no regenerar si el texto no cambió) · `updated_at`
 Índice HNSW `vector_cosine_ops` (`m=16, ef_construction=64`).
 
 **`issue_relations`**
@@ -295,9 +332,14 @@ OPENROUTER_API_KEY=
 OPENROUTER_SITE_URL=     # HTTP-Referer
 OPENROUTER_APP_NAME=DevTracker   # X-Title
 
-# Embeddings (ver 1.5)
-EMBEDDINGS_PROVIDER=openai
-OPENAI_API_KEY=
+# Embeddings — Cloudflare Workers AI por defecto (ver 1.5)
+EMBEDDINGS_PROVIDER=workers-ai       # workers-ai | ollama | local | openai
+EMBEDDINGS_MODEL=@cf/baai/bge-m3     # 1024 dims, multilingüe
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=                # permiso: Workers AI (Read)
+# OLLAMA_BASE_URL=http://ollama:11434     # si EMBEDDINGS_PROVIDER=ollama
+# HF_HOME=/app/.cache/huggingface         # si EMBEDDINGS_PROVIDER=local
+# OPENAI_API_KEY=                          # si EMBEDDINGS_PROVIDER=openai
 
 # Cron
 CRON_SECRET=
@@ -307,7 +349,8 @@ ALLOWED_EMAILS=
 ALLOWED_GITHUB_LOGINS=
 
 # App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000   # en prod: https://devtracker.tu-dominio.com
+                                            # ⚠️ es build-time: Coolify la necesita como build arg
 ```
 
 ---
@@ -318,11 +361,11 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 
 ---
 
-### Fase 1 — Base, esquema, RLS y login
+### Fase 1 — Base, esquema, RLS y login ✅ COMPLETADA
 
 1. Instalar dependencias de datos/auth; agregar los componentes shadcn base (`card input label sonner dropdown-menu avatar skeleton dialog sheet separator`).
 2. Configurar `next.config.ts` (`cacheComponents: true`) y el layout raíz en español (`<html lang="es">`), `ThemeProvider` con toggle y `<Toaster />` de sonner.
-3. Proyecto en Supabase: habilitar `vector` y `pg_trgm`; crear el GitHub OAuth App y configurar el provider en Supabase.
+3. Proyecto en Supabase (Cloud o self-hosted en Coolify, ver 1.10): habilitar `vector` y `pg_trgm`; crear el GitHub OAuth App y configurar el provider en Supabase. Registrar las **dos** callback URLs desde el principio (localhost y dominio de producción) para no tener que tocarlo al desplegar.
 4. Drizzle: `drizzle.config.ts`, `lib/db/schema.ts` completo (sección 3), `bun drizzle-kit generate` + `migrate`. SQL de RLS versionado.
 5. `@supabase/ssr`: cliente de navegador, cliente de servidor (con `cookies()`), y **`proxy.ts`** que refresca la sesión y redirige a `/login` si no hay usuario (matcher que excluye `_next/static`, `_next/image`, favicon y assets; `/login` y `/auth/*` públicos).
 6. `/login`: pantalla mínima con un botón "Continuar con GitHub" (`signInWithOAuth` con `scopes: 'read:user repo'`, `redirectTo` al callback).
@@ -330,6 +373,13 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 8. Shell de la app: sidebar responsive, topbar, menú de usuario (avatar, nombre, cerrar sesión), toggle de tema.
 
 **Verificación**: build ok; entrar sin sesión a `/` redirige a `/login`; login con GitHub crea fila en `profiles` y en `github_credentials`; logout funciona; un usuario B no ve datos de A (probado con la anon key contra PostgREST para confirmar que RLS bloquea).
+
+**Resultado**: `typecheck`, `lint` y `build` en verde. Verificado en el navegador: `/` y `/problemas` sin sesión redirigen a `/login`; la pantalla de login renderiza en tema claro y oscuro y en 375px; los mensajes de error del callback se muestran. **Pendiente de verificar con credenciales reales de Supabase**: el round-trip completo de OAuth, la creación de filas en `profiles`/`github_credentials`, y que RLS bloquee el acceso vía PostgREST.
+
+Desvíos respecto de lo planificado:
+- **Toast**: el proyecto usa Base UI (`base: "base"`), así que va el componente `toast` de shadcn en vez de `sonner`.
+- **Icono de GitHub**: lucide-react v1 dejó de incluir iconos de marca → componente propio en `components/icons/github.tsx`.
+- **`lib/db/index.ts`**: la conexión es perezosa (Proxy sobre `getDb()`) para que `next build` no exija credenciales de base de datos.
 
 ---
 
@@ -423,7 +473,7 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 - Al aceptar: se crea el `issue_link` con la URL del commit y se **ofrece** pasar a "resuelto" — nunca automático.
 
 **6.3 Resumen semanal**
-- `/api/cron/weekly-summary` protegido con `CRON_SECRET`, `vercel.json` con `0 18 * * 5`.
+- `/api/cron/weekly-summary` protegido con `CRON_SECRET`; **Scheduled Task de Coolify** con `0 18 * * 5` haciendo `curl` a `localhost:3000` (ver 1.7).
 - Itera los usuarios habilitados, junta los datos de la semana (creados, resueltos, bloqueados, cambios de estado, commits) y pide el resumen en prosa: qué avanzaste, qué quedó bloqueado, qué se estanca, qué atacar la semana que viene.
 - Guarda en `weekly_summaries` (idempotente por semana), página **Resúmenes** con historial y el último destacado en el dashboard. Botón de generación manual con streaming.
 
@@ -446,7 +496,7 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 ## 7. Documentación de cierre
 
 - **`.env.example`** con todas las variables de la sección 5, comentadas.
-- **`README.md`** reescrito con: crear el proyecto en Supabase, habilitar `vector` y `pg_trgm`, obtener las connection strings (pooler vs. directa), crear el GitHub OAuth App con las callback URLs de dev (`http://localhost:3000/auth/callback`) y prod, configurar el provider GitHub en Supabase (incluida la callback de Supabase `https://<ref>.supabase.co/auth/v1/callback`), generar `ENCRYPTION_KEY`, correr migraciones, y desplegar en Vercel (env vars, cron, dominios permitidos en Supabase Auth → Redirect URLs).
+- **`README.md`** reescrito con: crear el proyecto en Supabase, habilitar `vector` y `pg_trgm`, obtener las connection strings (pooler vs. directa), crear el GitHub OAuth App con las callback URLs de dev (`http://localhost:3000/auth/callback`) y prod, configurar el provider GitHub en Supabase (incluida la callback de Supabase `https://<ref>.supabase.co/auth/v1/callback`), generar `ENCRYPTION_KEY`, correr migraciones, y desplegar en Coolify (sección 10: Dockerfile, env vars build-time vs runtime, dominio + TLS, Scheduled Task del cron, dominios permitidos en Supabase Auth → Redirect URLs).
 - Nota explícita sobre RLS vs. filtro por `user_id` (sección 1.2) y sobre el proveedor de embeddings (1.5).
 
 ---
@@ -455,13 +505,16 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 
 | # | Tema | Estado |
 |---|---|---|
-| 1 | **OpenRouter no tiene endpoint de embeddings** → hace falta una segunda API key (OpenAI) o degradar a `pg_trgm` | **Decisión tuya**; el plan asume OpenAI con fallback léxico |
-| 2 | Modelos de embedding >2000 dims no se pueden indexar como `vector` en pgvector | Mitigado: columna fija 1536 + aviso/regeneración |
+| 1 | **OpenRouter no tiene endpoint de embeddings** | **Resuelto**: Cloudflare Workers AI `@cf/baai/bge-m3` (1024 dims, multilingüe), gratis hasta 10k Neurons/día, por REST desde cualquier host (1.5) |
+| 2 | Workers AI es una dependencia externa más | Mitigada: misma dimensión que `bge-m3` en Ollama → se cambia de proveedor sin migrar; `pg_trgm` como fallback si la API falla |
+| 2b | Cambiar de modelo de embeddings implica migración de esquema (dimensión fija) | Mitigado: dimensión centralizada + job de regeneración por lotes |
 | 3 | shadcn `base-nova` (Base UI) puede no traer el bloque `chart` tal cual | Se valida en Fase 3; fallback a Recharts + wrapper propio |
-| 4 | Vercel Hobby: 1 cron/día | El cron semanal del viernes entra sin problema; igual hay disparo manual |
+| 4 | Sin Vercel Cron | **Resuelto**: Scheduled Tasks de Coolify, sin límite de frecuencia (1.7) + disparo manual |
 | 5 | El `provider_token` de GitHub no lo persiste Supabase | Mitigado: se guarda cifrado en el callback + flujo de reconexión |
 | 6 | Web Speech API no existe en Firefox y es parcial en iOS | Degradación silenciosa: el textarea siempre funciona |
-| 7 | Costo de las llamadas de IA | Todo queda logueado en `ai_usage_log`; insights cacheados 24 h; duplicados usan embeddings (baratos), no chat |
+| 7 | Costo de las llamadas de IA | Todo queda logueado en `ai_usage_log`; insights cacheados 24 h; los duplicados caen dentro del piso gratuito de Workers AI |
+| 8 | El caché de Next (`'use cache'`) es por instancia | Con una sola réplica no es problema. Si algún día hay varias, hace falta un cache handler compartido (Redis) — se documenta, no se implementa ahora |
+| 9 | Builds de Next consumen bastante RAM en el server | Si el server es chico, buildear en GitHub Actions y que Coolify despliegue la imagen del registry |
 
 ---
 
@@ -473,3 +526,105 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 - Zod como fuente única de verdad de los tipos de entrada; los tipos de la base salen de `drizzle-zod`/inferencia.
 - Sin `any`; `strict` ya está activo.
 - Cada fase se commitea por separado con el build en verde.
+
+---
+
+## 10. Despliegue en Coolify
+
+### 10.1 Imagen
+
+- `next.config.ts` con **`output: 'standalone'`** → imagen final chica, sin `node_modules` completo.
+- **Dockerfile multi-stage** (build pack "Dockerfile" en Coolify, no Nixpacks: necesitamos control sobre el paso que descarga el modelo de embeddings):
+  1. *deps*: `bun install --frozen-lockfile`.
+  2. *builder*: `bun run build`.
+  3. *runner*: `node:22-alpine`, usuario no root, copia `.next/standalone`, `.next/static` y `public`. `EXPOSE 3000`, `CMD ["node", "server.js"]`.
+  (Con `EMBEDDINGS_PROVIDER=workers-ai` no hay que hornear ningún modelo; sólo si se elige el proveedor `local` se agrega un paso que descarga los pesos a `HF_HOME`.)
+- `.dockerignore` con `node_modules`, `.next`, `.git`, `.env*`.
+
+### 10.2 Variables de entorno: build-time vs runtime
+
+Distinción que rompe deploys si se pasa por alto:
+
+- **Build-time** (van como *build args* en Coolify, quedan horneadas en el bundle del cliente): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`.
+- **Runtime** (sólo variables del contenedor, nunca en el cliente): `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `DIRECT_URL`, `ENCRYPTION_KEY`, `OPENROUTER_API_KEY`, `CRON_SECRET`, `ALLOWED_*`.
+
+Cambiar una `NEXT_PUBLIC_*` exige **rebuild**, no sólo restart.
+
+### 10.3 Recurso en Coolify
+
+1. Nueva aplicación → *Public/Private Repository* → rama `main`, build pack **Dockerfile**, puerto expuesto `3000`.
+2. Dominio (`https://devtracker.tu-dominio.com`); Coolify emite el certificado con Let's Encrypt vía su proxy (Traefik/Caddy). **Sin HTTPS el OAuth no funciona.**
+3. **Health check**: route handler `/api/health` que responde 200 y hace un `select 1` contra la base. Configurado en Coolify para que un deploy roto no reemplace al que funciona.
+4. **Scheduled Task**: `0 18 * * 5` → `curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/weekly-summary`.
+5. Migraciones: **no** correrlas en el arranque del contenedor (con varias réplicas se pisan). Se corren como paso explícito — comando manual en Coolify o `drizzle-kit migrate` desde tu máquina contra `DIRECT_URL` antes de desplegar.
+6. Volumen persistente opcional montado en `HF_HOME` si preferís no hornear el modelo en la imagen.
+
+### 10.4 URLs a registrar en los servicios externos
+
+| Dónde | Valor |
+|---|---|
+| GitHub OAuth App → *Authorization callback URL* | `https://<ref>.supabase.co/auth/v1/callback` (o tu Supabase self-hosted) |
+| Supabase Auth → *Site URL* | `https://devtracker.tu-dominio.com` |
+| Supabase Auth → *Redirect URLs* | `https://devtracker.tu-dominio.com/auth/callback` y `http://localhost:3000/auth/callback` |
+| OpenRouter → `HTTP-Referer` | `https://devtracker.tu-dominio.com` |
+
+### 10.5 Recursos del servidor
+
+- **Mínimo**: 1 GB de RAM (Next ~400 MB + margen). Si se usa el proveedor `local` de embeddings, 2 GB.
+- **Cómodo**: 4 GB, si además buildeás en la misma máquina.
+- Si el server es chico: buildear la imagen en GitHub Actions, publicarla en `ghcr.io` y que Coolify sólo la despliegue.
+
+### 10.6 Fase de trabajo
+
+El despliegue se hace **al final de la Fase 1**, no al final del proyecto: tener la app en el dominio real desde temprano valida el OAuth con HTTPS, las variables build-time y el health check cuando todavía hay poco que depurar. Cada fase siguiente cierra con un deploy a ese mismo entorno.
+
+---
+
+## 11. Opción alternativa: desplegar en Cloudflare Workers
+
+Coolify (sección 10) y Workers son **destinos alternativos**, no complementarios. Pero **Workers AI sí es independiente del hosting**: se consume por REST desde donde sea, así que se puede usar el modelo de embeddings de Cloudflare aunque la app viva en Coolify (es lo que asume la sección 1.5).
+
+### 11.1 ¿Hace falta bajar de versión de Next? **No**
+
+`@opennextjs/cloudflare` (el adaptador OpenNext, no el viejo `next-on-pages`) **soporta todas las minor y patch de Next.js 16**. La 16.2.6 que ya está instalada entra. El soporte de Next 14 se discontinúa en Q1 2026, así que estar en 16 es justamente el lado bueno de la ventana.
+
+### 11.2 El problema real: `proxy.ts` todavía no está soportado
+
+Este es el punto que hay que mirar antes de decidir, y es un choque directo con el diseño de la Fase 1:
+
+- En Next 16, `middleware.ts` se renombró a `proxy.ts`, y **Proxy corre siempre en Node.js runtime**: la opción `runtime` no existe en archivos Proxy y setearla **tira error** (verificado en los docs locales, `proxy.md`).
+- El adaptador de Cloudflare **no soporta Node middleware** todavía, y falla al buildear con `proxy.ts` (issues abiertos: `opennextjs-cloudflare#962` con la versión 1.11.0 del adaptador, y `workers-sdk#13755` / `#13937`). El error típico es `Node.js middleware is not currently supported` o intentos de importar `async_hooks`.
+- Es un catch-22: no se puede forzar `proxy.ts` a edge, y el adaptador sólo acepta edge.
+
+**Workaround**: seguir usando **`middleware.ts`** (deprecado en 16 pero funcional, corre en Edge runtime por defecto) y no correr el codemod a `proxy.ts` hasta que el adaptador lo soporte. El refresco de sesión de `@supabase/ssr` funciona en Edge sin problema: es todo `fetch` y cookies. Es una deuda técnica acotada y con fecha de vencimiento.
+
+### 11.3 Qué más cambia respecto del plan de Coolify
+
+| Tema | En Workers |
+|---|---|
+| **Base de datos** | Los Workers no abren TCP como Node. Se usa **Hyperdrive** (incluido en el plan Free desde 2025, con tope de 100.000 queries/día; sin tope en Paid) con el driver `postgres`/`pg` y la connection string **directa** de Supabase — no la pooled, porque Hyperdrive ya poolea. Drizzle sigue igual |
+| **Embeddings** | Binding nativo `env.AI` en vez de REST: sin API token y sin salto de red |
+| **Cron** | **Cron Triggers** nativos de Workers (`scheduled` handler). Mejor que Vercel y que Coolify: sin límite de frecuencia y sin `curl` de por medio |
+| **Caché (`'use cache'`/ISR)** | Se apoya en **Workers KV o R2** vía el incremental cache de OpenNext. Hay que configurarlo, no viene gratis |
+| **Cifrado (`node:crypto`, AES-256-GCM)** | Requiere `nodejs_compat`; **verificar en Fase 1** que `createCipheriv('aes-256-gcm')` esté soportado. Si no, se reimplementa con WebCrypto (`AES-GCM` nativo), que en Workers está garantizado — y de hecho es la opción más segura de arranque |
+| **Tamaño del bundle** | Límite de **3 MiB comprimido en Free / 10 MiB en Paid**. Con Next + Octokit + SDK de OpenAI + Drizzle, el plan Free queda muy justo |
+| **CPU por request** | Free: 10 ms de CPU — inviable para SSR real. Paid: 30 s. El tiempo de espera de I/O (las llamadas a OpenRouter) **no cuenta** como CPU, así que el streaming de resúmenes no es problema |
+| **Embeddings locales** | Imposible: `onnxruntime-node` es un binario nativo. En Workers el único camino es Workers AI (o una API externa) |
+| **Modelo `local`/Ollama** | No aplica |
+
+**Conclusión práctica: en Workers hace falta el plan Paid ($5/mes)** — por el límite de CPU y por el tamaño del bundle. Sigue siendo más barato que un VPS, pero deja de ser "gratis".
+
+### 11.4 Bonus: Workers AI para las tareas rápidas
+
+Más allá de los embeddings, Workers AI puede cubrir parte de la capa de IA:
+
+- Modelos con **function calling** (familia Llama) sirven para las tareas `fast` del plan: la captura en lenguaje natural y la vinculación de commits, que son estructuración con tool calling y no necesitan un modelo grande.
+- Se suma como un **proveedor más** en `lib/ai/settings.ts` (`provider: 'openrouter' | 'workers-ai'`), sin romper el requisito de que OpenRouter sea el proveedor principal: el selector de Ajustes muestra ambos catálogos y el resto del código no se entera.
+- **AI Gateway** de Cloudflare puede además ponerse **adelante de OpenRouter** (cambiando sólo el `baseURL`) y dar caché de respuestas, rate limiting, reintentos y logs de cada request — útil justo para el panel de consumo.
+- Ojo con el logging de tokens: la respuesta de Workers AI reporta el uso en **Neurons**, no en dólares por token. `ai_usage_log` necesita una columna/normalización para que el panel de consumo pueda mezclar ambas unidades sin mentir.
+
+### 11.5 Recomendación
+
+**Hostear en Coolify y usar Workers AI por REST.** Te da lo que querés probar (bge-m3 para duplicados, y los modelos de Llama para la captura si querés compararlos contra OpenRouter) sin heredar los límites de bundle, de CPU y el bloqueo de `proxy.ts`. Migrar a Workers después es acotado: `middleware.ts`, Hyperdrive, cache handler y el binding `env.AI`.
+
+**Si el objetivo es probar el deploy en Workers en sí**, es viable hoy con la 16.2.6 y sin downgrade, aceptando: plan Paid, quedarse en `middleware.ts`, WebCrypto en lugar de `node:crypto`, y configurar KV para el caché. En ese caso conviene hacer el deploy de prueba **al final de la Fase 1**, cuando hay poco código, para que el diagnóstico sea barato.
