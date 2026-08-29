@@ -408,7 +408,9 @@ Cada fase termina con: `bun run typecheck` + `bun run lint` + `bun run build` en
 
 **Verificación**: build ok; entrar sin sesión a `/` redirige a `/login`; login con GitHub crea fila en `profiles` y en `github_credentials`; logout funciona; un usuario B no ve datos de A (probado con la anon key contra PostgREST para confirmar que RLS bloquea).
 
-**Resultado**: `typecheck`, `lint` y `build` en verde. Verificado en el navegador: `/` y `/problemas` sin sesión redirigen a `/login`; la pantalla de login renderiza en tema claro y oscuro y en 375px; los mensajes de error del callback se muestran. **Pendiente de verificar con credenciales reales de Supabase**: el round-trip completo de OAuth, la creación de filas en `profiles`/`github_credentials`, y que RLS bloquee el acceso vía PostgREST.
+**Resultado**: `typecheck`, `lint` y `build` en verde. Verificado en el navegador: `/` y `/problemas` sin sesión redirigen a `/login`; la pantalla de login renderiza en tema claro y oscuro y en 375px; los mensajes de error del callback se muestran. **Verificado con Supabase real (29/08/2026)**: el round-trip completo de OAuth funciona. El login con GitHub crea el perfil, guarda el provider token cifrado con los scopes `read:user` y `repo`, y siembra las filas de `user_ai_settings` y `user_counters`. RLS ya se había verificado en la Fase 2.
+
+Ese primer login destapó un **bug de producción** que ninguna verificación previa podía encontrar: el `Pool` de `pg` vivía a nivel de módulo, y workerd aísla el I/O por request. La primera request funcionaba y la segunda colgaba el Worker sin lanzar excepción. La conexión pasó a crearse **por request**, memoizada con `cache()` de React.
 
 Desvíos respecto de lo planificado:
 - **Toast**: el proyecto usa Base UI (`base: "base"`), así que va el componente `toast` de shadcn en vez de `sonner`.
