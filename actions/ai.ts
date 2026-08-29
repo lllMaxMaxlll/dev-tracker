@@ -1,6 +1,15 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
+import { and, eq } from "drizzle-orm"
+
+import { db } from "@/lib/db"
+import { issues, projects } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
+import { priorizar, type ItemPriorizado } from "@/lib/ai/tasks/prioritize"
+import { enriquecer, type Enriquecimiento } from "@/lib/ai/tasks/enrich"
+import { generarResumenSemanal } from "@/lib/ai/tasks/summary"
+import { getAbiertosParaPriorizar } from "@/lib/db/queries/semana"
 import { capturarProblema } from "@/lib/ai/tasks/capture"
 import { listProjectOptions } from "@/lib/db/queries/projects"
 import { esErrorIA } from "@/lib/ai/errors"
@@ -71,5 +80,110 @@ export async function capturarDesdeTexto(
     console.error("[capturarDesdeTexto]", error)
 
     return actionError("No se pudo interpretar la nota. Probá de nuevo.")
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Priorización, enriquecimiento y resumen manual
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function queHagoHoy(): Promise<
+  ActionResult<{ orden: ItemPriorizado[]; titulos: Record<number, string> }>
+> {
+  const user = await requireUser()
+
+  try {
+    const abiertos = await getAbiertosParaPriorizar(user.id)
+
+    if (abiertos.length === 0) {
+      return actionError("No tenés problemas abiertos")
+    }
+
+    const orden = await priorizar({ userId: user.id, problemas: abiertos })
+
+    const titulos: Record<number, string> = {}
+    for (const problema of abiertos) {
+      titulos[problema.number] = problema.title
+    }
+
+    return actionOk({ orden, titulos })
+  } catch (error) {
+    if (esErrorIA(error)) {
+      return actionError(error.message)
+    }
+
+    console.error("[queHagoHoy]", error)
+
+    return actionError("No se pudo generar la sugerencia")
+  }
+}
+
+export async function ayudameACompletar(
+  issueId: string
+): Promise<ActionResult<Enriquecimiento>> {
+  const user = await requireUser()
+
+  try {
+    const [issue] = await db
+      .select({
+        title: issues.title,
+        description: issues.description,
+        type: issues.type,
+        projectName: projects.name,
+      })
+      .from(issues)
+      .leftJoin(projects, eq(projects.id, issues.projectId))
+      .where(and(eq(issues.id, issueId), eq(issues.userId, user.id)))
+      .limit(1)
+
+    if (!issue) {
+      return actionError("No se encontró el problema")
+    }
+
+    const resultado = await enriquecer({
+      userId: user.id,
+      titulo: issue.title,
+      descripcion: issue.description,
+      tipo: issue.type,
+      proyecto: issue.projectName,
+    })
+
+    return actionOk(resultado)
+  } catch (error) {
+    if (esErrorIA(error)) {
+      return actionError(error.message)
+    }
+
+    console.error("[ayudameACompletar]", error)
+
+    return actionError("No se pudieron generar sugerencias")
+  }
+}
+
+/** Botón "Generar resumen ahora" de la página Resúmenes. */
+export async function generarResumenAhora(): Promise<
+  ActionResult<{ generado: boolean; motivo?: string }>
+> {
+  const user = await requireUser()
+
+  try {
+    const resultado = await generarResumenSemanal({
+      userId: user.id,
+      origen: "manual",
+      forzar: true,
+    })
+
+    revalidatePath("/resumenes")
+    revalidatePath("/")
+
+    return actionOk(resultado)
+  } catch (error) {
+    if (esErrorIA(error)) {
+      return actionError(error.message)
+    }
+
+    console.error("[generarResumenAhora]", error)
+
+    return actionError("No se pudo generar el resumen")
   }
 }

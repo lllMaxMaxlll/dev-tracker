@@ -25,7 +25,7 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 - ✅ **Fase 3** — dashboard de métricas
 - ✅ **Fase 4** — integración con GitHub
 - ✅ **Fase 5** — capa de IA (Workers AI), Ajustes y captura en lenguaje natural
-- ⬜ Fase 6 — duplicados, vinculación de commits, resumen semanal, insights y consumo
+- ✅ **Fase 6** — duplicados, vinculación de commits, resumen semanal, insights y consumo
 
 ---
 
@@ -186,13 +186,23 @@ No se corren desde el Worker. Aplicalas como paso explícito antes de desplegar,
 bun run db:migrate
 ```
 
-### Cron (Fase 6)
+### Cron del resumen semanal
 
-En `wrangler.jsonc`:
+Ya está declarado en `wrangler.jsonc` y se activa al desplegar:
 
 ```jsonc
 "triggers": { "crons": ["0 18 * * 5"] }
 ```
+
+Corre los viernes a las 18:00 UTC. Para probarlo sin esperar:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/weekly-summary
+```
+
+Es idempotente por semana: si el resumen ya existe no lo regenera, así un
+reintento no duplica ni gasta tokens. También hay un botón "Generar resumen
+ahora" en la página Resúmenes.
 
 ## Acceso restringido (opcional)
 

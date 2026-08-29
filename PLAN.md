@@ -548,7 +548,7 @@ Desvío del plan: los modelos por defecto del esquema eran ids de OpenRouter y n
 
 ---
 
-### Fase 6 — IA avanzada, cron y consumo
+### Fase 6 — IA avanzada, cron y consumo ✅ COMPLETADA
 
 **6.1 Duplicados y relacionados**
 - Generación de embedding (título + descripción) al crear/editar, con `content_hash` para no regenerar de más.
@@ -580,6 +580,22 @@ Desvío del plan: los modelos por defecto del esquema eran ids de OpenRouter y n
 - Consumo del mes: llamadas, tokens de entrada/salida y costo estimado, desglosado **por tarea** y **por modelo**, con tabla + gráfico de barras y comparación con el mes anterior.
 
 **Verificación final**: build ok; recorrido completo (crear por voz → aviso de duplicado → resolver vinculando un commit sugerido → ver el cambio reflejado en dashboard, insights y resumen semanal); cron probado con `curl` + `CRON_SECRET`; `.env.example` y README completos.
+
+**Resultado**: `typecheck`, `lint` y `build` en verde. Las seis tareas de IA probadas contra los servicios reales.
+
+Embeddings y similitud, medido: la consulta "no puedo entrar si escribo el email con mayúsculas" devolvió 0,80 para "El login se rompe cuando el mail tiene mayúsculas" y 0,69 para "Problema de case sensitivity al iniciar sesión", contra ~0,40 de los no relacionados. El umbral de duplicados quedó en **0,65**, medido y no supuesto.
+
+Las otras tareas, con datos sembrados: la priorización puso primero el problema bloqueado y explicó que había que destrabarlo; la vinculación de commits acertó los dos commits reales y **descartó** el `chore: actualizar dependencias`; los insights detectaron el patrón del ejemplo del pedido ("bugs ~2 días vs features ~11"); el resumen semanal salió en prosa, referenciando los problemas por número.
+
+Dos correcciones que salieron de verificar:
+
+⚠️ **Fuga de conexiones que habría roto producción.** El session pooler de Supabase corta en 15 clientes y la app llegaba a 16 con una sola request. Dos causas: el pool nunca se cerraba (ahora, con `after()`), y `cache()` de React **sólo memoiza en páginas RSC, no en route handlers** — medido, `/api/health` con una query abría 4 pools. Se resolvió con `AsyncLocalStorage`: `conDb()` publica la conexión y la toma también el código de librería que importa el proxy `db`. Esto afectaba directamente al endpoint del cron.
+
+⚠️ **Validación de salidas demasiado estricta.** `enriquecer` fallaba de forma intermitente con `SALIDA_INVALIDA`: el esquema limitaba la lista a 6 ítems y el modelo devolvía 7 según la corrida. El criterio pasó a ser **validar la forma estricto y recortar los tamaños** (`lib/ai/schema-helpers.ts`). Rechazar una respuesta entera porque una frase es larga no le deja al usuario ninguna forma de arreglarlo. Se aplicó a las cuatro tareas estructuradas.
+
+Nota: el modelo de embeddings **no devuelve `usage`**, así que esas llamadas quedan sin tokens ni Neurons. El panel de consumo las muestra con «—» en vez de 0, para no dar a entender que fueron gratis cuando en realidad se desconoce.
+
+Costo total de todas las pruebas de la fase: **547 Neurons y $0,0054**.
 
 ---
 

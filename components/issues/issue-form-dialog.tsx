@@ -28,6 +28,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FolderPlusIcon } from "lucide-react"
 import { createIssue, updateIssue } from "@/actions/issues"
 import { createProject } from "@/actions/projects"
+import { buscarPosiblesDuplicados } from "@/actions/duplicates"
+import { AvisoDuplicados } from "@/components/issues/similar-issues"
+import type { Similar } from "@/lib/ai/embeddings"
 import {
   ESTADOS,
   ETIQUETAS_ESTADO,
@@ -97,6 +100,9 @@ export function IssueFormDialog({
   })
 
   const editando = Boolean(issueId)
+  const [duplicados, setDuplicados] = React.useState<Similar[]>([])
+  const [buscandoDuplicados, setBuscandoDuplicados] = React.useState(false)
+  const [duplicadosIgnorados, setDuplicadosIgnorados] = React.useState(false)
   const [creandoProyecto, setCreandoProyecto] = React.useState(false)
   const [proyectosLocales, setProyectosLocales] = React.useState(proyectos)
   const [sugerenciaProyecto, setSugerenciaProyecto] = React.useState<
@@ -158,6 +164,8 @@ export function IssueFormDialog({
     if (open) {
       setValores({ ...VALORES_INICIALES, ...valoresIniciales })
       setErrores({})
+      setDuplicados([])
+      setDuplicadosIgnorados(false)
     }
   }
 
@@ -170,6 +178,25 @@ export function IssueFormDialog({
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    // En un alta, primero se busca si ya existe algo parecido. El aviso se
+    // muestra una sola vez: si igual querés crearlo, el segundo submit pasa
+    // de largo. Editar no dispara la búsqueda.
+    if (!issueId && !duplicadosIgnorados && duplicados.length === 0) {
+      setBuscandoDuplicados(true)
+      const similares = await buscarPosiblesDuplicados(
+        valores.title,
+        valores.description
+      )
+      setBuscandoDuplicados(false)
+
+      if (similares.length > 0) {
+        setDuplicados(similares)
+
+        return
+      }
+    }
+
     setGuardando(true)
     setErrores({})
 
@@ -234,6 +261,13 @@ export function IssueFormDialog({
               </Button>
             </AlertDescription>
           </Alert>
+        ) : null}
+
+        {duplicados.length > 0 && !duplicadosIgnorados ? (
+          <AvisoDuplicados
+            similares={duplicados}
+            onIgnorar={() => setDuplicadosIgnorados(true)}
+          />
         ) : null}
 
         <form onSubmit={onSubmit} className="flex flex-col gap-6">
@@ -341,9 +375,17 @@ export function IssueFormDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={guardando}>
-              {guardando ? <Spinner data-icon="inline-start" /> : null}
-              {editando ? "Guardar" : "Crear problema"}
+            <Button type="submit" disabled={guardando || buscandoDuplicados}>
+              {guardando || buscandoDuplicados ? (
+                <Spinner data-icon="inline-start" />
+              ) : null}
+              {buscandoDuplicados
+                ? "Buscando parecidos…"
+                : editando
+                  ? "Guardar"
+                  : duplicados.length > 0
+                    ? "Crear igual"
+                    : "Crear problema"}
             </Button>
           </DialogFooter>
         </form>

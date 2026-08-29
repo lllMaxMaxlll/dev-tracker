@@ -3,6 +3,7 @@ import "server-only"
 import { z } from "zod"
 
 import { pedirEstructurado } from "@/lib/ai/client"
+import { textoAcotado } from "@/lib/ai/schema-helpers"
 import { ESTADOS, PRIORIDADES, TIPOS } from "@/lib/schemas/enums"
 
 /**
@@ -13,15 +14,19 @@ import { ESTADOS, PRIORIDADES, TIPOS } from "@/lib/schemas/enums"
  * confirma. Es el requisito transversal del pedido — la IA propone, vos aceptás.
  */
 const capturaSchema = z.object({
-  titulo: z.string().trim().min(1).max(200),
-  descripcion: z.string().trim().max(2000).optional().default(""),
+  titulo: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((t) => t.slice(0, 200)),
+  descripcion: textoAcotado(4000).optional().default(""),
   tipo: z.enum(TIPOS),
   prioridad: z.enum(PRIORIDADES),
   estado: z.enum(ESTADOS),
   // El modelo devuelve el slug si reconoció un proyecto de la lista, o el
   // nombre suelto si mencionaste uno que todavía no existe.
   proyectoSlug: z.string().trim().nullable().optional(),
-  proyectoNuevo: z.string().trim().max(80).nullable().optional(),
+  proyectoNuevo: textoAcotado(80).nullable().optional(),
   confianza: z.number().min(0).max(1).optional().default(0.5),
 })
 

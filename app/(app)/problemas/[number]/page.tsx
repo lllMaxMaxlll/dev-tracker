@@ -20,7 +20,10 @@ import {
   CambiarEstado,
   VinculosIssue,
 } from "@/components/issues/issue-detail-actions"
-import { Proximamente } from "@/components/layout/proximamente"
+import {
+  SeccionEnriquecer,
+  SeccionRelacionados,
+} from "@/components/issues/issue-ai-sections"
 import { requireUser } from "@/lib/auth/require-user"
 import {
   getIssueByNumber,
@@ -28,6 +31,7 @@ import {
   getIssueLinks,
 } from "@/lib/db/queries/issues"
 import { listProjectOptions } from "@/lib/db/queries/projects"
+import { getRelacionesDeIssue } from "@/lib/db/queries/relaciones"
 import { fechaLarga, haceCuanto } from "@/lib/utils/fechas"
 import type { Estado } from "@/lib/schemas/enums"
 
@@ -50,11 +54,21 @@ async function Detalle({ params }: { params: Params }) {
     notFound()
   }
 
-  const [historial, vinculos, proyectos] = await Promise.all([
+  const [historial, vinculos, proyectos, relacionados] = await Promise.all([
     getIssueHistory(user.id, issue.id),
     getIssueLinks(user.id, issue.id),
     listProjectOptions(user.id),
+    getRelacionesDeIssue(user.id, issue.id),
   ])
+
+  const valoresActuales = {
+    title: issue.title,
+    description: issue.description ?? "",
+    projectId: issue.projectId ?? "",
+    type: issue.type as never,
+    priority: issue.priority as never,
+    status: issue.status as never,
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -94,14 +108,7 @@ async function Detalle({ params }: { params: Params }) {
             issueId={issue.id}
             numero={issue.number}
             proyectos={proyectos}
-            valoresIniciales={{
-              title: issue.title,
-              description: issue.description ?? "",
-              projectId: issue.projectId ?? "",
-              type: issue.type as never,
-              priority: issue.priority as never,
-              status: issue.status as never,
-            }}
+            valoresIniciales={valoresActuales}
           />
         </div>
       </div>
@@ -137,9 +144,21 @@ async function Detalle({ params }: { params: Params }) {
               <CardTitle>Relacionados</CardTitle>
             </CardHeader>
             <CardContent>
-              <Proximamente
-                fase="Fase 6"
-                detalle="Problemas parecidos detectados por similitud de embeddings."
+              <SeccionRelacionados
+                issueId={issue.id}
+                vinculadosIniciales={relacionados.map((r) => r.relatedIssueId)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Ayuda para completarlo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SeccionEnriquecer
+                issueId={issue.id}
+                valoresActuales={valoresActuales}
               />
             </CardContent>
           </Card>

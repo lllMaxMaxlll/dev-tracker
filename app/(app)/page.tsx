@@ -8,7 +8,7 @@ import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { WeeklyChart } from "@/components/dashboard/weekly-chart"
 import { DistributionChart } from "@/components/dashboard/distribution-chart"
 import { RecentIssues } from "@/components/dashboard/recent-issues"
-import { Proximamente } from "@/components/layout/proximamente"
+import { InsightsPanel } from "@/components/dashboard/insights-panel"
 import { requireUser } from "@/lib/auth/require-user"
 import {
   getDistribucionPorProyecto,
@@ -18,6 +18,8 @@ import {
 } from "@/lib/db/queries/metrics"
 import { listRecentIssues } from "@/lib/db/queries/issues"
 import { ETIQUETAS_TIPO, type Tipo } from "@/lib/schemas/enums"
+import { getInsights } from "@/lib/ai/tasks/insights-cache"
+import { getUltimoResumen } from "@/lib/db/queries/summaries"
 
 export const metadata: Metadata = { title: "Dashboard · DevTracker" }
 
@@ -90,6 +92,23 @@ async function Graficos() {
   )
 }
 
+async function Observaciones() {
+  const user = await requireUser()
+
+  const [{ contenido, generadoEn }, ultimoResumen] = await Promise.all([
+    getInsights(user.id),
+    getUltimoResumen(user.id),
+  ])
+
+  return (
+    <InsightsPanel
+      insights={contenido}
+      generadoEn={generadoEn}
+      ultimoResumen={ultimoResumen}
+    />
+  )
+}
+
 async function Recientes() {
   const user = await requireUser()
   const issues = await listRecentIssues(user.id, 6)
@@ -129,17 +148,9 @@ export default function DashboardPage() {
         <Tarjetas />
       </Suspense>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Observaciones</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Proximamente
-            fase="Fase 6"
-            detalle="Un párrafo generado con patrones de tu propio trabajo, y el último resumen semanal."
-          />
-        </CardContent>
-      </Card>
+      <Suspense fallback={<Skeleton className="h-40 rounded-xl" />}>
+        <Observaciones />
+      </Suspense>
 
       <Suspense
         fallback={

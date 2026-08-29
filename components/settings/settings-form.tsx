@@ -24,6 +24,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "@/components/ui/toast"
 import { AvisoSinTools, ModelPicker } from "@/components/settings/model-picker"
 import { guardarAjustesIA } from "@/actions/settings"
+import { regenerarEmbeddings } from "@/actions/duplicates"
 import type { ModeloCatalogo } from "@/lib/ai/models"
 import type { UserAiSettings } from "@/lib/db/schema"
 
@@ -92,6 +93,29 @@ export function SettingsForm({
   const router = useRouter()
   const [guardando, setGuardando] = React.useState(false)
   const [aviso, setAviso] = React.useState<string | null>(null)
+  const [regenerando, setRegenerando] = React.useState(false)
+
+  async function regenerar() {
+    setRegenerando(true)
+    const resultado = await regenerarEmbeddings()
+    setRegenerando(false)
+
+    if (!resultado.ok) {
+      toast.add({ title: resultado.error, type: "error" })
+
+      return
+    }
+
+    const { procesados, fallidos } = resultado.data
+
+    toast.add({
+      title: `${procesados - fallidos} de ${procesados} embeddings regenerados`,
+      description: fallidos > 0 ? `${fallidos} fallaron.` : undefined,
+      type: fallidos > 0 ? "warning" : "success",
+    })
+    setAviso(null)
+    router.refresh()
+  }
 
   const [valores, setValores] = React.useState({
     defaultModel: ajustes.defaultModel,
@@ -280,9 +304,37 @@ export function SettingsForm({
           {aviso ? (
             <Alert>
               <AlertTitle>Cambió la dimensión del vector</AlertTitle>
-              <AlertDescription>{aviso}</AlertDescription>
+              <AlertDescription className="flex flex-col items-start gap-3">
+                <span>{aviso}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={regenerar}
+                  disabled={regenerando}
+                >
+                  {regenerando ? <Spinner data-icon="inline-start" /> : null}
+                  Regenerar embeddings
+                </Button>
+              </AlertDescription>
             </Alert>
           ) : null}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={regenerar}
+              disabled={regenerando}
+            >
+              {regenerando ? <Spinner data-icon="inline-start" /> : null}
+              Regenerar todos los embeddings
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Útil si cambiaste de modelo o si algún problema quedó sin
+              embedding porque falló su generación.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

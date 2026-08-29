@@ -11,10 +11,31 @@ import { requireUser } from "@/lib/auth/require-user"
 import { listIssues, listIssuesForKanban } from "@/lib/db/queries/issues"
 import { listProjectOptions } from "@/lib/db/queries/projects"
 import { issueFiltersSchema } from "@/lib/schemas/issue"
+import {
+  PanelPriorizacion,
+  PanelSugerenciasCommits,
+} from "@/components/issues/ai-panels"
+import { listarSugerenciasPendientes } from "@/actions/commit-suggestions"
 
 export const metadata: Metadata = { title: "Problemas · DevTracker" }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+async function PanelesIA() {
+  const sugerencias = await listarSugerenciasPendientes()
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <PanelPriorizacion />
+      <PanelSugerenciasCommits
+        sugerencias={sugerencias.map((s) => ({
+          ...s,
+          justificacion: s.justificacion,
+        }))}
+      />
+    </div>
+  )
+}
 
 async function Contenido({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser()
@@ -77,6 +98,17 @@ export default function ProblemasPage({
         title="Problemas"
         description="Todo lo que anotarías en el cuaderno, en un solo lugar."
       />
+      <Suspense
+        fallback={
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-24 rounded-xl" />
+          </div>
+        }
+      >
+        <PanelesIA />
+      </Suspense>
+
       <Suspense fallback={<ContenidoSkeleton />}>
         <Contenido searchParams={searchParams} />
       </Suspense>

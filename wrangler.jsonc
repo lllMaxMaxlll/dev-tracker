@@ -43,6 +43,11 @@
     "binding": "AI"
   },
 
+  // Resumen semanal: viernes 18:00 UTC. Ver app/api/cron/weekly-summary.
+  "triggers": {
+    "crons": ["0 18 * * 5"]
+  },
+
   "observability": {
     "enabled": true
   }

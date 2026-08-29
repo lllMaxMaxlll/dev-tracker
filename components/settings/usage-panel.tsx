@@ -114,10 +114,13 @@ export function UsagePanel({ filas }: { filas: ResumenConsumo[] }) {
                   {fila.tokensSalida.toLocaleString("es-AR")}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {Math.round(fila.neurons)}
+                  {/* El modelo de embeddings no devuelve `usage`, así que no
+                      hay tokens ni neurons que mostrar. Poner 0 haría parecer
+                      que la llamada fue gratis en vez de desconocida. */}
+                  {fila.neurons > 0 ? Math.round(fila.neurons) : "—"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {usd(fila.costoUsd)}
+                  {fila.neurons > 0 ? usd(fila.costoUsd) : "—"}
                 </TableCell>
               </TableRow>
             ))}
@@ -127,7 +130,9 @@ export function UsagePanel({ filas }: { filas: ResumenConsumo[] }) {
 
       <p className="text-xs text-muted-foreground">
         Workers AI incluye 10.000 Neurons por día sin cargo. El costo estimado
-        sale de los precios del catálogo, no de una conversión de Neurons.
+        sale de los precios del catálogo, no de una conversión de Neurons. Las
+        llamadas marcadas con «—» no reportan consumo: el modelo de embeddings
+        no devuelve esa información.
       </p>
     </div>
   )
