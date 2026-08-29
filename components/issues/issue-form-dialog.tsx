@@ -24,7 +24,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
 import { EnumSelect } from "@/components/ui/enum-select"
 import { toast } from "@/components/ui/toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { FolderPlusIcon } from "lucide-react"
 import { createIssue, updateIssue } from "@/actions/issues"
+import { createProject } from "@/actions/projects"
 import {
   ESTADOS,
   ETIQUETAS_ESTADO,
@@ -70,6 +73,8 @@ type Props = {
   valoresIniciales?: Partial<IssueFormValues>
   /** Texto extra bajo el título, p. ej. el aviso de la captura por IA. */
   encabezado?: React.ReactNode
+  /** Proyecto que la IA mencionó y todavía no existe. Se ofrece crearlo. */
+  proyectoNuevo?: string | null
   onGuardado?: (resultado: { id: string; number: number } | null) => void
 }
 
@@ -80,6 +85,7 @@ export function IssueFormDialog({
   issueId,
   valoresIniciales,
   encabezado,
+  proyectoNuevo,
   onGuardado,
 }: Props) {
   const router = useRouter()
@@ -91,6 +97,55 @@ export function IssueFormDialog({
   })
 
   const editando = Boolean(issueId)
+  const [creandoProyecto, setCreandoProyecto] = React.useState(false)
+  const [proyectosLocales, setProyectosLocales] = React.useState(proyectos)
+  const [sugerenciaProyecto, setSugerenciaProyecto] = React.useState<
+    string | null
+  >(proyectoNuevo ?? null)
+
+  const [proyectosPrevios, setProyectosPrevios] = React.useState(proyectos)
+
+  if (proyectos !== proyectosPrevios) {
+    setProyectosPrevios(proyectos)
+    setProyectosLocales(proyectos)
+  }
+
+  const [sugerenciaPrevia, setSugerenciaPrevia] = React.useState(proyectoNuevo)
+
+  if (proyectoNuevo !== sugerenciaPrevia) {
+    setSugerenciaPrevia(proyectoNuevo)
+    setSugerenciaProyecto(proyectoNuevo ?? null)
+  }
+
+  async function crearProyectoSugerido() {
+    if (!sugerenciaProyecto) return
+
+    setCreandoProyecto(true)
+    const resultado = await createProject({ name: sugerenciaProyecto })
+    setCreandoProyecto(false)
+
+    if (!resultado.ok) {
+      toast.add({ title: resultado.error, type: "error" })
+
+      return
+    }
+
+    const nuevo = {
+      id: resultado.data.id,
+      name: sugerenciaProyecto,
+      slug: resultado.data.slug,
+      color: null,
+    }
+
+    setProyectosLocales((previos) => [...previos, nuevo])
+    setValores((previos) => ({ ...previos, projectId: nuevo.id }))
+    setSugerenciaProyecto(null)
+    toast.add({
+      title: `Proyecto «${sugerenciaProyecto}» creado`,
+      type: "success",
+    })
+    router.refresh()
+  }
 
   // Al reabrir el diálogo, volver a los valores que corresponden: sin esto el
   // formulario conservaría lo tipeado la vez anterior. Se ajusta durante el
@@ -156,6 +211,31 @@ export function IssueFormDialog({
 
         {encabezado}
 
+        {sugerenciaProyecto ? (
+          <Alert>
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                La nota menciona el proyecto «{sugerenciaProyecto}», que todavía
+                no existe.
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={crearProyectoSugerido}
+                disabled={creandoProyecto}
+              >
+                {creandoProyecto ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <FolderPlusIcon data-icon="inline-start" />
+                )}
+                Crearlo
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         <form onSubmit={onSubmit} className="flex flex-col gap-6">
           <FieldGroup>
             <Field data-invalid={errores.title ? true : undefined}>
@@ -195,7 +275,7 @@ export function IssueFormDialog({
                   placeholder="Sin proyecto"
                   value={valores.projectId || null}
                   onValueChange={(valor) => set("projectId", valor ?? "")}
-                  opciones={proyectos.map((p) => ({
+                  opciones={proyectosLocales.map((p) => ({
                     label: p.name,
                     value: p.id,
                   }))}

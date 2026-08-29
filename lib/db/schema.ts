@@ -407,11 +407,13 @@ export const userAiSettings = pgTable("user_ai_settings", {
     .primaryKey()
     .references(() => authUsers.id, { onDelete: "cascade" }),
   openrouterApiKeyEncrypted: text("openrouter_api_key_encrypted"),
+  // Modelos de Workers AI con function calling: glm-4.7-flash es barato y
+  // rápido para estructurar, gpt-oss-120b razona mejor para los resúmenes.
   defaultModel: text("default_model")
     .notNull()
-    .default("anthropic/claude-3.5-haiku"),
+    .default("@cf/zai-org/glm-4.7-flash"),
   fastModel: text("fast_model"),
-  reasoningModel: text("reasoning_model"),
+  reasoningModel: text("reasoning_model").default("@cf/openai/gpt-oss-120b"),
   embeddingProvider: text("embedding_provider").notNull().default("workers-ai"),
   embeddingModel: text("embedding_model").notNull().default("@cf/baai/bge-m3"),
   embeddingDimensions: integer("embedding_dimensions").notNull().default(1024),
@@ -533,6 +535,7 @@ export type UserAiSettings = typeof userAiSettings.$inferSelect
 export type AiUsageLogEntry = typeof aiUsageLog.$inferSelect
 export type WeeklySummary = typeof weeklySummaries.$inferSelect
 
+export type AiTaskKind = (typeof aiTaskKindEnum.enumValues)[number]
 export type IssueType = (typeof issueTypeEnum.enumValues)[number]
 export type IssuePriority = (typeof issuePriorityEnum.enumValues)[number]
 export type IssueStatus = (typeof issueStatusEnum.enumValues)[number]

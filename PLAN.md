@@ -506,7 +506,7 @@ También se corrigió un antipatrón que marcó el linter: construir JSX dentro 
 
 ---
 
-### Fase 5 — Capa de IA, Ajustes y captura en lenguaje natural
+### Fase 5 — Capa de IA, Ajustes y captura en lenguaje natural ✅ COMPLETADA
 
 1. `lib/ai/client.ts`: envoltorio del binding `env.AI.run(modelo, { messages, tools })`, con timeout por request y reintento acotado. Sin API keys ni cabeceras de identificación: no aplican con un binding (ver 1.11).
 2. `lib/ai/models.ts`: catálogo de modelos de Workers AI, cacheado con ISR sobre KV (~1 h), normalizado a `{ id, name, provider, contextLength, neuronsPerMTokenIn, neuronsPerMTokenOut, supportsTools }`.
@@ -528,6 +528,23 @@ También se corrigió un antipatrón que marcó el linter: construir JSX dentro 
    - estados de carga claros y manejo de error con toast + posibilidad de guardar igual a mano.
 
 **Verificación**: build ok; frase del ejemplo ("el login se rompe cuando el mail tiene mayúsculas, es urgente, es del proyecto fischer") produce el formulario correcto; cambiar de modelo en Ajustes cambia el modelo usado; elegir un modelo sin tools muestra el aviso; cada llamada deja fila en `ai_usage_log` con tokens y costo.
+
+**Resultado**: `typecheck`, `lint` y `build` en verde. Probado contra Workers AI real.
+
+Lo que reveló el sondeo del binding, y que no estaba documentado:
+- `env.AI.models()` **existe en el binding**, así que el catálogo sale sin API token ni account id. Trae `context_window`, `function_calling` y `price` en USD por millón de tokens: exactamente lo que la página de Ajustes necesita mostrar.
+- La respuesta de `run()` incluye **`usage.neurons`** además de los tokens, así que el consumo se registra sin estimar nada.
+- El catálogo real: 65 modelos, 31 de texto, 18 con function calling, 7 de embeddings. `@cf/baai/bge-m3` confirmado en **1024 dimensiones**, que es lo que asume la columna.
+
+⚠️ **El formato de `tools` importa y no está documentado.** Workers AI acepta dos formas, pero el formato plano (`{ name, description, parameters }`) **falla con `8001: Invalid input`** en glm-4.7-flash, gpt-oss-20b, granite-4.0 y mistral-small, y en gpt-oss-120b hace que devuelva las claves en inglés. El formato de OpenAI (`{ type: "function", function: {...} }`) anduvo en **todos** los modelos probados. Es el que usa `lib/ai/client.ts`.
+
+Otros hallazgos:
+- `@cf/qwen/qwen3-30b-a3b-fp8` figura con `function_calling: true` pero **no la usa**: responde en prosa. Se maneja como `MODELO_SIN_TOOLS` con un mensaje que sugiere cambiar de modelo.
+- `granite-4.0-h-micro` devuelve los argumentos **doblemente codificados** (una cadena que contiene el JSON). El cliente lo detecta y hace el segundo parse.
+
+Captura verificada con cinco notas reales: el ejemplo del pedido salió `bug/urgente/pendiente` con proyecto `fischer`; "no puedo avanzar con el pago hasta que responda el proveedor" salió con estado `bloqueado`; "hay que refactorizarlo" salió `deuda_tecnica`. Latencia de 5 a 12 segundos, por eso el diálogo muestra un estado de carga explícito. Las cinco capturas costaron **$0,00095** en total.
+
+Desvío del plan: los modelos por defecto del esquema eran ids de OpenRouter y no existen en Workers AI. Migración 0003: `@cf/zai-org/glm-4.7-flash` para las tareas rápidas y `@cf/openai/gpt-oss-120b` para las de razonamiento.
 
 ---
 
