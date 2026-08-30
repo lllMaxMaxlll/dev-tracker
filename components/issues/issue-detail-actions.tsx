@@ -114,7 +114,12 @@ export function AccionesIssue({
     }
 
     toast.add({ title: `Problema #${numero} borrado`, type: "success" })
+
+    // `push` sola dejaba la tabla mostrando el problema recién borrado: el
+    // router del cliente sirve la lista desde su caché de payloads RSC, que la
+    // navegación no invalida. `refresh` la descarta y vuelve a pedirla.
     router.push("/problemas")
+    router.refresh()
   }
 
   return (
