@@ -3,7 +3,11 @@ import "server-only"
 import { z } from "zod"
 
 import { pedirEstructurado } from "@/lib/ai/client"
-import { listaAcotada, textoAcotado } from "@/lib/ai/schema-helpers"
+import {
+  listaAcotada,
+  numeroTolerante,
+  textoAcotado,
+} from "@/lib/ai/schema-helpers"
 
 /**
  * Priorización asistida: "¿qué hago hoy?".
@@ -13,7 +17,7 @@ import { listaAcotada, textoAcotado } from "@/lib/ai/schema-helpers"
 const prioridadSchema = z.object({
   orden: listaAcotada(
     z.object({
-      numero: z.number().int().positive(),
+      numero: numeroTolerante({ entero: true, min: 1 }),
       motivo: textoAcotado(400),
     }),
     5

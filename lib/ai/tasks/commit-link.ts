@@ -3,7 +3,11 @@ import "server-only"
 import { z } from "zod"
 
 import { pedirEstructurado } from "@/lib/ai/client"
-import { listaAcotada, textoAcotado } from "@/lib/ai/schema-helpers"
+import {
+  listaAcotada,
+  numeroTolerante,
+  textoAcotado,
+} from "@/lib/ai/schema-helpers"
 
 /**
  * Sugerencia de qué commit resuelve qué problema.
@@ -14,13 +18,13 @@ import { listaAcotada, textoAcotado } from "@/lib/ai/schema-helpers"
 const sugerenciaSchema = z.object({
   pares: listaAcotada(
     z.object({
-      numeroProblema: z.number().int().positive(),
+      numeroProblema: numeroTolerante({ entero: true, min: 1 }),
       sha: z.string().trim().min(6),
       // Algunos modelos devuelven la confianza en porcentaje (85) en vez de
       // 0 a 1. Se normaliza en vez de rechazar la respuesta.
-      confianza: z
-        .number()
-        .transform((v) => (v > 1 ? Math.min(v / 100, 1) : Math.max(v, 0))),
+      confianza: numeroTolerante().transform((v) =>
+        v > 1 ? Math.min(v / 100, 1) : Math.max(v, 0)
+      ),
       justificacion: textoAcotado(400),
     }),
     20

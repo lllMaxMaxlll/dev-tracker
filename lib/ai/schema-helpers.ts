@@ -16,6 +16,35 @@ export function textoAcotado(maximo: number) {
   return z.string().transform((valor) => valor.trim().slice(0, maximo))
 }
 
+/**
+ * Número tolerante con lo que devuelven los modelos.
+ *
+ * Aunque el JSON Schema declare `type: "number"`, es común que manden `"3"`
+ * como texto. Rechazar la respuesta entera por eso deja al usuario con un
+ * error que no puede arreglar; convertirlo es trivial y no pierde información.
+ */
+export function numeroTolerante(opciones?: {
+  entero?: boolean
+  min?: number
+  max?: number
+}) {
+  let esquema = z.coerce.number()
+
+  if (opciones?.entero) {
+    esquema = esquema.int()
+  }
+
+  if (opciones?.min !== undefined) {
+    esquema = esquema.min(opciones.min)
+  }
+
+  if (opciones?.max !== undefined) {
+    esquema = esquema.max(opciones.max)
+  }
+
+  return esquema
+}
+
 export function listaAcotada<T extends z.ZodTypeAny>(
   elemento: T,
   maximo: number

@@ -68,7 +68,41 @@ async function conTimeout<T>(promesa: Promise<T>): Promise<T> {
  * modelo no soporta tools, se corta con un error accionable en vez de intentar
  * adivinar el JSON de una respuesta en prosa.
  */
-export async function pedirEstructurado<T extends z.ZodType>(params: {
+/**
+ * Pide una salida estructurada, con **un reintento**.
+ *
+ * Los fallos de este tipo son intermitentes: el mismo modelo con el mismo
+ * prompt a veces devuelve el número como texto, o contesta en prosa sin usar
+ * la herramienta. Medido: con 1, 3 y 6 problemas la priorización funcionó y
+ * con 2 falló.
+ *
+ * Sólo se reintenta lo que puede salir distinto la segunda vez. Un modelo que
+ * el catálogo marca sin tool calling falla siempre, así que ése corta de una.
+ */
+export async function pedirEstructurado<T extends z.ZodType>(
+  params: Parameters<typeof unIntentoEstructurado<T>>[0]
+): Promise<z.infer<T>> {
+  try {
+    return await unIntentoEstructurado(params)
+  } catch (error) {
+    const valeReintentar =
+      error instanceof ErrorIA &&
+      (error.codigo === "SALIDA_INVALIDA" ||
+        error.codigo === "MODELO_SIN_TOOLS")
+
+    if (!valeReintentar) {
+      throw error
+    }
+
+    console.warn(
+      `[ia] reintentando ${params.tipoRegistro}: ${(error as ErrorIA).message}`
+    )
+
+    return unIntentoEstructurado(params)
+  }
+}
+
+async function unIntentoEstructurado<T extends z.ZodType>(params: {
   userId: string
   tarea: TipoTarea
   tipoRegistro: AiTaskKind

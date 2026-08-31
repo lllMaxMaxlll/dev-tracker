@@ -3,7 +3,7 @@ import "server-only"
 import { z } from "zod"
 
 import { pedirEstructurado } from "@/lib/ai/client"
-import { textoAcotado } from "@/lib/ai/schema-helpers"
+import { numeroTolerante, textoAcotado } from "@/lib/ai/schema-helpers"
 import { ESTADOS, PRIORIDADES, TIPOS } from "@/lib/schemas/enums"
 
 /**
@@ -27,7 +27,7 @@ const capturaSchema = z.object({
   // nombre suelto si mencionaste uno que todavía no existe.
   proyectoSlug: z.string().trim().nullable().optional(),
   proyectoNuevo: textoAcotado(80).nullable().optional(),
-  confianza: z.number().min(0).max(1).optional().default(0.5),
+  confianza: numeroTolerante({ min: 0, max: 1 }).optional().default(0.5),
 })
 
 export type ResultadoCaptura = z.infer<typeof capturaSchema>
