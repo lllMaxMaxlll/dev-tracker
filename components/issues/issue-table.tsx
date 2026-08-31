@@ -87,7 +87,8 @@ export function IssueTable({ issues }: { issues: IssueListItem[] }) {
           </EmptyMedia>
           <EmptyTitle>No hay problemas</EmptyTitle>
           <EmptyDescription>
-            Probá quitando algún filtro, o cargá uno nuevo con la tecla C.
+            Probá quitando algún filtro, o cargá uno con «Nuevo problema».
+            También podés dictarlo en lenguaje natural desde «Anotar».
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

@@ -16,10 +16,18 @@ import {
   PanelSugerenciasCommits,
 } from "@/components/issues/ai-panels"
 import { listarSugerenciasPendientes } from "@/actions/commit-suggestions"
+import { NewIssueButton } from "@/components/issues/new-issue-button"
 
 export const metadata: Metadata = { title: "Problemas · DevTracker" }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+async function BotonNuevo() {
+  const user = await requireUser()
+  const proyectos = await listProjectOptions(user.id)
+
+  return <NewIssueButton proyectos={proyectos} />
+}
 
 async function PanelesIA() {
   const sugerencias = await listarSugerenciasPendientes()
@@ -97,7 +105,11 @@ export default function ProblemasPage({
       <PageHeader
         title="Problemas"
         description="Todo lo que anotarías en el cuaderno, en un solo lugar."
-      />
+      >
+        <Suspense fallback={<Skeleton className="h-9 w-40" />}>
+          <BotonNuevo />
+        </Suspense>
+      </PageHeader>
       <Suspense
         fallback={
           <div className="grid gap-4 lg:grid-cols-2">
