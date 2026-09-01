@@ -31,8 +31,17 @@ export function AppSidebar() {
               tooltip="DevTracker"
               render={<Link href="/" />}
             >
-              <Logotipo className="size-8 shrink-0 rounded-lg" />
-              <div className="flex flex-col gap-0.5 leading-none">
+              {/* `size-8!` con el `!` a propósito: el botón trae una regla
+                  `[&_svg]:size-4` que, por ser un selector descendente, le gana
+                  en especificidad a un `size-8` suelto y dejaba el logo a la
+                  mitad de tamaño. */}
+              <Logotipo className="size-8! shrink-0 rounded-lg" />
+
+              {/* Escondido al colapsar. shadcn sólo oculta los `span` directos
+                  del botón; este texto va envuelto en un `div`, así que sin
+                  esta clase sobrevivía y se veía recortado al lado del icono
+                  (asomaba la "C" de "Cuaderno"). */}
+              <div className="flex flex-col gap-0.5 leading-none group-data-[collapsible=icon]:hidden">
                 <span className="font-semibold">DevTracker</span>
                 <span className="text-xs text-muted-foreground">
                   Cuaderno de desarrollo
