@@ -55,8 +55,7 @@ export async function priorizar(params: {
     "Reglas:",
     "- Devolvé entre 3 y 5 ítems, no más.",
     "- No repitas la prioridad declarada como única razón: eso ya lo sabe.",
-    "- Pesá también la antigüedad, si algo está bloqueado y si un proyecto se está estancando.",
-    "- Un problema bloqueado sólo va primero si lo que hay que hacer es destrabarlo.",
+    "- Pesá también la antigüedad y si un proyecto se está estancando.",
     "- El motivo es una frase corta, concreta y en segunda persona.",
     "- Escribís en español rioplatense.",
   ].join("\n")

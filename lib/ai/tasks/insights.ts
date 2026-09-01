@@ -38,7 +38,7 @@ export async function generarInsights(params: {
     .join("; ")
 
   const datos = [
-    `Abiertos: ${params.resumen.abiertos}. Bloqueados: ${params.resumen.bloqueados}. Resueltos esta semana: ${params.resumen.resueltosEstaSemana}.`,
+    `Abiertos: ${params.resumen.abiertos}. En progreso: ${params.resumen.enProgreso}. Resueltos esta semana: ${params.resumen.resueltosEstaSemana}.`,
     params.resumen.tiempoPromedioMs !== null
       ? `Tiempo promedio de resolución: ${duracionLegible(params.resumen.tiempoPromedioMs)} sobre ${params.resumen.muestraPromedio} problemas.`
       : "Todavía no hay problemas resueltos.",

@@ -33,7 +33,6 @@ export type DatosSemana = {
     project: string | null
   }[]
   resueltos: { number: number; title: string; project: string | null }[]
-  bloqueados: { number: number; title: string; project: string | null }[]
   cambiosDeEstado: number
   abiertosAlCierre: number
 }
@@ -45,82 +44,68 @@ export async function getDatosDeSemana(
 ): Promise<DatosSemana> {
   const fin = finDeSemana(inicio)
 
-  const [creados, resueltos, bloqueados, cambios, abiertos] = await Promise.all(
-    [
-      db
-        .select({
-          number: issues.number,
-          title: issues.title,
-          type: issues.type,
-          project: projects.name,
-        })
-        .from(issues)
-        .leftJoin(projects, eq(projects.id, issues.projectId))
-        .where(
-          and(
-            eq(issues.userId, userId),
-            gte(issues.createdAt, inicio),
-            lt(issues.createdAt, fin)
-          )
+  const [creados, resueltos, cambios, abiertos] = await Promise.all([
+    db
+      .select({
+        number: issues.number,
+        title: issues.title,
+        type: issues.type,
+        project: projects.name,
+      })
+      .from(issues)
+      .leftJoin(projects, eq(projects.id, issues.projectId))
+      .where(
+        and(
+          eq(issues.userId, userId),
+          gte(issues.createdAt, inicio),
+          lt(issues.createdAt, fin)
         )
-        .orderBy(asc(issues.number)),
+      )
+      .orderBy(asc(issues.number)),
 
-      db
-        .select({
-          number: issues.number,
-          title: issues.title,
-          project: projects.name,
-        })
-        .from(issues)
-        .leftJoin(projects, eq(projects.id, issues.projectId))
-        .where(
-          and(
-            eq(issues.userId, userId),
-            eq(issues.status, "resuelto"),
-            gte(issues.resolvedAt, inicio),
-            lt(issues.resolvedAt, fin)
-          )
+    db
+      .select({
+        number: issues.number,
+        title: issues.title,
+        project: projects.name,
+      })
+      .from(issues)
+      .leftJoin(projects, eq(projects.id, issues.projectId))
+      .where(
+        and(
+          eq(issues.userId, userId),
+          eq(issues.status, "resuelto"),
+          gte(issues.resolvedAt, inicio),
+          lt(issues.resolvedAt, fin)
         )
-        .orderBy(asc(issues.number)),
+      )
+      .orderBy(asc(issues.number)),
 
-      db
-        .select({
-          number: issues.number,
-          title: issues.title,
-          project: projects.name,
-        })
-        .from(issues)
-        .leftJoin(projects, eq(projects.id, issues.projectId))
-        .where(and(eq(issues.userId, userId), eq(issues.status, "bloqueado")))
-        .orderBy(asc(issues.number)),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(issueStatusHistory)
+      .where(
+        and(
+          eq(issueStatusHistory.userId, userId),
+          gte(issueStatusHistory.changedAt, inicio),
+          lt(issueStatusHistory.changedAt, fin)
+        )
+      ),
 
-      db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(issueStatusHistory)
-        .where(
-          and(
-            eq(issueStatusHistory.userId, userId),
-            gte(issueStatusHistory.changedAt, inicio),
-            lt(issueStatusHistory.changedAt, fin)
-          )
-        ),
-
-      db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(issues)
-        .where(
-          and(
-            eq(issues.userId, userId),
-            sql`${issues.status} in ('pendiente','en_progreso','bloqueado')`
-          )
-        ),
-    ]
-  )
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.userId, userId),
+          sql`${issues.status} in ('pendiente','en_progreso')`
+        )
+      ),
+  ])
 
   return {
     creados,
     resueltos,
-    bloqueados,
     cambiosDeEstado: cambios[0]?.total ?? 0,
     abiertosAlCierre: abiertos[0]?.total ?? 0,
   }
@@ -141,7 +126,7 @@ export async function getEstancados(userId: string, dias = 14) {
       and(
         eq(issues.userId, userId),
         lt(issues.updatedAt, limite),
-        sql`${issues.status} in ('pendiente','en_progreso','bloqueado')`
+        sql`${issues.status} in ('pendiente','en_progreso')`
       )
     )
     .orderBy(asc(issues.updatedAt))
@@ -165,7 +150,7 @@ export async function getAbiertosParaPriorizar(userId: string) {
     .where(
       and(
         eq(issues.userId, userId),
-        sql`${issues.status} in ('pendiente','en_progreso','bloqueado')`
+        sql`${issues.status} in ('pendiente','en_progreso')`
       )
     )
     .orderBy(asc(issues.createdAt))

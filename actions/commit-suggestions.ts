@@ -55,7 +55,7 @@ export async function buscarVinculosDeCommits(): Promise<
       .where(
         and(
           eq(issues.userId, user.id),
-          sql`${issues.status} in ('pendiente','en_progreso','bloqueado')`
+          sql`${issues.status} in ('pendiente','en_progreso')`
         )
       )
       .limit(40)

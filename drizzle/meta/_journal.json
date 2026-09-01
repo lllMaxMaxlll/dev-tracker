@@ -29,6 +29,13 @@
       "when": 1788021581557,
       "tag": "0003_modelos_por_defecto",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788302380556,
+      "tag": "0004_quitar_bloqueado",
+      "breakpoints": true
     }
   ]
 }

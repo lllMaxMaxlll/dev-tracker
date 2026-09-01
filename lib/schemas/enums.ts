@@ -18,7 +18,6 @@ export const PRIORIDADES = ["baja", "media", "alta", "urgente"] as const
 export const ESTADOS = [
   "pendiente",
   "en_progreso",
-  "bloqueado",
   "resuelto",
   "descartado",
 ] as const
@@ -49,7 +48,6 @@ export const ETIQUETAS_PRIORIDAD: Record<Prioridad, string> = {
 export const ETIQUETAS_ESTADO: Record<Estado, string> = {
   pendiente: "Pendiente",
   en_progreso: "En progreso",
-  bloqueado: "Bloqueado",
   resuelto: "Resuelto",
   descartado: "Descartado",
 }
@@ -58,7 +56,6 @@ export const ETIQUETAS_ESTADO: Record<Estado, string> = {
 export const ESTADOS_ABIERTOS = [
   "pendiente",
   "en_progreso",
-  "bloqueado",
 ] as const satisfies readonly Estado[]
 
 /** Orden de las columnas del kanban. */

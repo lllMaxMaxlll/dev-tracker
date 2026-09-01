@@ -13,7 +13,6 @@ import type { WeeklySummary } from "@/lib/db/schema"
 type Stats = {
   creados?: number
   resueltos?: number
-  bloqueados?: number
   commits?: number
 }
 
@@ -50,9 +49,6 @@ export function SummaryList({ resumenes }: { resumenes: WeeklySummary[] }) {
                 ) : null}
                 {stats.resueltos !== undefined ? (
                   <Badge variant="secondary">{stats.resueltos} resueltos</Badge>
-                ) : null}
-                {stats.bloqueados ? (
-                  <Badge variant="outline">{stats.bloqueados} bloqueados</Badge>
                 ) : null}
                 {stats.commits ? (
                   <Badge variant="outline">{stats.commits} commits</Badge>

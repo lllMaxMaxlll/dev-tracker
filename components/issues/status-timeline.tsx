@@ -2,6 +2,21 @@ import { ETIQUETAS_ESTADO, type Estado } from "@/lib/schemas/enums"
 import { fechaLarga, haceCuanto } from "@/lib/utils/fechas"
 import type { IssueStatusHistoryEntry } from "@/lib/db/schema"
 
+/**
+ * Etiqueta de un estado del historial.
+ *
+ * El historial guarda texto libre, no el enum, justamente para poder conservar
+ * estados que la app ya no ofrece (`bloqueado` se quitó). Cuando aparece uno
+ * así, se muestra el valor crudo con la primera en mayúscula en vez de
+ * "undefined".
+ */
+function etiqueta(estado: string): string {
+  return (
+    ETIQUETAS_ESTADO[estado as Estado] ??
+    estado.charAt(0).toUpperCase() + estado.slice(1).replace(/_/g, " ")
+  )
+}
+
 const ORIGEN: Record<string, string> = {
   manual: "",
   ai_suggestion_accepted: " (sugerencia de IA aceptada)",
@@ -33,7 +48,7 @@ export function StatusTimeline({
                 <>
                   De{" "}
                   <strong className="font-medium">
-                    {ETIQUETAS_ESTADO[entrada.fromStatus as Estado]}
+                    {etiqueta(entrada.fromStatus)}
                   </strong>{" "}
                   a{" "}
                 </>
@@ -41,7 +56,7 @@ export function StatusTimeline({
                 "Creado como "
               )}
               <strong className="font-medium">
-                {ETIQUETAS_ESTADO[entrada.toStatus as Estado]}
+                {etiqueta(entrada.toStatus)}
               </strong>
               {ORIGEN[entrada.source] ?? ""}
             </span>

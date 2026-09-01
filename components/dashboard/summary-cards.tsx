@@ -2,7 +2,7 @@ import Link from "next/link"
 import {
   CheckCircle2Icon,
   CircleDotIcon,
-  OctagonPauseIcon,
+  CircleDashedIcon,
   TimerIcon,
 } from "lucide-react"
 
@@ -57,7 +57,7 @@ export function SummaryCards({ resumen }: { resumen: ResumenMetricas }) {
       <Tarjeta
         titulo="Abiertos"
         valor={String(resumen.abiertos)}
-        detalle="Pendientes, en progreso o bloqueados"
+        detalle="Pendientes y en progreso"
         icono={CircleDotIcon}
         href="/problemas?estado=abiertos"
       />
@@ -69,15 +69,13 @@ export function SummaryCards({ resumen }: { resumen: ResumenMetricas }) {
         href="/problemas?estado=resuelto"
       />
       <Tarjeta
-        titulo="Bloqueados"
-        valor={String(resumen.bloqueados)}
+        titulo="En progreso"
+        valor={String(resumen.enProgreso)}
         detalle={
-          resumen.bloqueados > 0
-            ? "Esperando algo para poder avanzar"
-            : "Nada trabado"
+          resumen.enProgreso > 0 ? "Lo que tenés entre manos" : "Nada empezado"
         }
-        icono={OctagonPauseIcon}
-        href="/problemas?estado=bloqueado"
+        icono={CircleDashedIcon}
+        href="/problemas?estado=en_progreso"
       />
       <Tarjeta
         titulo="Tiempo de resolución"

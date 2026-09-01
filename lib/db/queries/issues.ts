@@ -62,9 +62,7 @@ function construirWhere(
   }
 
   if (filtros.estado === "abiertos") {
-    condiciones.push(
-      sql`${issues.status} in ('pendiente', 'en_progreso', 'bloqueado')`
-    )
+    condiciones.push(sql`${issues.status} in ('pendiente', 'en_progreso')`)
   } else if (filtros.estado) {
     condiciones.push(eq(issues.status, filtros.estado))
   }

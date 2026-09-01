@@ -50,7 +50,6 @@ export const issuePriorityEnum = pgEnum("issue_priority", [
 export const issueStatusEnum = pgEnum("issue_status", [
   "pendiente",
   "en_progreso",
-  "bloqueado",
   "resuelto",
   "descartado",
 ])
@@ -227,8 +226,11 @@ export const issueStatusHistory = pgTable(
     issueId: uuid("issue_id")
       .notNull()
       .references(() => issues.id, { onDelete: "cascade" }),
-    fromStatus: issueStatusEnum("from_status"),
-    toStatus: issueStatusEnum("to_status").notNull(),
+    // Texto y no el enum a propósito: el historial es un registro de lo que
+    // pasó. Si un estado se saca de la app, las filas viejas tienen que poder
+    // seguir diciendo la verdad en vez de reescribirse.
+    fromStatus: text("from_status"),
+    toStatus: text("to_status").notNull(),
     source: statusChangeSourceEnum("source").notNull().default("manual"),
     note: text("note"),
     changedAt: timestamp("changed_at", { withTimezone: true })

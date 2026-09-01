@@ -19,7 +19,7 @@ import { db } from "@/lib/db"
 export type ResumenMetricas = {
   abiertos: number
   resueltosEstaSemana: number
-  bloqueados: number
+  enProgreso: number
   /** Promedio de resolución en milisegundos, o `null` si todavía no hay datos. */
   tiempoPromedioMs: number | null
   /** Cuántos problemas resueltos alimentan ese promedio. */
@@ -30,7 +30,7 @@ export async function getResumen(userId: string): Promise<ResumenMetricas> {
   const resultado = await db.execute(sql`
     select
       count(*) filter (
-        where status in ('pendiente', 'en_progreso', 'bloqueado')
+        where status in ('pendiente', 'en_progreso')
       )::int as abiertos,
 
       count(*) filter (
@@ -38,7 +38,7 @@ export async function getResumen(userId: string): Promise<ResumenMetricas> {
           and resolved_at >= date_trunc('week', now())
       )::int as resueltos_esta_semana,
 
-      count(*) filter (where status = 'bloqueado')::int as bloqueados,
+      count(*) filter (where status = 'en_progreso')::int as en_progreso,
 
       -- El promedio se limita a los últimos 90 días para que refleje cómo
       -- venís trabajando ahora y no quede anclado a la historia vieja.
@@ -63,7 +63,7 @@ export async function getResumen(userId: string): Promise<ResumenMetricas> {
     | {
         abiertos: number
         resueltos_esta_semana: number
-        bloqueados: number
+        en_progreso: number
         tiempo_promedio_ms: string | number | null
         muestra_promedio: number
       }
@@ -72,7 +72,7 @@ export async function getResumen(userId: string): Promise<ResumenMetricas> {
   return {
     abiertos: fila?.abiertos ?? 0,
     resueltosEstaSemana: fila?.resueltos_esta_semana ?? 0,
-    bloqueados: fila?.bloqueados ?? 0,
+    enProgreso: fila?.en_progreso ?? 0,
     // `avg` de Postgres vuelve como numeric, que node-postgres entrega string.
     tiempoPromedioMs:
       fila?.tiempo_promedio_ms == null ? null : Number(fila.tiempo_promedio_ms),

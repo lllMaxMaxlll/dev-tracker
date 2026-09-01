@@ -24,8 +24,7 @@ const SISTEMA = [
   "",
   "Estructura, en prosa y sin títulos ni listas:",
   "- Qué avanzó.",
-  "- Qué quedó bloqueado y por qué, si se sabe.",
-  "- Qué se está estancando.",
+  "- Qué se está estancando o quedó a medias.",
   "- Qué conviene atacar la semana que viene.",
   "",
   "Reglas:",
@@ -46,7 +45,6 @@ function armarPrompt(
     "",
     `Creados (${datos.creados.length}): ${datos.creados.map((i) => `#${i.number} ${i.title} [${i.type}${i.project ? `, ${i.project}` : ""}]`).join("; ") || "ninguno"}`,
     `Resueltos (${datos.resueltos.length}): ${datos.resueltos.map((i) => `#${i.number} ${i.title}`).join("; ") || "ninguno"}`,
-    `Bloqueados ahora (${datos.bloqueados.length}): ${datos.bloqueados.map((i) => `#${i.number} ${i.title}`).join("; ") || "ninguno"}`,
     `Cambios de estado en la semana: ${datos.cambiosDeEstado}`,
     `Problemas abiertos al cierre: ${datos.abiertosAlCierre}`,
     commits.length > 0
@@ -164,7 +162,6 @@ export async function prepararResumenSemanal(params: {
     stats: {
       creados: datos.creados.length,
       resueltos: datos.resueltos.length,
-      bloqueados: datos.bloqueados.length,
       cambiosDeEstado: datos.cambiosDeEstado,
       abiertosAlCierre: datos.abiertosAlCierre,
       commits: commits.length,
