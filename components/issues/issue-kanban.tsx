@@ -39,6 +39,20 @@ import type { IssueListItem } from "@/lib/db/queries/issues"
  */
 const TOP_PINEADO = 64
 
+/**
+ * Ancho de una columna del tablero.
+ *
+ * `flex-1 basis-0` reparte el ancho disponible en partes iguales, así el
+ * tablero ocupa toda la vista en lugar de dejar un hueco a la derecha.
+ * `min-w-56` es el piso: por debajo de eso el contenedor scrollea en
+ * horizontal en vez de aplastar las tarjetas.
+ *
+ * Lo usan la columna real, el esqueleto y los chips del encabezado fijo. Los
+ * chips se posicionan calcando el ancho de las columnas, así que si los tres
+ * no comparten estas clases dejan de estar alineados.
+ */
+const CLASES_COLUMNA = "min-w-56 flex-1 basis-0"
+
 function Tarjeta({
   issue,
   arrastrando,
@@ -104,7 +118,7 @@ function Columna({
   const { setNodeRef, isOver } = useDroppable({ id: estado })
 
   return (
-    <div className="flex w-64 shrink-0 flex-col gap-2">
+    <div className={cn("flex flex-col gap-2", CLASES_COLUMNA)}>
       <div className="flex items-center justify-between px-1">
         <h2 className="text-sm font-medium">{ETIQUETAS_ESTADO[estado]}</h2>
         <Badge variant="secondary">{issues.length}</Badge>
@@ -180,7 +194,8 @@ function EncabezadosPineados({
           <div
             key={estado}
             className={cn(
-              "flex w-64 shrink-0 items-center justify-between rounded-lg border bg-background/95 px-2 py-1.5 shadow-md backdrop-blur transition-colors",
+              "flex items-center justify-between rounded-lg border bg-background/95 px-2 py-1.5 shadow-md backdrop-blur transition-colors",
+              CLASES_COLUMNA,
               sobre === estado && "border-primary bg-primary/10"
             )}
           >
@@ -338,7 +353,10 @@ export function IssueKanban({ issues }: { issues: IssueListItem[] }) {
       fallback={
         <div className="flex w-full min-w-0 gap-4 overflow-x-auto pb-4">
           {ESTADOS.map((estado) => (
-            <div key={estado} className="flex w-64 shrink-0 flex-col gap-2">
+            <div
+              key={estado}
+              className={cn("flex flex-col gap-2", CLASES_COLUMNA)}
+            >
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-sm font-medium">
                   {ETIQUETAS_ESTADO[estado]}
