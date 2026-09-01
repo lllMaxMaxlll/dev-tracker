@@ -39,9 +39,9 @@ function Fila({
 }
 
 /**
- * Aviso de posibles duplicados, antes de crear.
+ * Aviso de posibles duplicados.
  *
- * Nunca bloquea el alta: siempre se puede ignorar y crear igual. Es el mismo
+ * Nunca bloquea el alta: el botón de crear queda habilitado igual. Es el mismo
  * criterio que el resto de la capa de IA — propone, no decide.
  */
 export function AvisoDuplicados({
@@ -85,7 +85,7 @@ export function AvisoDuplicados({
           onClick={onIgnorar}
           className="w-fit"
         >
-          Ignorar y crear igual
+          Ignorar aviso
         </Button>
       </AlertDescription>
     </Alert>

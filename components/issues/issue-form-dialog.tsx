@@ -25,7 +25,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { EnumSelect } from "@/components/ui/enum-select"
 import { toast } from "@/components/ui/toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { FolderPlusIcon } from "lucide-react"
+import { FolderPlusIcon, SearchIcon } from "lucide-react"
 import { createIssue, updateIssue } from "@/actions/issues"
 import { createProject } from "@/actions/projects"
 import { buscarPosiblesDuplicados } from "@/actions/duplicates"
@@ -176,26 +176,32 @@ export function IssueFormDialog({
     setValores((previos) => ({ ...previos, [campo]: valor }))
   }
 
+  /**
+   * Búsqueda de parecidos, a pedido.
+   *
+   * Antes corría sola en el primer submit y demoraba el alta varios segundos
+   * esperando el embedding, aun cuando ya sabías que el problema era nuevo.
+   * Ahora crear es instantáneo y esto queda para cuando tenés la duda.
+   */
+  async function buscarParecidos() {
+    setBuscandoDuplicados(true)
+    setDuplicadosIgnorados(false)
+
+    const similares = await buscarPosiblesDuplicados(
+      valores.title,
+      valores.description
+    )
+
+    setDuplicados(similares)
+    setBuscandoDuplicados(false)
+
+    if (similares.length === 0) {
+      toast.add({ title: "No encontré problemas parecidos", type: "info" })
+    }
+  }
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-
-    // En un alta, primero se busca si ya existe algo parecido. El aviso se
-    // muestra una sola vez: si igual querés crearlo, el segundo submit pasa
-    // de largo. Editar no dispara la búsqueda.
-    if (!issueId && !duplicadosIgnorados && duplicados.length === 0) {
-      setBuscandoDuplicados(true)
-      const similares = await buscarPosiblesDuplicados(
-        valores.title,
-        valores.description
-      )
-      setBuscandoDuplicados(false)
-
-      if (similares.length > 0) {
-        setDuplicados(similares)
-
-        return
-      }
-    }
 
     setGuardando(true)
     setErrores({})
@@ -375,17 +381,36 @@ export function IssueFormDialog({
             >
               Cancelar
             </Button>
+
+            {/* Sólo al dar de alta: en una edición el problema ya existe. */}
+            {!editando ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={buscarParecidos}
+                disabled={
+                  guardando ||
+                  buscandoDuplicados ||
+                  valores.title.trim().length < 8
+                }
+                title="Busca si ya anotaste algo parecido. Tarda unos segundos."
+              >
+                {buscandoDuplicados ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <SearchIcon data-icon="inline-start" />
+                )}
+                {buscandoDuplicados ? "Buscando…" : "Buscar parecidos"}
+              </Button>
+            ) : null}
+
             <Button type="submit" disabled={guardando || buscandoDuplicados}>
-              {guardando || buscandoDuplicados ? (
-                <Spinner data-icon="inline-start" />
-              ) : null}
-              {buscandoDuplicados
-                ? "Buscando parecidos…"
-                : editando
-                  ? "Guardar"
-                  : duplicados.length > 0
-                    ? "Crear igual"
-                    : "Crear problema"}
+              {guardando ? <Spinner data-icon="inline-start" /> : null}
+              {editando
+                ? "Guardar"
+                : duplicados.length > 0
+                  ? "Crear igual"
+                  : "Crear problema"}
             </Button>
           </DialogFooter>
         </form>

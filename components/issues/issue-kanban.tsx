@@ -163,7 +163,7 @@ function EncabezadosPineados({
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed z-30 overflow-hidden duration-100 animate-in fade-in-0 slide-in-from-top-1"
+      className="pointer-events-none fixed z-30 animate-in overflow-hidden duration-100 fade-in-0 slide-in-from-top-1"
       style={{
         top: TOP_PINEADO,
         left: geometria.left,
