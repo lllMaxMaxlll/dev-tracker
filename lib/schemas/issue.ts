@@ -56,7 +56,10 @@ export const issueFiltersSchema = z.object({
   vista: z.enum(["tabla", "kanban"]).default("tabla"),
   proyecto: z.string().optional(),
   tipo: z.enum(TIPOS).optional(),
-  estado: z.enum(ESTADOS).optional(),
+  // `abiertos` no es un estado de la base: agrupa los tres que no están
+  // cerrados. Existe para que la tarjeta "Abiertos" del dashboard pueda
+  // enlazar a exactamente lo que cuenta.
+  estado: z.enum([...ESTADOS, "abiertos"]).optional(),
   prioridad: z.enum(PRIORIDADES).optional(),
   q: z.string().trim().max(100).optional(),
   orden: z.enum(ORDENES).default("actualizado"),

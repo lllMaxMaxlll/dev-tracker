@@ -59,7 +59,7 @@ export function SummaryCards({ resumen }: { resumen: ResumenMetricas }) {
         valor={String(resumen.abiertos)}
         detalle="Pendientes, en progreso o bloqueados"
         icono={CircleDotIcon}
-        href="/problemas?estado=pendiente"
+        href="/problemas?estado=abiertos"
       />
       <Tarjeta
         titulo="Resueltos esta semana"
