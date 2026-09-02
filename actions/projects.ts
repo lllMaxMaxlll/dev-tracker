@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { and, eq, ne } from "drizzle-orm"
 
-import { db } from "@/lib/db"
+import { conDb, db } from "@/lib/db"
 import { issues, projects } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
 import {
@@ -63,22 +63,24 @@ export async function createProject(
   const datos = parsed.data
 
   try {
-    const [proyecto] = await db
-      .insert(projects)
-      .values({
-        userId: user.id,
-        name: datos.name,
-        slug: await slugDisponible(user.id, datos.name),
-        description: datos.description || null,
-        color: datos.color || null,
-        githubRepoFullName: datos.githubRepoFullName || null,
-      })
-      .returning({ id: projects.id, slug: projects.slug })
+    return await conDb(async () => {
+      const [proyecto] = await db
+        .insert(projects)
+        .values({
+          userId: user.id,
+          name: datos.name,
+          slug: await slugDisponible(user.id, datos.name),
+          description: datos.description || null,
+          color: datos.color || null,
+          githubRepoFullName: datos.githubRepoFullName || null,
+        })
+        .returning({ id: projects.id, slug: projects.slug })
 
-    revalidatePath("/proyectos")
-    revalidatePath("/problemas")
+      revalidatePath("/proyectos")
+      revalidatePath("/problemas")
 
-    return actionOk(proyecto)
+      return actionOk(proyecto)
+    })
   } catch (error) {
     console.error("[createProject]", error)
 
@@ -100,28 +102,30 @@ export async function updateProject(valores: unknown): Promise<ActionResult> {
   const { id, ...datos } = parsed.data
 
   try {
-    const actualizados = await db
-      .update(projects)
-      .set({
-        name: datos.name,
-        slug: await slugDisponible(user.id, datos.name, id),
-        description: datos.description || null,
-        color: datos.color || null,
-        githubRepoFullName: datos.githubRepoFullName || null,
-        isArchived: datos.isArchived ?? false,
-      })
-      // El filtro por userId es lo que impide editar el proyecto de otro.
-      .where(and(eq(projects.id, id), eq(projects.userId, user.id)))
-      .returning({ id: projects.id })
+    return await conDb(async () => {
+      const actualizados = await db
+        .update(projects)
+        .set({
+          name: datos.name,
+          slug: await slugDisponible(user.id, datos.name, id),
+          description: datos.description || null,
+          color: datos.color || null,
+          githubRepoFullName: datos.githubRepoFullName || null,
+          isArchived: datos.isArchived ?? false,
+        })
+        // El filtro por userId es lo que impide editar el proyecto de otro.
+        .where(and(eq(projects.id, id), eq(projects.userId, user.id)))
+        .returning({ id: projects.id })
 
-    if (actualizados.length === 0) {
-      return actionError("No se encontró el proyecto")
-    }
+      if (actualizados.length === 0) {
+        return actionError("No se encontró el proyecto")
+      }
 
-    revalidatePath("/proyectos")
-    revalidatePath("/problemas")
+      revalidatePath("/proyectos")
+      revalidatePath("/problemas")
 
-    return actionOk()
+      return actionOk()
+    })
   } catch (error) {
     console.error("[updateProject]", error)
 
@@ -133,21 +137,23 @@ export async function deleteProject(id: string): Promise<ActionResult> {
   const user = await requireUser()
 
   try {
-    // Los problemas del proyecto NO se borran: la FK está en `set null`, así
-    // que quedan sin proyecto en vez de desaparecer sin aviso.
-    const borrados = await db
-      .delete(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, user.id)))
-      .returning({ id: projects.id })
+    return await conDb(async () => {
+      // Los problemas del proyecto NO se borran: la FK está en `set null`, así
+      // que quedan sin proyecto en vez de desaparecer sin aviso.
+      const borrados = await db
+        .delete(projects)
+        .where(and(eq(projects.id, id), eq(projects.userId, user.id)))
+        .returning({ id: projects.id })
 
-    if (borrados.length === 0) {
-      return actionError("No se encontró el proyecto")
-    }
+      if (borrados.length === 0) {
+        return actionError("No se encontró el proyecto")
+      }
 
-    revalidatePath("/proyectos")
-    revalidatePath("/problemas")
+      revalidatePath("/proyectos")
+      revalidatePath("/problemas")
 
-    return actionOk()
+      return actionOk()
+    })
   } catch (error) {
     console.error("[deleteProject]", error)
 
@@ -159,10 +165,12 @@ export async function deleteProject(id: string): Promise<ActionResult> {
 export async function countProjectIssues(id: string): Promise<number> {
   const user = await requireUser()
 
-  const filas = await db
-    .select({ id: issues.id })
-    .from(issues)
-    .where(and(eq(issues.projectId, id), eq(issues.userId, user.id)))
+  return conDb(async () => {
+    const filas = await db
+      .select({ id: issues.id })
+      .from(issues)
+      .where(and(eq(issues.projectId, id), eq(issues.userId, user.id)))
 
-  return filas.length
+    return filas.length
+  })
 }

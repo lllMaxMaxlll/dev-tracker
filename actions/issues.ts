@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { and, eq, sql } from "drizzle-orm"
 
-import { db } from "@/lib/db"
+import { conDb, db } from "@/lib/db"
 import {
   issueLinks,
   issueStatusHistory,
@@ -47,62 +47,64 @@ export async function createIssue(
   const datos = parsed.data
 
   try {
-    const creado = await db.transaction(async (tx) => {
-      // El número correlativo sale de un contador por usuario que se
-      // incrementa acá adentro. Un `max(number) + 1` tendría una condición de
-      // carrera entre dos altas simultáneas.
-      const [contador] = await tx
-        .insert(userCounters)
-        .values({ userId: user.id, nextIssueNumber: 2 })
-        .onConflictDoUpdate({
-          target: userCounters.userId,
-          set: { nextIssueNumber: sql`${userCounters.nextIssueNumber} + 1` },
-        })
-        .returning({ siguiente: userCounters.nextIssueNumber })
+    return await conDb(async () => {
+      const creado = await db.transaction(async (tx) => {
+        // El número correlativo sale de un contador por usuario que se
+        // incrementa acá adentro. Un `max(number) + 1` tendría una condición de
+        // carrera entre dos altas simultáneas.
+        const [contador] = await tx
+          .insert(userCounters)
+          .values({ userId: user.id, nextIssueNumber: 2 })
+          .onConflictDoUpdate({
+            target: userCounters.userId,
+            set: { nextIssueNumber: sql`${userCounters.nextIssueNumber} + 1` },
+          })
+          .returning({ siguiente: userCounters.nextIssueNumber })
 
-      const numero = contador.siguiente - 1
-      const ahora = new Date()
+        const numero = contador.siguiente - 1
+        const ahora = new Date()
 
-      const [issue] = await tx
-        .insert(issues)
-        .values({
+        const [issue] = await tx
+          .insert(issues)
+          .values({
+            userId: user.id,
+            number: numero,
+            title: datos.title,
+            description: datos.description || null,
+            projectId: datos.projectId || null,
+            type: datos.type,
+            priority: datos.priority,
+            status: datos.status,
+            // Los nuevos van arriba de su columna en el kanban.
+            kanbanOrder: -ahora.getTime(),
+            resolvedAt: datos.status === "resuelto" ? ahora : null,
+            firstInProgressAt: datos.status === "en_progreso" ? ahora : null,
+          })
+          .returning({ id: issues.id, number: issues.number })
+
+        // El alta también queda registrada en el historial: sin esto, el primer
+        // estado de un problema no tendría fecha y los tiempos de resolución
+        // saldrían mal.
+        await tx.insert(issueStatusHistory).values({
           userId: user.id,
-          number: numero,
-          title: datos.title,
-          description: datos.description || null,
-          projectId: datos.projectId || null,
-          type: datos.type,
-          priority: datos.priority,
-          status: datos.status,
-          // Los nuevos van arriba de su columna en el kanban.
-          kanbanOrder: -ahora.getTime(),
-          resolvedAt: datos.status === "resuelto" ? ahora : null,
-          firstInProgressAt: datos.status === "en_progreso" ? ahora : null,
+          issueId: issue.id,
+          fromStatus: null,
+          toStatus: datos.status,
+          source: "manual",
         })
-        .returning({ id: issues.id, number: issues.number })
 
-      // El alta también queda registrada en el historial: sin esto, el primer
-      // estado de un problema no tendría fecha y los tiempos de resolución
-      // saldrían mal.
-      await tx.insert(issueStatusHistory).values({
-        userId: user.id,
-        issueId: issue.id,
-        fromStatus: null,
-        toStatus: datos.status,
-        source: "manual",
+        return issue
       })
 
-      return issue
+      // El embedding se genera después de la transacción y sin await bloqueante
+      // del resultado: si Workers AI falla, el problema ya quedó guardado. La
+      // detección de duplicados es una ayuda, no un requisito para dar de alta.
+      await guardarEmbedding(user.id, creado.id, datos.title, datos.description)
+
+      revalidarVistas(creado.number)
+
+      return actionOk(creado)
     })
-
-    // El embedding se genera después de la transacción y sin await bloqueante
-    // del resultado: si Workers AI falla, el problema ya quedó guardado. La
-    // detección de duplicados es una ayuda, no un requisito para dar de alta.
-    await guardarEmbedding(user.id, creado.id, datos.title, datos.description)
-
-    revalidarVistas(creado.number)
-
-    return actionOk(creado)
   } catch (error) {
     console.error("[createIssue]", error)
 
@@ -124,48 +126,50 @@ export async function updateIssue(valores: unknown): Promise<ActionResult> {
   const { id, ...datos } = parsed.data
 
   try {
-    const [actual] = await db
-      .select({ status: issues.status, number: issues.number })
-      .from(issues)
-      .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
-      .limit(1)
-
-    if (!actual) {
-      return actionError("No se encontró el problema")
-    }
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(issues)
-        .set({
-          title: datos.title,
-          description: datos.description || null,
-          projectId: datos.projectId || null,
-          type: datos.type,
-          priority: datos.priority,
-        })
+    return await conDb(async () => {
+      const [actual] = await db
+        .select({ status: issues.status, number: issues.number })
+        .from(issues)
         .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+        .limit(1)
 
-      // El estado se mueve por su propio camino para que el historial sea
-      // siempre consistente, incluso cuando el form manda todo junto.
-      if (datos.status !== actual.status) {
-        await aplicarCambioDeEstado(tx, {
-          userId: user.id,
-          issueId: id,
-          desde: actual.status,
-          hacia: datos.status,
-          source: "manual",
-        })
+      if (!actual) {
+        return actionError("No se encontró el problema")
       }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(issues)
+          .set({
+            title: datos.title,
+            description: datos.description || null,
+            projectId: datos.projectId || null,
+            type: datos.type,
+            priority: datos.priority,
+          })
+          .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+
+        // El estado se mueve por su propio camino para que el historial sea
+        // siempre consistente, incluso cuando el form manda todo junto.
+        if (datos.status !== actual.status) {
+          await aplicarCambioDeEstado(tx, {
+            userId: user.id,
+            issueId: id,
+            desde: actual.status,
+            hacia: datos.status,
+            source: "manual",
+          })
+        }
+      })
+
+      // `guardarEmbedding` compara el hash del contenido: si sólo cambió la
+      // prioridad o el proyecto, no gasta una llamada.
+      await guardarEmbedding(user.id, id, datos.title, datos.description)
+
+      revalidarVistas(actual.number)
+
+      return actionOk()
     })
-
-    // `guardarEmbedding` compara el hash del contenido: si sólo cambió la
-    // prioridad o el proyecto, no gasta una llamada.
-    await guardarEmbedding(user.id, id, datos.title, datos.description)
-
-    revalidarVistas(actual.number)
-
-    return actionOk()
   } catch (error) {
     console.error("[updateIssue]", error)
 
@@ -234,34 +238,36 @@ export async function changeIssueStatus(
   const { id, status, note } = parsed.data
 
   try {
-    const [actual] = await db
-      .select({ status: issues.status, number: issues.number })
-      .from(issues)
-      .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
-      .limit(1)
+    return await conDb(async () => {
+      const [actual] = await db
+        .select({ status: issues.status, number: issues.number })
+        .from(issues)
+        .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+        .limit(1)
 
-    if (!actual) {
-      return actionError("No se encontró el problema")
-    }
+      if (!actual) {
+        return actionError("No se encontró el problema")
+      }
 
-    if (actual.status === status) {
-      return actionOk()
-    }
+      if (actual.status === status) {
+        return actionOk()
+      }
 
-    await db.transaction(async (tx) => {
-      await aplicarCambioDeEstado(tx, {
-        userId: user.id,
-        issueId: id,
-        desde: actual.status,
-        hacia: status,
-        source: "manual",
-        note,
+      await db.transaction(async (tx) => {
+        await aplicarCambioDeEstado(tx, {
+          userId: user.id,
+          issueId: id,
+          desde: actual.status,
+          hacia: status,
+          source: "manual",
+          note,
+        })
       })
+
+      revalidarVistas(actual.number)
+
+      return actionOk()
     })
-
-    revalidarVistas(actual.number)
-
-    return actionOk()
   } catch (error) {
     console.error("[changeIssueStatus]", error)
 
@@ -286,36 +292,38 @@ export async function moveIssue(
   }
 
   try {
-    const [actual] = await db
-      .select({ status: issues.status })
-      .from(issues)
-      .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
-      .limit(1)
-
-    if (!actual) {
-      return actionError("No se encontró el problema")
-    }
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(issues)
-        .set({ kanbanOrder: orden })
+    return await conDb(async () => {
+      const [actual] = await db
+        .select({ status: issues.status })
+        .from(issues)
         .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+        .limit(1)
 
-      if (actual.status !== status) {
-        await aplicarCambioDeEstado(tx, {
-          userId: user.id,
-          issueId: id,
-          desde: actual.status,
-          hacia: status,
-          source: "manual",
-        })
+      if (!actual) {
+        return actionError("No se encontró el problema")
       }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(issues)
+          .set({ kanbanOrder: orden })
+          .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+
+        if (actual.status !== status) {
+          await aplicarCambioDeEstado(tx, {
+            userId: user.id,
+            issueId: id,
+            desde: actual.status,
+            hacia: status,
+            source: "manual",
+          })
+        }
+      })
+
+      revalidarVistas()
+
+      return actionOk()
     })
-
-    revalidarVistas()
-
-    return actionOk()
   } catch (error) {
     console.error("[moveIssue]", error)
 
@@ -327,18 +335,20 @@ export async function deleteIssue(id: string): Promise<ActionResult> {
   const user = await requireUser()
 
   try {
-    const borrados = await db
-      .delete(issues)
-      .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
-      .returning({ id: issues.id })
+    return await conDb(async () => {
+      const borrados = await db
+        .delete(issues)
+        .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+        .returning({ id: issues.id })
 
-    if (borrados.length === 0) {
-      return actionError("No se encontró el problema")
-    }
+      if (borrados.length === 0) {
+        return actionError("No se encontró el problema")
+      }
 
-    revalidarVistas()
+      revalidarVistas()
 
-    return actionOk()
+      return actionOk()
+    })
   } catch (error) {
     console.error("[deleteIssue]", error)
 
@@ -361,48 +371,50 @@ export async function linkIssue(valores: unknown): Promise<ActionResult> {
   const { id, kind, url } = parsed.data
 
   try {
-    const [issue] = await db
-      .select({ number: issues.number })
-      .from(issues)
-      .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
-      .limit(1)
+    return await conDb(async () => {
+      const [issue] = await db
+        .select({ number: issues.number })
+        .from(issues)
+        .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+        .limit(1)
 
-    if (!issue) {
-      return actionError("No se encontró el problema")
-    }
+      if (!issue) {
+        return actionError("No se encontró el problema")
+      }
 
-    // De la URL de GitHub sacamos owner/repo y el sha, para poder mostrarlo
-    // lindo sin pegarle a la API.
-    const match = url.match(
-      /github\.com\/([\w.-]+\/[\w.-]+)\/(?:commit|pull)\/([\w-]+)/
-    )
+      // De la URL de GitHub sacamos owner/repo y el sha, para poder mostrarlo
+      // lindo sin pegarle a la API.
+      const match = url.match(
+        /github\.com\/([\w.-]+\/[\w.-]+)\/(?:commit|pull)\/([\w-]+)/
+      )
 
-    await db.transaction(async (tx) => {
-      await tx.insert(issueLinks).values({
-        userId: user.id,
-        issueId: id,
-        kind,
-        url,
-        repoFullName: match?.[1] ?? null,
-        sha: kind === "commit" ? (match?.[2] ?? null) : null,
+      await db.transaction(async (tx) => {
+        await tx.insert(issueLinks).values({
+          userId: user.id,
+          issueId: id,
+          kind,
+          url,
+          repoFullName: match?.[1] ?? null,
+          sha: kind === "commit" ? (match?.[2] ?? null) : null,
+        })
+
+        // El primero que se vincula queda como la resolución del problema.
+        await tx
+          .update(issues)
+          .set({ resolutionUrl: url, resolutionKind: kind })
+          .where(
+            and(
+              eq(issues.id, id),
+              eq(issues.userId, user.id),
+              sql`${issues.resolutionUrl} is null`
+            )
+          )
       })
 
-      // El primero que se vincula queda como la resolución del problema.
-      await tx
-        .update(issues)
-        .set({ resolutionUrl: url, resolutionKind: kind })
-        .where(
-          and(
-            eq(issues.id, id),
-            eq(issues.userId, user.id),
-            sql`${issues.resolutionUrl} is null`
-          )
-        )
+      revalidarVistas(issue.number)
+
+      return actionOk()
     })
-
-    revalidarVistas(issue.number)
-
-    return actionOk()
   } catch (error) {
     console.error("[linkIssue]", error)
 
@@ -414,13 +426,15 @@ export async function unlinkIssue(linkId: string): Promise<ActionResult> {
   const user = await requireUser()
 
   try {
-    await db
-      .delete(issueLinks)
-      .where(and(eq(issueLinks.id, linkId), eq(issueLinks.userId, user.id)))
+    return await conDb(async () => {
+      await db
+        .delete(issueLinks)
+        .where(and(eq(issueLinks.id, linkId), eq(issueLinks.userId, user.id)))
 
-    revalidarVistas()
+      revalidarVistas()
 
-    return actionOk()
+      return actionOk()
+    })
   } catch (error) {
     console.error("[unlinkIssue]", error)
 

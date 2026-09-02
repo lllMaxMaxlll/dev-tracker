@@ -1,5 +1,6 @@
 "use server"
 
+import { conDb } from "@/lib/db"
 import { requireUser } from "@/lib/auth/require-user"
 import { listarRepos, type RepoResumen } from "@/lib/github/queries"
 import { cargarSeguro } from "@/lib/github/cargar-seguro"
@@ -14,11 +15,16 @@ export async function listarReposParaSelector(): Promise<{
   error: string | null
 }> {
   const user = await requireUser()
-  const resultado = await cargarSeguro(() => listarRepos(user.id))
 
-  if (!resultado.ok) {
-    return { repos: [], error: resultado.mensaje }
-  }
+  // `listarRepos` llega a la base por dos lados: el token de GitHub y el caché
+  // de respuestas. Sin `conDb`, cada uno abriría su propia conexión.
+  return conDb(async () => {
+    const resultado = await cargarSeguro(() => listarRepos(user.id))
 
-  return { repos: resultado.datos.datos, error: null }
+    if (!resultado.ok) {
+      return { repos: [], error: resultado.mensaje }
+    }
+
+    return { repos: resultado.datos.datos, error: null }
+  })
 }

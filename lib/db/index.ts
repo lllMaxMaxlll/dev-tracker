@@ -131,13 +131,16 @@ export function getDb(): Db {
  * Azúcar sintáctico sobre `getDb()` para poder escribir `db.select()...` en
  * todo el código sin arrastrar la llamada.
  *
- * ⚠️ Usar SÓLO en componentes de servidor y server actions.
+ * ⚠️ Usar SÓLO donde haya scope de React: componentes de servidor, y las
+ * funciones de librería que se llamen desde adentro de un `conDb()`.
  *
- * `cache()` memoiza por request únicamente dentro del scope de React. En un
- * **route handler** ese scope no existe, así que cada acceso a una propiedad de
- * este Proxy construiría un pool nuevo: medido, una sola query en un handler
- * abría 4 conexiones, y el session pooler de Supabase corta en 15. En los route
- * handlers usá `conDb()`.
+ * Ese scope lo crea el render, y hay DOS lugares donde no existe: los **route
+ * handlers** y las **server actions**. vinext ejecuta la action fuera del
+ * render RSC, y el `cache()` de React sin dispatcher es un passthrough
+ * (`if (!dispatcher) return fn.apply(...)`), así que no memoiza nada. Sin
+ * scope, cada acceso a una propiedad de este Proxy construye un pool nuevo:
+ * medido, una sola query en un handler abría 4 conexiones, y el session pooler
+ * de Supabase corta en 15. En route handlers y server actions usá `conDb()`.
  */
 export const db = new Proxy({} as Db, {
   get(_target, prop, receiver) {
@@ -146,14 +149,18 @@ export const db = new Proxy({} as Db, {
 })
 
 /**
- * Conexión para **route handlers**, donde `cache()` no memoiza.
+ * Conexión para **route handlers y server actions**, donde `cache()` no
+ * memoiza.
  *
  * Abre un pool, lo publica en el contexto para que el proxy `db` lo use, corre
  * lo que le pasés y lo cierra siempre, incluso si falla.
  *
- * Envolvé el cuerpo COMPLETO del handler: cualquier función de librería que se
- * llame adentro (`guardarEmbedding`, `registrarUso`, las queries) usa el proxy
- * `db`, y sin el contexto cada acceso abriría su propia conexión.
+ * Envolvé el cuerpo COMPLETO del handler o de la action: cualquier función de
+ * librería que se llame adentro (`guardarEmbedding`, `registrarUso`, las
+ * queries) usa el proxy `db`, y sin el contexto cada acceso abriría su propia
+ * conexión. Las llamadas anidadas reusan la conexión de afuera, así que una
+ * action que llama a otra (`aceptarSugerencia` → `changeIssueStatus`) sigue
+ * usando una sola.
  */
 export async function conDb<T>(fn: (db: Db) => Promise<T>): Promise<T> {
   const existente = contexto.getStore()
