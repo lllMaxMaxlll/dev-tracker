@@ -4,6 +4,12 @@ import { eq } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import { userAiSettings, type UserAiSettings } from "@/lib/db/schema"
+import {
+  MODELO_EMBEDDINGS_POR_DEFECTO,
+  MODELO_RAPIDO_POR_DEFECTO,
+  MODELO_RAZONADOR_POR_DEFECTO,
+  resolverModeloHeredado,
+} from "@/lib/ai/models"
 
 /**
  * Tipos de tarea. Determinan qué modelo y qué parámetros se usan.
@@ -59,7 +65,10 @@ export async function getConfigTarea(
 
   if (tarea === "fast") {
     return {
-      modelo: ajustes.fastModel ?? ajustes.defaultModel,
+      modelo: resolverModeloHeredado(
+        ajustes.fastModel ?? ajustes.defaultModel,
+        MODELO_RAPIDO_POR_DEFECTO
+      ),
       temperatura: ajustes.fastTemperature,
       maxTokens: ajustes.fastMaxTokens,
       requiereTools: ajustes.requireToolCalling,
@@ -67,7 +76,10 @@ export async function getConfigTarea(
   }
 
   return {
-    modelo: ajustes.reasoningModel ?? ajustes.defaultModel,
+    modelo: resolverModeloHeredado(
+      ajustes.reasoningModel ?? ajustes.defaultModel,
+      MODELO_RAZONADOR_POR_DEFECTO
+    ),
     temperatura: ajustes.reasoningTemperature,
     maxTokens: ajustes.reasoningMaxTokens,
     requiereTools: ajustes.requireToolCalling,
@@ -78,7 +90,10 @@ export async function getModeloEmbeddings(userId: string) {
   const ajustes = await getAjustes(userId)
 
   return {
-    modelo: ajustes.embeddingModel,
+    modelo: resolverModeloHeredado(
+      ajustes.embeddingModel,
+      MODELO_EMBEDDINGS_POR_DEFECTO
+    ),
     dimensiones: ajustes.embeddingDimensions,
   }
 }

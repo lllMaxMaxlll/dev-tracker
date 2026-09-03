@@ -1,19 +1,24 @@
 import "server-only"
 
-import { env as cloudflareEnv } from "cloudflare:workers"
 import { z } from "zod"
 
 import { ErrorIA } from "@/lib/ai/errors"
+import { pedir, pedirJson } from "@/lib/ai/openrouter"
 import { getModelo } from "@/lib/ai/models"
 import { getConfigTarea, type TipoTarea } from "@/lib/ai/settings"
 import { registrarUso, type ConsumoCrudo } from "@/lib/ai/usage"
 import type { AiTaskKind } from "@/lib/db/schema"
 
 /**
- * Punto único de acceso a Workers AI.
+ * Punto único de acceso al modelo de lenguaje.
  *
- * No hay API keys ni cabeceras de identificación: se accede por el binding `AI`
- * declarado en wrangler.jsonc.
+ * El transporte vive en `lib/ai/openrouter.ts`. Acá queda lo que no depende del
+ * proveedor: el contrato de salida estructurada, el reintento y el registro de
+ * consumo.
+ *
+ * La migración desde Workers AI tocó menos de lo esperado porque este archivo
+ * ya mandaba las herramientas en formato OpenAI, que es el que habla
+ * OpenRouter. El cuerpo de las peticiones quedó igual; cambió a dónde va.
  */
 type Mensaje = { role: "system" | "user" | "assistant"; content: string }
 
@@ -33,30 +38,29 @@ type RespuestaChat = {
 
 const TIMEOUT_MS = 45_000
 
-function ai() {
-  return cloudflareEnv.AI as unknown as {
-    run: (modelo: string, entrada: unknown) => Promise<unknown>
-  }
-}
-
-async function conTimeout<T>(promesa: Promise<T>): Promise<T> {
-  let temporizador: ReturnType<typeof setTimeout> | undefined
-
+/**
+ * Corta la llamada a los 45 segundos.
+ *
+ * Contra el binding de Cloudflare esto era un `Promise.race`: resolvía el
+ * timeout de este lado, pero la inferencia seguía corriendo del otro. Sobre
+ * HTTP se puede hacer bien — `AbortSignal` cancela la conexión — así que un
+ * modelo colgado deja de gastar tokens.
+ */
+async function conTimeout<T>(
+  fn: (señal: AbortSignal) => Promise<T>
+): Promise<T> {
   try {
-    return await Promise.race([
-      promesa,
-      new Promise<never>((_, rechazar) => {
-        temporizador = setTimeout(
-          () =>
-            rechazar(
-              new ErrorIA("TIMEOUT", "El modelo tardó demasiado en responder")
-            ),
-          TIMEOUT_MS
-        )
-      }),
-    ])
-  } finally {
-    clearTimeout(temporizador)
+    return await fn(AbortSignal.timeout(TIMEOUT_MS))
+  } catch (error) {
+    const abortado =
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError")
+
+    if (abortado) {
+      throw new ErrorIA("TIMEOUT", "El modelo tardó demasiado en responder")
+    }
+
+    throw error
   }
 }
 
@@ -130,29 +134,34 @@ async function unIntentoEstructurado<T extends z.ZodType>(params: {
   let consumo: ConsumoCrudo | undefined
 
   try {
-    const respuesta = (await conTimeout(
-      ai().run(config.modelo, {
-        messages: params.mensajes,
-        // Formato de OpenAI (`{ type: "function", function: {...} }`).
-        // El formato plano `{ name, description, parameters }` que también
-        // acepta Workers AI falla con "8001: Invalid input" en varios modelos
-        // (glm-4.7-flash, gpt-oss-20b, granite, mistral-small), y en gpt-oss-120b
-        // hace que devuelva las claves en inglés. El formato de OpenAI anduvo
-        // en todos los modelos probados.
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: params.herramienta.nombre,
-              description: params.herramienta.descripcion,
-              parameters: params.herramienta.parametros,
+    const respuesta = await conTimeout((señal) =>
+      pedirJson<RespuestaChat>(
+        "/chat/completions",
+        {
+          model: config.modelo,
+          messages: params.mensajes,
+          // Formato de OpenAI (`{ type: "function", function: {...} }`), que es
+          // el que OpenRouter pasa tal cual a los proveedores que lo
+          // implementan. Ya se usaba con Workers AI: el formato plano
+          // `{ name, description, parameters }` fallaba con "8001: Invalid
+          // input" en varios modelos, y en gpt-oss-120b devolvía las claves en
+          // inglés.
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: params.herramienta.nombre,
+                description: params.herramienta.descripcion,
+                parameters: params.herramienta.parametros,
+              },
             },
-          },
-        ],
-        temperature: config.temperatura,
-        max_tokens: config.maxTokens,
-      })
-    )) as RespuestaChat
+          ],
+          temperature: config.temperatura,
+          max_tokens: config.maxTokens,
+        },
+        señal
+      )
+    )
 
     consumo = respuesta.usage
 
@@ -225,7 +234,7 @@ async function unIntentoEstructurado<T extends z.ZodType>(params: {
 
     throw new ErrorIA(
       "PROVEEDOR",
-      "Workers AI no pudo procesar la solicitud.",
+      "El proveedor no pudo procesar la solicitud.",
       error instanceof Error ? error.message : undefined
     )
   }
@@ -242,13 +251,18 @@ export async function pedirTexto(params: {
   const inicio = Date.now()
 
   try {
-    const respuesta = (await conTimeout(
-      ai().run(config.modelo, {
-        messages: params.mensajes,
-        temperature: config.temperatura,
-        max_tokens: config.maxTokens,
-      })
-    )) as RespuestaChat
+    const respuesta = await conTimeout((señal) =>
+      pedirJson<RespuestaChat>(
+        "/chat/completions",
+        {
+          model: config.modelo,
+          messages: params.mensajes,
+          temperature: config.temperatura,
+          max_tokens: config.maxTokens,
+        },
+        señal
+      )
+    )
 
     const texto =
       respuesta.choices?.[0]?.message?.content ?? respuesta.response ?? ""
@@ -275,29 +289,35 @@ export async function pedirTexto(params: {
 
     throw error instanceof ErrorIA
       ? error
-      : new ErrorIA("PROVEEDOR", "Workers AI no pudo generar el texto.")
+      : new ErrorIA("PROVEEDOR", "El proveedor no pudo generar el texto.")
   }
 }
 
 /**
  * Igual que `pedirTexto`, pero devuelve el texto a medida que llega.
  *
- * Cuatro detalles que Workers AI no documenta y que salieron de sondearlo:
+ * Tres cosas que salieron de sondear esto contra Workers AI y que siguen
+ * valiendo con OpenRouter, porque son propias de SSE y de los modelos, no del
+ * proveedor:
  *
  * 1. Los eventos SSE **se parten entre trozos**: un `data: {...}` puede llegar
  *    en tres pedazos. Hay que bufferear y cortar por `\n\n`.
- * 2. Los modelos con razonamiento (gpt-oss-120b) emiten `delta.reasoning`
- *    además de `delta.content`. Sólo se transmite el contenido: lo otro es el
+ * 2. Los modelos con razonamiento emiten `delta.reasoning` además de
+ *    `delta.content`. Sólo se transmite el contenido: lo otro es el
  *    razonamiento interno, no la respuesta.
  * 3. Ese razonamiento puede ser **la mayoría del stream**: en una prueba,
  *    69 eventos de razonamiento antes de los 28 con texto visible.
- * 4. El `usage` viene **incremental** en cada trozo, no acumulado al final.
  *
- * Va con `TransformStream` y no con un `ReadableStream` propio por el punto 3:
- * en workerd, si el `pull` de un ReadableStream no encola nada, no se lo vuelve
- * a llamar, así que con decenas de trozos seguidos de puro razonamiento el
- * stream se congelaba y el cliente no recibía un solo byte. El `transform` de
- * un TransformStream se ejecuta por cada trozo de origen, encole o no.
+ * El `usage` se acumula sumando en vez de asignando. Workers AI lo mandaba
+ * incremental en cada trozo; OpenRouter lo manda una sola vez al final, con
+ * `stream_options.include_usage`. Sumar funciona en los dos casos.
+ *
+ * Va con `TransformStream` y no con un `ReadableStream` propio por el punto 3.
+ * El motivo original era de workerd — si el `pull` de un ReadableStream no
+ * encolaba nada, no se lo volvía a llamar, y decenas de trozos seguidos de puro
+ * razonamiento congelaban el stream. En Node esa limitación no existe, pero el
+ * `transform` de un TransformStream, que corre por cada trozo de origen encole
+ * o no, sigue siendo la forma correcta de expresarlo.
  */
 export async function pedirTextoEnStream(params: {
   userId: string
@@ -310,14 +330,28 @@ export async function pedirTextoEnStream(params: {
   const config = await getConfigTarea(params.userId, params.tarea)
   const inicio = Date.now()
 
-  const respuesta = (await conTimeout(
-    ai().run(config.modelo, {
-      messages: params.mensajes,
-      temperature: config.temperatura,
-      max_tokens: config.maxTokens,
-      stream: true,
-    })
-  )) as ReadableStream<Uint8Array>
+  const respuesta = await conTimeout((señal) =>
+    pedir(
+      "/chat/completions",
+      {
+        model: config.modelo,
+        messages: params.mensajes,
+        temperature: config.temperatura,
+        max_tokens: config.maxTokens,
+        stream: true,
+        // Sin esto el stream no trae el bloque `usage` y el panel de consumo
+        // quedaría en cero justo para los resúmenes, que son lo más caro.
+        stream_options: { include_usage: true },
+      },
+      señal
+    )
+  )
+
+  const cuerpo = respuesta.body
+
+  if (!cuerpo) {
+    throw new ErrorIA("PROVEEDOR", "El proveedor no devolvió un stream.")
+  }
 
   const decodificador = new TextDecoder()
   const codificador = new TextEncoder()
@@ -414,5 +448,5 @@ export async function pedirTextoEnStream(params: {
     },
   })
 
-  return respuesta.pipeThrough(transformador)
+  return cuerpo.pipeThrough(transformador)
 }

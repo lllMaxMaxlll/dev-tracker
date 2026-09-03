@@ -25,10 +25,11 @@
   "include": [
     "next-env.d.ts",
     "next.config.ts",
-    "worker-configuration.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "**/*.mts"
+    "**/*.mts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", ".next", ".vinext", ".wrangler"]
+  "exclude": ["node_modules", ".next", "dist"]
 }

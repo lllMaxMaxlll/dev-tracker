@@ -23,11 +23,12 @@ const csv = z
   )
 
 const serverEnvSchema = z.object({
-  // Opcional a propósito: en producción la conexión sale del binding de
-  // Hyperdrive, así que exigirla obligaría a cargar un secreto redundante.
-  // Fuera de Workers (desarrollo, drizzle-kit) sí hace falta, y quien la
-  // necesita avisa con un error claro. Ver lib/db/index.ts.
+  // Connection string del pooler transaccional de Supabase (puerto 6543).
+  // Opcional en el esquema para que `next build` no exija una base, pero en
+  // ejecución hace falta y `lib/db/index.ts` avisa con un error claro.
   DATABASE_URL: z.string().optional(),
+  // Conexión directa (puerto 5432). Sólo la usa drizzle-kit: las migraciones
+  // necesitan una sesión de verdad, no un pooler en modo transacción.
   DIRECT_URL: z.string().optional(),
 
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
@@ -37,16 +38,14 @@ const serverEnvSchema = z.object({
     .string()
     .min(1, "Falta ENCRYPTION_KEY (generar con: openssl rand -base64 32)"),
 
+  // Única credencial de IA: OpenRouter sirve tanto el chat como los
+  // embeddings. Opcional para que la app arranque sin ella — las funciones de
+  // IA fallan con un mensaje accionable, el resto anda igual.
   OPENROUTER_API_KEY: z.string().optional(),
+  // Las dos siguientes sólo sirven para que OpenRouter atribuya el consumo en
+  // su panel.
   OPENROUTER_SITE_URL: z.string().optional(),
   OPENROUTER_APP_NAME: z.string().default("DevTracker"),
-
-  EMBEDDINGS_PROVIDER: z
-    .enum(["workers-ai", "ollama", "local", "openai"])
-    .default("workers-ai"),
-  EMBEDDINGS_MODEL: z.string().default("@cf/baai/bge-m3"),
-  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
-  CLOUDFLARE_API_TOKEN: z.string().optional(),
 
   CRON_SECRET: z.string().optional(),
 

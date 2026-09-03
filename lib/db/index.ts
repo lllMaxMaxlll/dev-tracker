@@ -1,11 +1,5 @@
 import "server-only"
 
-import { env as cloudflareEnv } from "cloudflare:workers"
-import { AsyncLocalStorage } from "node:async_hooks"
-
-import { cache } from "react"
-import { after } from "next/server"
-
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"
 import { Pool } from "pg"
 
@@ -13,16 +7,22 @@ import { env } from "@/lib/env"
 import * as schema from "@/lib/db/schema"
 
 /**
- * Conexión a Postgres (Supabase) desde Cloudflare Workers.
+ * Conexión a Postgres (Supabase) desde Vercel.
  *
- * Los Workers no pueden abrir sockets TCP crudos a Postgres, así que la
- * conexión pasa por **Hyperdrive**, que además poolea del lado del servidor.
- * El driver es **node-postgres (`pg`)**: es el recomendado por Cloudflare por
- * su compatibilidad con el caché de Hyperdrive.
+ * La app corre en el runtime de **Node**, que a diferencia de workerd mantiene
+ * vivo el scope del módulo entre invocaciones. Eso permite lo que en Cloudflare
+ * era imposible: **un pool a nivel de módulo**, reutilizado por todas las
+ * requests que atienda la misma instancia.
  *
- * Al binding de Hyperdrive se le carga la connection string DIRECTA de
- * Supabase; en desarrollo se usa el session pooler. El detalle está en
- * `connectionString()` acá abajo.
+ * `DATABASE_URL` tiene que apuntar al **pooler transaccional de Supavisor**
+ * (puerto 6543), no a la conexión directa: en serverless las instancias
+ * aparecen y desaparecen, y sin un pooler del lado del servidor la base se
+ * queda sin conexiones. El modo transacción no soporta prepared statements,
+ * pero drizzle sólo los usa si se pide `.prepare()` explícitamente, y en este
+ * proyecto no se usa en ningún lado.
+ *
+ * `DIRECT_URL` (puerto 5432) queda para drizzle-kit: las migraciones sí
+ * necesitan una sesión de verdad.
  *
  * ⚠️ Esta conexión BYPASSEA Row Level Security: se conecta con el rol dueño de
  * la base. RLS es defensa en profundidad contra la API REST de Supabase (la
@@ -32,115 +32,58 @@ import * as schema from "@/lib/db/schema"
  */
 type Db = NodePgDatabase<typeof schema>
 
-function connectionString(): string {
-  // El binding sólo existe dentro de workerd.
-  const hyperdrive = (
-    cloudflareEnv as { HYPERDRIVE?: { connectionString: string } }
-  ).HYPERDRIVE
+let pool: Pool | undefined
 
-  // En producción manda el binding de Hyperdrive.
-  //
-  // En desarrollo NO se puede usar: wrangler emula el binding devolviendo un
-  // host ficticio `<hash>.hyperdrive.local`, que sólo workerd sabe interceptar.
-  // `pg` intenta resolverlo por DNS y falla con "connection attempt failed".
-  // Así que en dev vamos directo a DATABASE_URL, que apunta al session pooler
-  // de Supabase (la conexión directa es IPv6-only; ver .env.example).
-  if (process.env.NODE_ENV === "production" && hyperdrive?.connectionString) {
-    return hyperdrive.connectionString
+function getPool(): Pool {
+  if (pool) {
+    return pool
   }
 
   const url = env().DATABASE_URL
 
   if (!url) {
     throw new Error(
-      "No hay conexión a la base: falta el binding HYPERDRIVE (producción) o DATABASE_URL (desarrollo). Ver .env.example."
+      "Falta DATABASE_URL. Tiene que ser la connection string del pooler " +
+        "transaccional de Supabase (puerto 6543). Ver .env.example."
     )
   }
 
-  return url
-}
-
-/**
- * Una conexión por request, memoizada con `cache()` de React.
- *
- * ⚠️ NO se puede usar un pool a nivel de módulo. Workerd aísla el I/O por
- * request: un socket abierto durante una request no se puede reutilizar en la
- * siguiente, y el intento cuelga el Worker sin lanzar excepción ("your Worker's
- * code had hung and would never generate a response"). Con un singleton, la
- * primera request funcionaba y la segunda moría.
- *
- * `cache()` memoiza por request, así que todas las consultas de una misma
- * página comparten el pool en vez de abrir uno por consulta.
- *
- * ⚠️ Y el pool se CIERRA al terminar la respuesta, con `after()`. Sin eso las
- * conexiones se acumulan: el session pooler de Supabase corta en 15 clientes y
- * empieza a devolver `EMAXCONNSESSION`. Los timers de pg (`idleTimeoutMillis`)
- * no alcanzan, porque en workerd no siguen corriendo una vez que la request
- * terminó.
- */
-function nuevoPool() {
-  return new Pool({
-    connectionString: connectionString(),
-    // UNA conexión por request.
-    //
-    // El pool se mantiene abierto mientras dura la request, y algunas duran
-    // diez segundos o más porque esperan a Workers AI (el dashboard genera
-    // insights). Con varias conexiones por request, un par de cargas
-    // superpuestas agotaban el límite de 15 clientes del pooler de Supabase.
-    //
-    // Las consultas de una misma página se serializan, pero son de
-    // milisegundos: lo que tarda es la inferencia, no la base.
-    max: 1,
+  pool = new Pool({
+    connectionString: url,
+    // Con Fluid compute una misma instancia atiende varias requests a la vez,
+    // así que un pool de uno las serializaría sin necesidad. Cinco alcanza de
+    // sobra: quien realmente poolea es Supavisor del otro lado.
+    max: 5,
     connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
   })
+
+  // Sin este handler, un socket que el pooler corta por inactividad tumba el
+  // proceso entero con un error no capturado en vez de descartar la conexión.
+  pool.on("error", (error) => {
+    console.error("[db] conexión inactiva descartada", error)
+  })
+
+  return pool
 }
 
-const crearDb = cache((): Db => {
-  const pool = nuevoPool()
-
-  try {
-    after(async () => {
-      try {
-        await pool.end()
-      } catch (error) {
-        console.error("[db] no se pudo cerrar el pool", error)
-      }
-    })
-  } catch {
-    // `after()` sólo existe dentro de una request.
-  }
-
-  return drizzle(pool, { schema })
-})
-
-/**
- * Contexto de conexión para los route handlers.
- *
- * `cache()` sólo memoiza dentro del scope de React, que en un route handler no
- * existe. Con AsyncLocalStorage, `conDb()` deja la conexión disponible para
- * TODO el código que corra dentro, incluidas las funciones de librería que
- * importan el proxy `db` sin recibirlo por parámetro.
- */
-const contexto = new AsyncLocalStorage<Db>()
+let instancia: Db | undefined
 
 export function getDb(): Db {
-  return contexto.getStore() ?? crearDb()
+  if (!instancia) {
+    instancia = drizzle(getPool(), { schema })
+  }
+
+  return instancia
 }
 
 /**
  * Azúcar sintáctico sobre `getDb()` para poder escribir `db.select()...` en
  * todo el código sin arrastrar la llamada.
  *
- * ⚠️ Usar SÓLO donde haya scope de React: componentes de servidor, y las
- * funciones de librería que se llamen desde adentro de un `conDb()`.
- *
- * Ese scope lo crea el render, y hay DOS lugares donde no existe: los **route
- * handlers** y las **server actions**. vinext ejecuta la action fuera del
- * render RSC, y el `cache()` de React sin dispatcher es un passthrough
- * (`if (!dispatcher) return fn.apply(...)`), así que no memoiza nada. Sin
- * scope, cada acceso a una propiedad de este Proxy construye un pool nuevo:
- * medido, una sola query en un handler abría 4 conexiones, y el session pooler
- * de Supabase corta en 15. En route handlers y server actions usá `conDb()`.
+ * Sigue siendo un Proxy y no una constante para que el pool se cree la primera
+ * vez que alguien consulta, no al importar el módulo: así `next build` puede
+ * cargar estos archivos sin necesidad de una base.
  */
 export const db = new Proxy({} as Db, {
   get(_target, prop, receiver) {
@@ -149,39 +92,18 @@ export const db = new Proxy({} as Db, {
 })
 
 /**
- * Conexión para **route handlers y server actions**, donde `cache()` no
- * memoiza.
+ * Envoltorio histórico, hoy un passthrough.
  *
- * Abre un pool, lo publica en el contexto para que el proxy `db` lo use, corre
- * lo que le pasés y lo cierra siempre, incluso si falla.
+ * En Cloudflare esto abría y cerraba un pool por request, porque workerd aísla
+ * el I/O por request y el `cache()` de React no memoiza fuera del render. Con
+ * un pool de módulo nada de eso hace falta — y cerrarlo sería un error: es el
+ * pool compartido de la instancia.
  *
- * Envolvé el cuerpo COMPLETO del handler o de la action: cualquier función de
- * librería que se llame adentro (`guardarEmbedding`, `registrarUso`, las
- * queries) usa el proxy `db`, y sin el contexto cada acceso abriría su propia
- * conexión. Las llamadas anidadas reusan la conexión de afuera, así que una
- * action que llama a otra (`aceptarSugerencia` → `changeIssueStatus`) sigue
- * usando una sola.
+ * Se conserva para no reescribir las 26 server actions y los route handlers que
+ * ya lo usan. Desarmarlo es una limpieza aparte, no parte de la migración.
  */
 export async function conDb<T>(fn: (db: Db) => Promise<T>): Promise<T> {
-  const existente = contexto.getStore()
-
-  // Llamada anidada: ya hay conexión, se reusa.
-  if (existente) {
-    return fn(existente)
-  }
-
-  const pool = nuevoPool()
-  const instancia = drizzle(pool, { schema })
-
-  try {
-    return await contexto.run(instancia, () => fn(instancia))
-  } finally {
-    try {
-      await pool.end()
-    } catch (error) {
-      console.error("[conDb] no se pudo cerrar el pool", error)
-    }
-  }
+  return fn(getDb())
 }
 
 export { schema }

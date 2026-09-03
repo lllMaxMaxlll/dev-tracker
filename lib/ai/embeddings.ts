@@ -1,18 +1,24 @@
 import "server-only"
 
-import { env as cloudflareEnv } from "cloudflare:workers"
 import { and, eq, ne, sql } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import { issueEmbeddings, issues, projects } from "@/lib/db/schema"
 import { getModeloEmbeddings } from "@/lib/ai/settings"
+import { pedirJson } from "@/lib/ai/openrouter"
 import { registrarUso } from "@/lib/ai/usage"
 
 /**
- * Embeddings con Workers AI (`@cf/baai/bge-m3`, 1024 dimensiones).
+ * Embeddings por OpenRouter, recortados a 1024 dimensiones.
  *
  * Se usan para detectar problemas duplicados o relacionados por similitud de
  * coseno, no para generar texto.
+ *
+ * Las 1024 dimensiones no son casualidad ni herencia muerta: la columna es
+ * `vector(1024)` con un índice HNSW sobre `vector_cosine_ops`. Los modelos de
+ * embeddings de OpenAI aceptan el parámetro `dimensions` y se les puede pedir
+ * ese largo, así que la migración desde `@cf/baai/bge-m3` no tocó el esquema ni
+ * hubo que recrear el índice.
  */
 const DIMENSIONES_ESPERADAS = 1024
 
@@ -49,15 +55,22 @@ export async function generarEmbeddings(
   const inicio = Date.now()
 
   try {
-    const ai = cloudflareEnv.AI as unknown as {
-      run: (
-        m: string,
-        i: unknown
-      ) => Promise<{ data?: number[][]; usage?: unknown }>
-    }
+    // Forma de OpenAI: `data` es un array de objetos con `embedding` e `index`,
+    // no un array de vectores pelados como devolvía Workers AI.
+    const respuesta = await pedirJson<{
+      data?: { embedding: number[]; index: number }[]
+      usage?: { prompt_tokens?: number; total_tokens?: number }
+    }>("/embeddings", {
+      model: modelo,
+      input: textos,
+      dimensions: DIMENSIONES_ESPERADAS,
+    })
 
-    const respuesta = await ai.run(modelo, { text: textos })
-    const vectores = respuesta.data ?? []
+    // El orden no está garantizado por contrato: se ordena por `index` para que
+    // el vector N corresponda al texto N.
+    const vectores = [...(respuesta.data ?? [])]
+      .sort((a, b) => a.index - b.index)
+      .map((fila) => fila.embedding)
 
     if (vectores.length !== textos.length) {
       throw new Error(
@@ -106,16 +119,26 @@ export async function guardarEmbedding(
     const hash = await hashContenido(texto)
 
     const [existente] = await db
-      .select({ hash: issueEmbeddings.contentHash })
+      .select({
+        hash: issueEmbeddings.contentHash,
+        modelo: issueEmbeddings.embeddingModel,
+      })
       .from(issueEmbeddings)
       .where(eq(issueEmbeddings.issueId, issueId))
       .limit(1)
 
-    if (existente?.hash === hash) {
+    const { modelo, dimensiones } = await getModeloEmbeddings(userId)
+
+    // Se saltea sólo si coinciden el contenido **y el modelo**. Comparar sólo
+    // el hash haría que al cambiar de modelo no se regenerara nada — el texto
+    // no cambió — y quedarían vectores de dos espacios distintos conviviendo en
+    // el mismo índice. La similitud coseno entre espacios distintos no
+    // significa nada, y los umbrales de duplicados dejarían de valer sin que
+    // salte ningún error.
+    if (existente?.hash === hash && existente.modelo === modelo) {
       return true
     }
 
-    const { modelo, dimensiones } = await getModeloEmbeddings(userId)
     const [vector] = await generarEmbeddings(userId, [texto])
 
     if (!vector || vector.length !== DIMENSIONES_ESPERADAS) {
