@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { and, eq } from "drizzle-orm"
 
-import { conDb, db } from "@/lib/db"
+import { db } from "@/lib/db"
 import { issueRelations, issues } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
 import {
@@ -32,19 +32,17 @@ export async function buscarPosiblesDuplicados(
   }
 
   try {
-    return await conDb(async () => {
-      const texto = textoDelProblema(titulo, descripcion)
-      const [vector] = await generarEmbeddings(user.id, [texto])
+    const texto = textoDelProblema(titulo, descripcion)
+    const [vector] = await generarEmbeddings(user.id, [texto])
 
-      if (!vector) {
-        return []
-      }
+    if (!vector) {
+      return []
+    }
 
-      // Umbral medido contra datos reales: una paráfrasis del mismo problema dio
-      // 0,80; un problema distinto pero del mismo tema, 0,69; problemas sin
-      // relación quedaron en 0,40. 0,65 separa bien las dos poblaciones.
-      return await buscarSimilares({ userId: user.id, vector, umbral: 0.65 })
-    })
+    // Umbral medido contra datos reales: una paráfrasis del mismo problema dio
+    // 0,80; un problema distinto pero del mismo tema, 0,69; problemas sin
+    // relación quedaron en 0,40. 0,65 separa bien las dos poblaciones.
+    return await buscarSimilares({ userId: user.id, vector, umbral: 0.65 })
   } catch (error) {
     console.error("[buscarPosiblesDuplicados]", error)
 
@@ -57,32 +55,30 @@ export async function buscarRelacionados(issueId: string): Promise<Similar[]> {
   const user = await requireUser()
 
   try {
-    return await conDb(async () => {
-      const [issue] = await db
-        .select({ title: issues.title, description: issues.description })
-        .from(issues)
-        .where(and(eq(issues.id, issueId), eq(issues.userId, user.id)))
-        .limit(1)
+    const [issue] = await db
+      .select({ title: issues.title, description: issues.description })
+      .from(issues)
+      .where(and(eq(issues.id, issueId), eq(issues.userId, user.id)))
+      .limit(1)
 
-      if (!issue) {
-        return []
-      }
+    if (!issue) {
+      return []
+    }
 
-      const texto = textoDelProblema(issue.title, issue.description)
-      const [vector] = await generarEmbeddings(user.id, [texto])
+    const texto = textoDelProblema(issue.title, issue.description)
+    const [vector] = await generarEmbeddings(user.id, [texto])
 
-      if (!vector) {
-        return []
-      }
+    if (!vector) {
+      return []
+    }
 
-      return await buscarSimilares({
-        userId: user.id,
-        vector,
-        excluirIssueId: issueId,
-        // Más permisivo que la detección de duplicados: acá mostrar algo de más
-        // molesta menos que en un aviso al dar de alta.
-        umbral: 0.55,
-      })
+    return await buscarSimilares({
+      userId: user.id,
+      vector,
+      excluirIssueId: issueId,
+      // Más permisivo que la detección de duplicados: acá mostrar algo de más
+      // molesta menos que en un aviso al dar de alta.
+      umbral: 0.55,
     })
   } catch (error) {
     console.error("[buscarRelacionados]", error)
@@ -105,34 +101,32 @@ export async function vincularProblemas(params: {
   }
 
   try {
-    return await conDb(async () => {
-      // Ambos ids se validan contra el user_id: no alcanza con que existan.
-      const propios = await db
-        .select({ id: issues.id })
-        .from(issues)
-        .where(eq(issues.userId, user.id))
+    // Ambos ids se validan contra el user_id: no alcanza con que existan.
+    const propios = await db
+      .select({ id: issues.id })
+      .from(issues)
+      .where(eq(issues.userId, user.id))
 
-      const ids = new Set(propios.map((i) => i.id))
+    const ids = new Set(propios.map((i) => i.id))
 
-      if (!ids.has(params.issueId) || !ids.has(params.relatedIssueId)) {
-        return actionError("No se encontró alguno de los problemas")
-      }
+    if (!ids.has(params.issueId) || !ids.has(params.relatedIssueId)) {
+      return actionError("No se encontró alguno de los problemas")
+    }
 
-      await db
-        .insert(issueRelations)
-        .values({
-          userId: user.id,
-          issueId: params.issueId,
-          relatedIssueId: params.relatedIssueId,
-          kind: params.kind ?? "relacionado",
-          similarity: params.similitud ?? null,
-        })
-        .onConflictDoNothing()
+    await db
+      .insert(issueRelations)
+      .values({
+        userId: user.id,
+        issueId: params.issueId,
+        relatedIssueId: params.relatedIssueId,
+        kind: params.kind ?? "relacionado",
+        similarity: params.similitud ?? null,
+      })
+      .onConflictDoNothing()
 
-      revalidatePath("/problemas")
+    revalidatePath("/problemas")
 
-      return actionOk()
-    })
+    return actionOk()
   } catch (error) {
     console.error("[vincularProblemas]", error)
 
@@ -146,20 +140,18 @@ export async function desvincularProblemas(
   const user = await requireUser()
 
   try {
-    return await conDb(async () => {
-      await db
-        .delete(issueRelations)
-        .where(
-          and(
-            eq(issueRelations.id, relacionId),
-            eq(issueRelations.userId, user.id)
-          )
+    await db
+      .delete(issueRelations)
+      .where(
+        and(
+          eq(issueRelations.id, relacionId),
+          eq(issueRelations.userId, user.id)
         )
+      )
 
-      revalidatePath("/problemas")
+    revalidatePath("/problemas")
 
-      return actionOk()
-    })
+    return actionOk()
   } catch (error) {
     console.error("[desvincularProblemas]", error)
 
@@ -177,35 +169,33 @@ export async function regenerarEmbeddings(): Promise<
   const user = await requireUser()
 
   try {
-    return await conDb(async () => {
-      const todos = await db
-        .select({
-          id: issues.id,
-          title: issues.title,
-          description: issues.description,
-        })
-        .from(issues)
-        .where(eq(issues.userId, user.id))
+    const todos = await db
+      .select({
+        id: issues.id,
+        title: issues.title,
+        description: issues.description,
+      })
+      .from(issues)
+      .where(eq(issues.userId, user.id))
 
-      let fallidos = 0
+    let fallidos = 0
 
-      // De a uno para no pasarse del límite de CPU del Worker con muchos
-      // problemas; cada llamada de embeddings es corta.
-      for (const issue of todos) {
-        const ok = await guardarEmbedding(
-          user.id,
-          issue.id,
-          issue.title,
-          issue.description
-        )
+    // De a uno para no pasarse del límite de CPU del Worker con muchos
+    // problemas; cada llamada de embeddings es corta.
+    for (const issue of todos) {
+      const ok = await guardarEmbedding(
+        user.id,
+        issue.id,
+        issue.title,
+        issue.description
+      )
 
-        if (!ok) fallidos++
-      }
+      if (!ok) fallidos++
+    }
 
-      revalidatePath("/ajustes")
+    revalidatePath("/ajustes")
 
-      return actionOk({ procesados: todos.length, fallidos })
-    })
+    return actionOk({ procesados: todos.length, fallidos })
   } catch (error) {
     console.error("[regenerarEmbeddings]", error)
 

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { and, eq } from "drizzle-orm"
 
-import { conDb, db } from "@/lib/db"
+import { db } from "@/lib/db"
 import { issues, projects } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
 import { priorizar, type ItemPriorizado } from "@/lib/ai/tasks/prioritize"
@@ -43,34 +43,32 @@ export async function capturarDesdeTexto(
   }
 
   try {
-    return await conDb(async () => {
-      const proyectos = await listProjectOptions(user.id)
+    const proyectos = await listProjectOptions(user.id)
 
-      const resultado = await capturarProblema({
-        userId: user.id,
-        texto: limpio,
-        proyectos: proyectos.map((p) => ({ slug: p.slug, name: p.name })),
-      })
+    const resultado = await capturarProblema({
+      userId: user.id,
+      texto: limpio,
+      proyectos: proyectos.map((p) => ({ slug: p.slug, name: p.name })),
+    })
 
-      const proyecto = resultado.proyectoSlug
-        ? proyectos.find((p) => p.slug === resultado.proyectoSlug)
-        : undefined
+    const proyecto = resultado.proyectoSlug
+      ? proyectos.find((p) => p.slug === resultado.proyectoSlug)
+      : undefined
 
-      return actionOk({
-        valores: {
-          title: resultado.titulo,
-          description: resultado.descripcion || "",
-          projectId: proyecto?.id ?? "",
-          type: resultado.tipo,
-          priority: resultado.prioridad,
-          status: resultado.estado,
-        },
-        // Si el modelo dijo un slug que no existe, se trata como proyecto nuevo.
-        proyectoNuevo:
-          resultado.proyectoNuevo ??
-          (resultado.proyectoSlug && !proyecto ? resultado.proyectoSlug : null),
-        confianza: resultado.confianza,
-      })
+    return actionOk({
+      valores: {
+        title: resultado.titulo,
+        description: resultado.descripcion || "",
+        projectId: proyecto?.id ?? "",
+        type: resultado.tipo,
+        priority: resultado.prioridad,
+        status: resultado.estado,
+      },
+      // Si el modelo dijo un slug que no existe, se trata como proyecto nuevo.
+      proyectoNuevo:
+        resultado.proyectoNuevo ??
+        (resultado.proyectoSlug && !proyecto ? resultado.proyectoSlug : null),
+      confianza: resultado.confianza,
     })
   } catch (error) {
     if (esErrorIA(error)) {
@@ -95,22 +93,20 @@ export async function queHagoHoy(): Promise<
   const user = await requireUser()
 
   try {
-    return await conDb(async () => {
-      const abiertos = await getAbiertosParaPriorizar(user.id)
+    const abiertos = await getAbiertosParaPriorizar(user.id)
 
-      if (abiertos.length === 0) {
-        return actionError("No tenés problemas abiertos")
-      }
+    if (abiertos.length === 0) {
+      return actionError("No tenés problemas abiertos")
+    }
 
-      const orden = await priorizar({ userId: user.id, problemas: abiertos })
+    const orden = await priorizar({ userId: user.id, problemas: abiertos })
 
-      const titulos: Record<number, string> = {}
-      for (const problema of abiertos) {
-        titulos[problema.number] = problema.title
-      }
+    const titulos: Record<number, string> = {}
+    for (const problema of abiertos) {
+      titulos[problema.number] = problema.title
+    }
 
-      return actionOk({ orden, titulos })
-    })
+    return actionOk({ orden, titulos })
   } catch (error) {
     if (esErrorIA(error)) {
       return actionError(error.message)
@@ -128,33 +124,31 @@ export async function ayudameACompletar(
   const user = await requireUser()
 
   try {
-    return await conDb(async () => {
-      const [issue] = await db
-        .select({
-          title: issues.title,
-          description: issues.description,
-          type: issues.type,
-          projectName: projects.name,
-        })
-        .from(issues)
-        .leftJoin(projects, eq(projects.id, issues.projectId))
-        .where(and(eq(issues.id, issueId), eq(issues.userId, user.id)))
-        .limit(1)
-
-      if (!issue) {
-        return actionError("No se encontró el problema")
-      }
-
-      const resultado = await enriquecer({
-        userId: user.id,
-        titulo: issue.title,
-        descripcion: issue.description,
-        tipo: issue.type,
-        proyecto: issue.projectName,
+    const [issue] = await db
+      .select({
+        title: issues.title,
+        description: issues.description,
+        type: issues.type,
+        projectName: projects.name,
       })
+      .from(issues)
+      .leftJoin(projects, eq(projects.id, issues.projectId))
+      .where(and(eq(issues.id, issueId), eq(issues.userId, user.id)))
+      .limit(1)
 
-      return actionOk(resultado)
+    if (!issue) {
+      return actionError("No se encontró el problema")
+    }
+
+    const resultado = await enriquecer({
+      userId: user.id,
+      titulo: issue.title,
+      descripcion: issue.description,
+      tipo: issue.type,
+      proyecto: issue.projectName,
     })
+
+    return actionOk(resultado)
   } catch (error) {
     if (esErrorIA(error)) {
       return actionError(error.message)
@@ -173,18 +167,16 @@ export async function generarResumenAhora(): Promise<
   const user = await requireUser()
 
   try {
-    return await conDb(async () => {
-      const resultado = await generarResumenSemanal({
-        userId: user.id,
-        origen: "manual",
-        forzar: true,
-      })
-
-      revalidatePath("/resumenes")
-      revalidatePath("/")
-
-      return actionOk(resultado)
+    const resultado = await generarResumenSemanal({
+      userId: user.id,
+      origen: "manual",
+      forzar: true,
     })
+
+    revalidatePath("/resumenes")
+    revalidatePath("/")
+
+    return actionOk(resultado)
   } catch (error) {
     if (esErrorIA(error)) {
       return actionError(error.message)

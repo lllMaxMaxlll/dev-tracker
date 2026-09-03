@@ -362,7 +362,6 @@ export async function pedirTextoEnStream(params: {
     prompt_tokens: 0,
     completion_tokens: 0,
     total_tokens: 0,
-    neurons: 0,
   }
 
   function procesarEvento(
@@ -386,7 +385,6 @@ export async function pedirTextoEnStream(params: {
       consumo.prompt_tokens! += dato.usage.prompt_tokens ?? 0
       consumo.completion_tokens! += dato.usage.completion_tokens ?? 0
       consumo.total_tokens! += dato.usage.total_tokens ?? 0
-      consumo.neurons! += dato.usage.neurons ?? 0
     }
 
     const trozo = dato.choices?.[0]?.delta?.content

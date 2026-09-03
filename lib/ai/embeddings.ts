@@ -235,20 +235,3 @@ export async function buscarSimilares(params: {
 
   return filas.filter((fila) => fila.similitud >= umbral)
 }
-
-/** Problemas sin embedding o con uno de otra dimensión, para regenerar. */
-export async function contarEmbeddingsDesactualizados(
-  userId: string,
-  dimensionActual: number
-) {
-  const [fila] = await db
-    .select({
-      sinEmbedding: sql<number>`count(*) filter (where ${issueEmbeddings.issueId} is null)::int`,
-      otraDimension: sql<number>`count(*) filter (where ${issueEmbeddings.embeddingDimensions} is not null and ${issueEmbeddings.embeddingDimensions} <> ${dimensionActual})::int`,
-    })
-    .from(issues)
-    .leftJoin(issueEmbeddings, eq(issueEmbeddings.issueId, issues.id))
-    .where(eq(issues.userId, userId))
-
-  return fila ?? { sinEmbedding: 0, otraDimension: 0 }
-}

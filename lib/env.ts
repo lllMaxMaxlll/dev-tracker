@@ -31,8 +31,6 @@ const serverEnvSchema = z.object({
   // necesitan una sesión de verdad, no un pooler en modo transacción.
   DIRECT_URL: z.string().optional(),
 
-  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
-
   // 32 bytes en base64 → 44 caracteres.
   ENCRYPTION_KEY: z
     .string()

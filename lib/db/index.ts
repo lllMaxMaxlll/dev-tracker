@@ -69,7 +69,7 @@ function getPool(): Pool {
 
 let instancia: Db | undefined
 
-export function getDb(): Db {
+function getDb(): Db {
   if (!instancia) {
     instancia = drizzle(getPool(), { schema })
   }
@@ -90,20 +90,5 @@ export const db = new Proxy({} as Db, {
     return Reflect.get(getDb(), prop, receiver)
   },
 })
-
-/**
- * Envoltorio histórico, hoy un passthrough.
- *
- * En Cloudflare esto abría y cerraba un pool por request, porque workerd aísla
- * el I/O por request y el `cache()` de React no memoiza fuera del render. Con
- * un pool de módulo nada de eso hace falta — y cerrarlo sería un error: es el
- * pool compartido de la instancia.
- *
- * Se conserva para no reescribir las 26 server actions y los route handlers que
- * ya lo usan. Desarmarlo es una limpieza aparte, no parte de la migración.
- */
-export async function conDb<T>(fn: (db: Db) => Promise<T>): Promise<T> {
-  return fn(getDb())
-}
 
 export { schema }

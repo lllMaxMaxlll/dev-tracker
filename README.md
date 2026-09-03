@@ -36,8 +36,7 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 1. Creá un proyecto en [supabase.com](https://supabase.com) (el plan gratuito alcanza).
 2. Guardá la contraseña de la base: aparece una sola vez.
 3. **Project Settings → Data API**: copiá el *Project URL* y la *anon public key*.
-4. **Project Settings → API Keys**: copiá la *service_role key*.
-5. **Connection strings**: necesitás **las dos**, y no son intercambiables.
+4. **Connection strings**: necesitás **las dos**, y no son intercambiables.
 
    | Cuál | Variable | Para qué | Dónde |
    |---|---|---|---|
@@ -155,7 +154,7 @@ El deploy es automático con cada push a `main`. No hay comando: Vercel corre `n
 
 Van en el panel de Vercel (Project Settings → Environment Variables), no en el repo:
 
-`DATABASE_URL`, `ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `CRON_SECRET` y, para que la instancia sea de uso personal, `ALLOWED_GITHUB_LOGINS`.
+`DATABASE_URL`, `ENCRYPTION_KEY`, `OPENROUTER_API_KEY`, `CRON_SECRET` y, para que la instancia sea de uso personal, `ALLOWED_GITHUB_LOGINS`.
 
 > Sin `ALLOWED_GITHUB_LOGINS` ni `ALLOWED_EMAILS`, cualquiera con una cuenta de GitHub puede entrar a la instancia desplegada y crear sus propios datos.
 

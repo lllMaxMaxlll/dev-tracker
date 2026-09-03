@@ -6,12 +6,11 @@ import { db } from "@/lib/db"
 import { aiUsageLog, type AiTaskKind } from "@/lib/db/schema"
 import { getModelo } from "@/lib/ai/models"
 
-/** Lo que devuelve Workers AI en `usage`. */
+/** Lo que devuelve el proveedor en `usage`. */
 export type ConsumoCrudo = {
   prompt_tokens?: number
   completion_tokens?: number
   total_tokens?: number
-  neurons?: number
 }
 
 /**
@@ -63,7 +62,6 @@ export async function registrarUso(params: {
       promptTokens: consumo.prompt_tokens ?? 0,
       completionTokens: consumo.completion_tokens ?? 0,
       totalTokens: consumo.total_tokens ?? 0,
-      neurons: consumo.neurons ?? null,
       estimatedCostUsd: params.exito
         ? ((await costoUsd(params.modelo, consumo))?.toFixed(6) ?? null)
         : null,

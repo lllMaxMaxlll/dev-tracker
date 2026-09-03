@@ -127,14 +127,6 @@ export function ModelPicker({
                           aria-label="Sin tool calling"
                         />
                       ) : null}
-                      {modelo.requierePlanPago ? (
-                        <Badge
-                          variant="outline"
-                          className="shrink-0 text-[10px] whitespace-nowrap"
-                        >
-                          plan pago
-                        </Badge>
-                      ) : null}
                     </div>
                     <span className="text-xs text-muted-foreground tabular-nums">
                       {contexto(modelo.contexto)} de contexto ·{" "}

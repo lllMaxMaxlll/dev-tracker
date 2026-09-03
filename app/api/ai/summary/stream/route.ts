@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 
-import { conDb } from "@/lib/db"
 import { requireUser } from "@/lib/auth/require-user"
 import {
   generarResumenEnStream,
@@ -23,9 +22,10 @@ export async function POST() {
 
   // Las consultas van ANTES de abrir la respuesta: una vez que el texto
   // empezó a fluir ya no se puede devolver un error legible.
-  const preparado = await conDb(() =>
-    prepararResumenSemanal({ userId: user.id, forzar: true })
-  )
+  const preparado = await prepararResumenSemanal({
+    userId: user.id,
+    forzar: true,
+  })
 
   if (!preparado.listo) {
     return NextResponse.json(

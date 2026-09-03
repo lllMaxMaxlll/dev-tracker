@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { eq } from "drizzle-orm"
 
-import { conDb, db } from "@/lib/db"
+import { db } from "@/lib/db"
 import { userAiSettings } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
 import { aiSettingsSchema } from "@/lib/schemas/ai-settings"
@@ -26,44 +26,42 @@ export async function guardarAjustesIA(
   const datos = parsed.data
 
   try {
-    return await conDb(async () => {
-      // La dimensión del vector es fija a nivel esquema: si el modelo nuevo
-      // produce otra, los embeddings guardados dejan de ser comparables.
-      const embeddings = await getModelosDeEmbeddings()
-      const elegido = embeddings.find((m) => m.id === datos.embeddingModel)
-      const dimensiones = elegido?.dimensiones ?? 1024
+    // La dimensión del vector es fija a nivel esquema: si el modelo nuevo
+    // produce otra, los embeddings guardados dejan de ser comparables.
+    const embeddings = await getModelosDeEmbeddings()
+    const elegido = embeddings.find((m) => m.id === datos.embeddingModel)
+    const dimensiones = elegido?.dimensiones ?? 1024
 
-      const [actual] = await db
-        .select({ dimensiones: userAiSettings.embeddingDimensions })
-        .from(userAiSettings)
-        .where(eq(userAiSettings.userId, user.id))
-        .limit(1)
+    const [actual] = await db
+      .select({ dimensiones: userAiSettings.embeddingDimensions })
+      .from(userAiSettings)
+      .where(eq(userAiSettings.userId, user.id))
+      .limit(1)
 
-      const avisoDimensiones =
-        actual && dimensiones !== actual.dimensiones
-          ? `El modelo nuevo produce vectores de ${dimensiones} dimensiones y los guardados tienen ${actual.dimensiones}. Hay que regenerar los embeddings existentes (Fase 6).`
-          : null
+    const avisoDimensiones =
+      actual && dimensiones !== actual.dimensiones
+        ? `El modelo nuevo produce vectores de ${dimensiones} dimensiones y los guardados tienen ${actual.dimensiones}. Hay que regenerar los embeddings existentes (Fase 6).`
+        : null
 
-      await db
-        .update(userAiSettings)
-        .set({
-          defaultModel: datos.defaultModel,
-          fastModel: datos.fastModel || null,
-          reasoningModel: datos.reasoningModel || null,
-          embeddingModel: datos.embeddingModel,
-          embeddingDimensions: dimensiones,
-          fastTemperature: datos.fastTemperature,
-          fastMaxTokens: datos.fastMaxTokens,
-          reasoningTemperature: datos.reasoningTemperature,
-          reasoningMaxTokens: datos.reasoningMaxTokens,
-          requireToolCalling: datos.requireToolCalling,
-        })
-        .where(eq(userAiSettings.userId, user.id))
+    await db
+      .update(userAiSettings)
+      .set({
+        defaultModel: datos.defaultModel,
+        fastModel: datos.fastModel || null,
+        reasoningModel: datos.reasoningModel || null,
+        embeddingModel: datos.embeddingModel,
+        embeddingDimensions: dimensiones,
+        fastTemperature: datos.fastTemperature,
+        fastMaxTokens: datos.fastMaxTokens,
+        reasoningTemperature: datos.reasoningTemperature,
+        reasoningMaxTokens: datos.reasoningMaxTokens,
+        requireToolCalling: datos.requireToolCalling,
+      })
+      .where(eq(userAiSettings.userId, user.id))
 
-      revalidatePath("/ajustes")
+    revalidatePath("/ajustes")
 
-      return actionOk({ avisoDimensiones })
-    })
+    return actionOk({ avisoDimensiones })
   } catch (error) {
     console.error("[guardarAjustesIA]", error)
 
@@ -80,6 +78,5 @@ export async function verificarModelo(id: string) {
   return {
     existe: Boolean(modelo),
     soportaTools: modelo?.soportaTools ?? false,
-    requierePlanPago: modelo?.requierePlanPago ?? false,
   }
 }

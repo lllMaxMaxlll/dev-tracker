@@ -23,7 +23,6 @@ export type ModeloCatalogo = {
   contexto: number | null
   soportaTools: boolean
   razona: boolean
-  requierePlanPago: boolean
   precioEntradaUsd: number | null
   precioSalidaUsd: number | null
   /** Dimensiones de salida, sólo para modelos de embeddings. */
@@ -75,9 +74,6 @@ function normalizar(modelo: ModeloCrudo): ModeloCatalogo {
     contexto: modelo.context_length ?? null,
     soportaTools: parametros.includes("tools"),
     razona: parametros.includes("reasoning"),
-    // Era un concepto de Workers AI (modelos que exigían plan pago de
-    // Cloudflare). En OpenRouter todo se paga por uso.
-    requierePlanPago: false,
     precioEntradaUsd: precioPorMillon(modelo.pricing?.prompt),
     precioSalidaUsd: precioPorMillon(modelo.pricing?.completion),
     dimensiones: null,
@@ -106,7 +102,6 @@ export const MODELOS_EMBEDDINGS: ModeloCatalogo[] = [
     contexto: 8191,
     soportaTools: false,
     razona: false,
-    requierePlanPago: false,
     precioEntradaUsd: 0.02,
     precioSalidaUsd: null,
     dimensiones: 1024,
@@ -121,7 +116,6 @@ export const MODELOS_EMBEDDINGS: ModeloCatalogo[] = [
     contexto: 8191,
     soportaTools: false,
     razona: false,
-    requierePlanPago: false,
     precioEntradaUsd: 0.13,
     precioSalidaUsd: null,
     dimensiones: 1024,

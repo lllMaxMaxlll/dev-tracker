@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server"
 import { sql } from "drizzle-orm"
 
-import { conDb } from "@/lib/db"
+import { db } from "@/lib/db"
 
-/**
- * Health check para el despliegue.
- *
- * Usa `conDb` y no el proxy `db`: en un route handler el `cache()` de React no
- * memoiza, y cada acceso abriría una conexión nueva. Ver lib/db/index.ts.
- */
+/** Health check para el despliegue. También lo usa el cron que mantiene
+ * despierta la base: Supabase pausa los proyectos gratuitos a los 7 días sin
+ * actividad. */
 export async function GET() {
   try {
-    await conDb((db) => db.execute(sql`select 1`))
+    await db.execute(sql`select 1`)
 
     return NextResponse.json({ status: "ok", db: "ok" })
   } catch (error) {

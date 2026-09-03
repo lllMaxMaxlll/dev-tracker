@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, eq } from "drizzle-orm"
 
-import { conDb, db } from "@/lib/db"
+import { db } from "@/lib/db"
 import { weeklySummaries } from "@/lib/db/schema"
 import { pedirTexto, pedirTextoEnStream } from "@/lib/ai/client"
 import { getConfigTarea } from "@/lib/ai/settings"
@@ -269,18 +269,14 @@ export async function generarResumenEnStream(params: {
     alTerminar: async (texto) => {
       if (!texto.trim()) return
 
-      // El pool de la request ya se cerró cuando el handler devolvió la
-      // respuesta, así que el guardado abre el suyo.
-      await conDb(() =>
-        guardarResumen({
-          userId: params.userId,
-          weekStart: params.preparado.weekStart,
-          weekEnd: params.preparado.weekEnd,
-          contenido: texto,
-          stats: params.preparado.stats,
-          origen: "manual",
-        })
-      )
+      await guardarResumen({
+        userId: params.userId,
+        weekStart: params.preparado.weekStart,
+        weekEnd: params.preparado.weekEnd,
+        contenido: texto,
+        stats: params.preparado.stats,
+        origen: "manual",
+      })
     },
   })
 }
