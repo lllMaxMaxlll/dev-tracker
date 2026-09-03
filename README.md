@@ -1,6 +1,6 @@
 # DevTracker
 
-Dashboard personal para registrar y seguir los problemas, bugs e ideas que aparecen mientras desarrollás — el reemplazo del cuaderno de papel. Integrado con GitHub y con una capa de IA sobre Cloudflare Workers AI.
+Dashboard personal para registrar y seguir los problemas, bugs e ideas que aparecen mientras desarrollás — el reemplazo del cuaderno de papel. Integrado con GitHub y con una capa de IA sobre OpenRouter.
 
 El plan completo de implementación, con las decisiones de arquitectura y sus porqués, está en [PLAN.md](./PLAN.md).
 
@@ -8,15 +8,15 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 
 | Capa | Herramienta |
 |---|---|
-| Framework | Next.js 16 (App Router, Server Actions) sobre **vinext** (Vite) |
+| Framework | Next.js 16 (App Router, Server Actions) |
 | UI | shadcn/ui sobre Base UI (estilo `base-nova`) + Tailwind v4 |
 | Base de datos | Supabase Cloud (Postgres + pgvector) |
 | ORM | Drizzle (esquema, migraciones y consultas) |
 | Auth | Supabase Auth con GitHub como proveedor OAuth |
 | GitHub | Octokit |
-| IA | Cloudflare Workers AI, binding `AI` (sólo servidor) |
-| Embeddings | Cloudflare Workers AI (`@cf/baai/bge-m3`), binding `AI` |
-| Deploy | Cloudflare Workers (+ Hyperdrive, KV, Workers AI) |
+| IA | OpenRouter (`/chat/completions`, sólo servidor) |
+| Embeddings | OpenRouter (`openai/text-embedding-3-small`, recortado a 1024 dims) |
+| Deploy | Vercel (+ Vercel Cron) |
 
 ## Estado
 
@@ -24,7 +24,7 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 - ✅ **Fase 2** — CRUD de problemas y proyectos (tabla + kanban)
 - ✅ **Fase 3** — dashboard de métricas
 - ✅ **Fase 4** — integración con GitHub
-- ✅ **Fase 5** — capa de IA (Workers AI), Ajustes y captura en lenguaje natural
+- ✅ **Fase 5** — capa de IA, Ajustes y captura en lenguaje natural
 - ✅ **Fase 6** — duplicados, vinculación de commits, resumen semanal, insights y consumo
 
 ---
@@ -39,16 +39,16 @@ El plan completo de implementación, con las decisiones de arquitectura y sus po
 4. **Project Settings → API Keys**: copiá la *service_role key*.
 5. **Connection strings**: necesitás **las dos**, y no son intercambiables.
 
-   | Cuál | Para qué | Dónde |
-   |---|---|---|
-   | **Directa** (`db.<ref>.supabase.co:5432`) | crear el binding de Hyperdrive (producción) | Connect → *Direct connection* |
-   | **Session pooler** (`aws-N-<region>.pooler.supabase.com:5432`) | `.env.local`: desarrollo y migraciones | Connect → *Session pooler* |
+   | Cuál | Variable | Para qué | Dónde |
+   |---|---|---|---|
+   | **Transaction pooler** (`…pooler.supabase.com:6543`) | `DATABASE_URL` | la app | Connect → *Transaction pooler* |
+   | **Session pooler** (`…pooler.supabase.com:5432`) | `DIRECT_URL` | `drizzle-kit`: migraciones | Connect → *Session pooler* |
 
-   > ⚠️ **Por qué dos.** Desde enero de 2024 la conexión directa resuelve **sólo a IPv6**. Desde una red IPv4 tira `getaddrinfo ENOTFOUND`, así que no sirve para trabajar localmente ni para correr las migraciones desde tu máquina. Cloudflare sí la alcanza, y Hyperdrive pide explícitamente la directa porque el pooling lo hace él.
+   > ⚠️ **Por qué dos.** La app corre en funciones serverless, que aparecen y desaparecen todo el tiempo: sin un pooler del lado del servidor la base se queda sin conexiones. El **modo transacción** (6543) es el indicado para eso. No soporta prepared statements con nombre, pero drizzle sólo los usa si se pide `.prepare()` explícitamente, y en este proyecto no se usa en ningún lado.
    >
-   > Del pooler usá el puerto **5432** (session mode), no el **6543** (transaction mode): ese último no soporta bien los prepared statements ni el DDL de las migraciones.
+   > Las **migraciones** son otra cosa: hacen DDL y necesitan una sesión de verdad, así que van por el **modo sesión** (5432).
    >
-   > Si preferís una sola string, Supabase vende un add-on de IPv4 que hace la directa alcanzable por IPv4.
+   > La connection string **directa** (`db.<ref>.supabase.co`) no sirve para ninguna de las dos: desde enero de 2024 resuelve **sólo a IPv6** y desde una red IPv4 tira `getaddrinfo ENOTFOUND`.
 
 > Las extensiones `vector` y `pg_trgm` las habilita la primera migración; no hace falta tocarlas a mano.
 
@@ -102,21 +102,13 @@ Aplica dos migraciones:
 - `0000_inicial` — extensiones, enums, 14 tablas e índices (incluido el HNSW de pgvector).
 - `0001_rls_y_triggers` — Row Level Security en todas las tablas, triggers de `updated_at` e índices de búsqueda por texto.
 
-### 6. Crear los bindings de Cloudflare
+### 6. Configurar la IA
 
-```bash
-npx wrangler kv namespace create VINEXT_KV_CACHE
-```
+Sacá una API key en [openrouter.ai](https://openrouter.ai) y ponela en `OPENROUTER_API_KEY`. Es **una sola credencial para todo**: OpenRouter sirve el chat con tool calling por `/chat/completions` y los embeddings por `/embeddings`.
 
-```bash
-npx wrangler hyperdrive create devtracker-db --connection-string="<la connection string directa de Supabase>"
-```
+Sin ella la app arranca igual y todo lo que no es IA funciona normal; las funciones de IA fallan con un mensaje que dice qué falta.
 
-Copiá los dos ids que devuelven a `wrangler.jsonc`, reemplazando `<your-kv-namespace-id>` y `<your-hyperdrive-id>`. Después regenerá los tipos:
-
-```bash
-bun run cf-typegen
-```
+Qué modelo usa cada tarea no se configura por variable de entorno: sale de la tabla `user_ai_settings` y se elige desde la página de **Ajustes**.
 
 ### 7. Levantar la app
 
@@ -124,7 +116,7 @@ bun run cf-typegen
 bun run dev
 ```
 
-Corre sobre **workerd** (el mismo runtime que producción), no sobre Node. En `http://localhost:3000` deberías caer en `/login` y poder entrar con GitHub.
+En `http://localhost:3000` deberías caer en `/login` y poder entrar con GitHub.
 
 ---
 
@@ -151,53 +143,41 @@ Las tres capas están a propósito. Ninguna sola alcanza.
 
 ---
 
-## Despliegue en Cloudflare Workers
+## Despliegue en Vercel
 
-### Por qué Workers y no Pages
+Desplegado en: **https://devtracker.maxherr.com**
 
-- **Pages Functions no soporta cron triggers**: el resumen semanal de los viernes no podría correr.
-- Cloudflare absorbió Pages dentro de Workers; las features nuevas salen sólo ahí.
-- Para Next.js, Cloudflare recomienda hoy **vinext**. OpenNext quedó como legacy.
+El deploy es automático con cada push a `main`. No hay comando: Vercel corre `next build` por su cuenta.
 
-### Desplegar
+> Hasta septiembre de 2026 esto corría en **Cloudflare Workers** con vinext, Hyperdrive, KV y Workers AI. El porqué de aquella arquitectura está en [PLAN.md](./PLAN.md); la nota del principio de ese archivo explica qué quedó superado.
 
-```bash
-bun run build && bun run deploy
-```
+### Variables de entorno
 
-Desplegado en: **https://devtracker.maxherr.com** (dominio propio sobre el Worker `devtracker.max-herr-88.workers.dev`).
+Van en el panel de Vercel (Project Settings → Environment Variables), no en el repo:
 
-> ⚠️ **Después del primer deploy**, agregá la URL de producción en Supabase:
-> **Authentication → URL Configuration → Redirect URLs** →
-> `https://devtracker.maxherr.com/auth/callback`.
-> Sin eso el login falla, porque Supabase rechaza el redirect.
->
-> El dominio propio está configurado desde el panel de Cloudflare, no en
-> `wrangler.jsonc`. Los despliegues no lo tocan.
-
-Para probar el Worker buildeado localmente antes de desplegar:
-
-```bash
-bun run preview
-```
-
-### Secretos
-
-Las variables de runtime van como secretos del Worker, no en el repo:
-
-```bash
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-```
-
-Los que hacen falta son `ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` y, para que la instancia sea de uso personal, `ALLOWED_GITHUB_LOGINS`.
-
-`DATABASE_URL` **no** hace falta como secreto: en producción la conexión sale del binding de Hyperdrive.
+`DATABASE_URL`, `ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `CRON_SECRET` y, para que la instancia sea de uso personal, `ALLOWED_GITHUB_LOGINS`.
 
 > Sin `ALLOWED_GITHUB_LOGINS` ni `ALLOWED_EMAILS`, cualquiera con una cuenta de GitHub puede entrar a la instancia desplegada y crear sus propios datos.
 
-> No hay API key de IA: Workers AI se accede por el binding `AI` declarado en `wrangler.jsonc`.
+Las **`NEXT_PUBLIC_*` son distintas**: se hornean en el bundle del cliente durante `next build`, así que tienen que estar cargadas **antes** de buildear. Cambiarlas exige un redeploy, no alcanza con guardarlas.
 
-Las **`NEXT_PUBLIC_*` son distintas**: se hornean en el bundle del cliente durante `vinext build`, así que tienen que estar en el entorno **al buildear**. Cambiarlas exige rebuild, no basta con redesplegar.
+> ⚠️ Al cambiar de dominio, agregá la URL de producción en Supabase:
+> **Authentication → URL Configuration → Redirect URLs** →
+> `https://devtracker.maxherr.com/auth/callback`.
+> Sin eso el login falla, porque Supabase rechaza el redirect.
+
+### Tareas programadas
+
+Las declara [vercel.json](./vercel.json) y las corre Vercel Cron:
+
+| Cuándo | Qué | Por qué |
+|---|---|---|
+| Viernes 18:00 | `/api/cron/weekly-summary` | el resumen de la semana |
+| Todos los días 09:00 | `/api/health` | Supabase pausa los proyectos gratuitos a los 7 días sin actividad de base |
+
+Vercel manda `Authorization: Bearer $CRON_SECRET` en cada disparo, que es lo que valida el handler del resumen.
+
+> En el plan **Hobby** los crons corren como mucho una vez por día y con una precisión de ±59 minutos: el resumen del viernes sale en algún momento entre las 18:00 y las 18:59.
 
 ### Plan requerido
 

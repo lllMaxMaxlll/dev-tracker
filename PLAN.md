@@ -3,6 +3,34 @@
 > Dashboard personal para registrar problemas, bugs e ideas de desarrollo, integrado con GitHub y con una capa de IA sobre Cloudflare Workers AI.
 > Documento de planificación. **No incluye código**: define arquitectura, esquema, orden de trabajo y criterios de verificación por fase.
 
+
+> [!IMPORTANT]
+> **Nota de 2026-09-03 — la infraestructura de este plan quedó superada.**
+>
+> El proyecto se migró de **Cloudflare Workers a Vercel**. Lo que cambió respecto
+> de lo que se lee más abajo:
+>
+> | Este plan dice | Hoy |
+> |---|---|
+> | Hosting en Cloudflare Workers con vinext | Vercel con el build estándar de Next |
+> | Postgres vía Hyperdrive, pool por isolate | Pooler transaccional de Supavisor (6543), pool de módulo |
+> | Caché ISR sobre el adaptador de KV | ISR nativo de Vercel |
+> | IA y embeddings por el binding `AI` de Workers AI | OpenRouter, una sola API key para las dos cosas |
+> | Cron Triggers en un Worker aparte | Vercel Cron declarado en `vercel.json` |
+>
+> Dos cosas **no** cambiaron, y son las que más peso tienen acá: Supabase sigue
+> siendo la base y el proveedor de Auth, y Drizzle sigue siendo la capa de
+> consulta. El esquema es idéntico — la migración no corrió ninguna migración.
+>
+> Un detalle que envejeció al revés: la sección 1.11 explica que se abandonó
+> OpenRouter porque *"es una API de chat completions y no ofrece `/v1/embeddings`"*.
+> Eso era cierto cuando se escribió; desde entonces OpenRouter agregó el
+> endpoint, y por eso se pudo volver sin necesidad de un segundo proveedor.
+>
+> El resto del documento se deja **tal como se escribió**: es el registro de por
+> qué se decidió cada cosa cuando se decidió, no una descripción del estado
+> actual. Para eso está el [README](./README.md).
+
 **Decisiones tomadas** (29/08/2026):
 - **Hosting: Cloudflare Workers** con el adaptador **vinext** (sección 10). Se descartaron Coolify y Cloudflare Pages; el porqué está en 10.1.
 - **Supabase Cloud**, plan gratuito (sección 1.10). Postgres se alcanza vía **Hyperdrive** con el driver `pg`.
