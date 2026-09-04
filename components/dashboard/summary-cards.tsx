@@ -59,6 +59,8 @@ export function SummaryCards({ resumen }: { resumen: ResumenMetricas }) {
         valor={String(resumen.abiertos)}
         detalle="Pendientes y en progreso"
         icono={CircleDotIcon}
+        // Sin `vista`: agrupa pendiente y en progreso, o sea dos columnas
+        // con contenido, y el kanban por defecto le queda bien.
         href="/problemas?estado=abiertos"
       />
       <Tarjeta
@@ -66,7 +68,9 @@ export function SummaryCards({ resumen }: { resumen: ResumenMetricas }) {
         valor={String(resumen.resueltosEstaSemana)}
         detalle="Desde el lunes"
         icono={CheckCircle2Icon}
-        href="/problemas?estado=resuelto"
+        // `vista=tabla` explícita: filtrar a un solo estado en el kanban deja
+        // una columna con tarjetas y tres vacías.
+        href="/problemas?estado=resuelto&vista=tabla"
       />
       <Tarjeta
         titulo="En progreso"
@@ -75,7 +79,7 @@ export function SummaryCards({ resumen }: { resumen: ResumenMetricas }) {
           resumen.enProgreso > 0 ? "Lo que tenés entre manos" : "Nada empezado"
         }
         icono={CircleDashedIcon}
-        href="/problemas?estado=en_progreso"
+        href="/problemas?estado=en_progreso&vista=tabla"
       />
       <Tarjeta
         titulo="Tiempo de resolución"
