@@ -53,7 +53,7 @@ async function Contenido({ searchParams }: { searchParams: SearchParams }) {
   // entrada. Un valor inválido cae al default en vez de romper la página.
   const filtros = issueFiltersSchema
     .catch({
-      vista: "tabla",
+      vista: "kanban",
       orden: "actualizado",
       dir: "desc",
     })

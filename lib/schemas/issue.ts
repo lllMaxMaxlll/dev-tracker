@@ -53,7 +53,9 @@ export type IssueFormValues = z.infer<typeof issueFormSchema>
 export const ORDENES = ["actualizado", "creado", "prioridad", "numero"] as const
 
 export const issueFiltersSchema = z.object({
-  vista: z.enum(["tabla", "kanban"]).default("tabla"),
+  // El kanban es la vista por defecto: entrar a la sección es casi siempre
+  // querer ver en qué anda cada cosa, no leer una tabla ordenada.
+  vista: z.enum(["tabla", "kanban"]).default("kanban"),
   proyecto: z.string().optional(),
   tipo: z.enum(TIPOS).optional(),
   // `abiertos` no es un estado de la base: agrupa los tres que no están
