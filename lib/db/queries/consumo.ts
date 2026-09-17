@@ -4,6 +4,12 @@ import { sql } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import type { UsageAggregation, UsageSource } from "@/lib/db/schema"
+import {
+  Cuotas,
+  esMetricaDeTope,
+  getPlanesDeVista,
+  type Excedente,
+} from "@/lib/monitor/quotas"
 
 /**
  * Lecturas del monitor de consumo.
@@ -49,6 +55,10 @@ export type RecursoConConsumo = {
   nombre: string
   organizacion: string | null
   estado: string | null
+  /** Plan real, detectado por el colector. */
+  plan: string | null
+  /** Plan con cuyas cuotas se está mirando. Puede no ser el real: ver el toggle. */
+  planDeVista: string | null
   ultimaSync: Date | null
   ultimoError: string | null
   metricas: {
@@ -60,6 +70,17 @@ export type RecursoConConsumo = {
     /** Agregado del mes en curso, según la agregación de la métrica. */
     mes: number
     dia: string
+    /** Tope del plan, si se conoce. Sin esto no se dibuja barra. */
+    tope?: number
+    /**
+     * La métrica sólo existe para ser el denominador de otra y no aporta nada
+     * por sí sola. Deja de serlo si el plan la factura: en Supabase Pro el
+     * disco aprovisionado pasa de ser "el tope del disco usado" a ser la
+     * métrica por la que te cobran, y ahí sí querés verla.
+     */
+    soloTope?: boolean
+    /** Cuánto te pasaste y cuánto cuesta. Null si el plan corta en vez de cobrar. */
+    excedente?: Excedente
   }[]
 }
 
@@ -76,11 +97,13 @@ export async function getRecursosConConsumo(): Promise<RecursoConConsumo[]> {
     nombre: string
     organizacion: string | null
     estado: string | null
+    plan: string | null
     ultima_sync: string | Date | null
     ultimo_error: string | null
   }>(sql`
     select id, source as fuente, name as nombre, organization as organizacion,
-           status as estado, last_sync_at as ultima_sync, last_error as ultimo_error
+           status as estado, plan,
+           last_sync_at as ultima_sync, last_error as ultimo_error
     from monitored_resources
     where active
     order by source, name
@@ -133,16 +156,81 @@ export async function getRecursosConConsumo(): Promise<RecursoConConsumo[]> {
     porRecurso.set(fila.resource_id, lista)
   }
 
-  return recursos.rows.map((fila) => ({
-    id: fila.id,
-    fuente: fila.fuente,
-    nombre: fila.nombre,
-    organizacion: fila.organizacion,
-    estado: fila.estado,
-    ultimaSync: comoFecha(fila.ultima_sync),
-    ultimoError: fila.ultimo_error,
-    metricas: porRecurso.get(fila.id) ?? [],
-  }))
+  const [cuotas, vistas] = await Promise.all([
+    Cuotas.cargar(),
+    getPlanesDeVista(),
+  ])
+
+  return recursos.rows.map((fila) => {
+    const metricas = porRecurso.get(fila.id) ?? []
+
+    // El toggle gana sobre el plan detectado, pero sólo para mirar: el plan
+    // real viaja aparte para que la UI pueda avisar cuando no coinciden.
+    const planDeVista = vistas[fila.fuente] ?? fila.plan
+
+    const valorDe = (clave: string) =>
+      metricas.find((m) => m.metrica === clave)?.ultimo
+
+    return {
+      id: fila.id,
+      fuente: fila.fuente,
+      nombre: fila.nombre,
+      organizacion: fila.organizacion,
+      estado: fila.estado,
+      plan: fila.plan,
+      planDeVista,
+      ultimaSync: comoFecha(fila.ultima_sync),
+      ultimoError: fila.ultimo_error,
+      metricas: metricas.map((metrica) => ({
+        ...metrica,
+        tope: cuotas.tope(fila.fuente, planDeVista, metrica.metrica, valorDe),
+        excedente:
+          cuotas.excedente(
+            fila.fuente,
+            planDeVista,
+            metrica.metrica,
+            metrica.mes
+          ) ?? undefined,
+        soloTope:
+          esMetricaDeTope(metrica.metrica) &&
+          !cuotas.buscar(fila.fuente, planDeVista, metrica.metrica),
+      })),
+    }
+  })
+}
+
+/** Planes con cuotas cargadas por fuente, más el real y el elegido. */
+export async function getPlanesPorFuente(): Promise<
+  {
+    fuente: UsageSource
+    detectado: string | null
+    enVista: string | null
+    disponibles: string[]
+  }[]
+> {
+  const [cuotas, vistas, detectados] = await Promise.all([
+    Cuotas.cargar(),
+    getPlanesDeVista(),
+    db.execute<{ fuente: UsageSource; plan: string | null }>(sql`
+      select source as fuente, (array_agg(plan) filter (where plan is not null))[1] as plan
+      from monitored_resources
+      where active
+      group by source
+    `),
+  ])
+
+  return (
+    detectados.rows
+      .map((fila) => ({
+        fuente: fila.fuente,
+        detectado: fila.plan,
+        enVista: vistas[fila.fuente] ?? fila.plan,
+        disponibles: cuotas.planesDisponibles(fila.fuente),
+      }))
+      // Sin cuotas cargadas no hay nada que elegir, y un toggle de una sola
+      // opción sólo genera la duda de para qué está.
+      .filter((fila) => fila.disponibles.length > 1)
+  )
 }
 
 /**

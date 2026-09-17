@@ -8,6 +8,8 @@ import { alertRules } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
 import { recolectarTodo } from "@/lib/monitor/collect"
 import { evaluarReglas } from "@/lib/monitor/evaluate"
+import { setPlanDeVista } from "@/lib/monitor/quotas"
+import type { UsageSource } from "@/lib/db/schema"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 
 /**
@@ -119,5 +121,34 @@ export async function silenciarTodo(
     console.error("[silenciarTodo]", error)
 
     return actionError("No se pudo silenciar")
+  }
+}
+
+/**
+ * Con las cuotas de qué plan mirar una fuente.
+ *
+ * Es una preferencia de vista, no un cambio de plan: sirve para ver cómo se
+ * vería el mismo consumo en Pro antes de pagarlo. Las alertas siguen
+ * evaluándose contra el plan real, porque una alerta tiene que dispararse
+ * contra la cuota que te van a cobrar.
+ *
+ * `null` vuelve al plan detectado, que es lo que se quiere casi siempre.
+ */
+export async function cambiarPlanDeVista(
+  fuente: UsageSource,
+  plan: string | null
+): Promise<ActionResult> {
+  await requireUser()
+
+  try {
+    await setPlanDeVista(fuente, plan)
+
+    revalidatePath("/consumo")
+
+    return actionOk()
+  } catch (error) {
+    console.error("[cambiarPlanDeVista]", error)
+
+    return actionError("No se pudo cambiar el plan de la vista")
   }
 }

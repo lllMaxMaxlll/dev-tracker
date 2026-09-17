@@ -94,9 +94,10 @@ export const METRICAS = {
     nota: "Del mes interesa el pico, no el último valor: si se llenó un martes, eso es lo que hay que ver.",
   },
   "supabase.disk_size_bytes": {
-    etiqueta: "Disco total",
+    etiqueta: "Disco aprovisionado",
     unidad: "bytes",
     agregacion: "ultimo",
+    nota: "En Free es sólo el denominador del disco usado. En Pro es la métrica facturable: 8 GB incluidos y USD 0,125 por GB adicional, y se cobra por lo aprovisionado, no por lo usado.",
   },
   "supabase.db_size_bytes": {
     etiqueta: "Tamaño de la base",

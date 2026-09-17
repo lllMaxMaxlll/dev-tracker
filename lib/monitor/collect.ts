@@ -193,6 +193,7 @@ async function guardar(entrada: MedicionesDeRecurso): Promise<number> {
       name: entrada.recurso.nombre,
       organization: entrada.recurso.organizacion ?? null,
       status: entrada.recurso.estado ?? null,
+      plan: entrada.recurso.plan ?? null,
       metadata: entrada.recurso.metadata ?? null,
       lastSyncAt: ahora,
       lastSyncOk: true,
@@ -204,6 +205,9 @@ async function guardar(entrada: MedicionesDeRecurso): Promise<number> {
         name: entrada.recurso.nombre,
         organization: entrada.recurso.organizacion ?? null,
         status: entrada.recurso.estado ?? null,
+        // Se pisa siempre: si cambiaste de plan, el número de la barra tiene
+        // que cambiar con él en la primera recolección.
+        plan: entrada.recurso.plan ?? null,
         metadata: entrada.recurso.metadata ?? null,
         lastSyncAt: ahora,
         lastSyncOk: true,

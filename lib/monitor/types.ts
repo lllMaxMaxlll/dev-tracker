@@ -34,6 +34,8 @@ export type RecursoDescubierto = {
   organizacion?: string
   /** Tal como lo devuelve el proveedor. */
   estado?: string
+  /** Plan del proveedor ("free", "hobby", "pro"…), detectado, no declarado. */
+  plan?: string
   metadata?: Record<string, unknown>
 }
 

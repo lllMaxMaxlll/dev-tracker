@@ -551,6 +551,11 @@ export const monitoredResources = pgTable(
     // Tal cual lo devuelve el proveedor (ACTIVE_HEALTHY, INACTIVE, PAUSING…).
     // No lo mapeamos a un enum propio: la lista la maneja ellos y cambia.
     status: text("status"),
+    // Plan del proveedor, detectado en cada recolección: Supabase lo expone en
+    // /v1/organizations/{slug} y Vercel en /v2/teams. Se detecta en vez de
+    // preguntarse porque un plan mal declarado a mano haría que las barras y
+    // los excedentes mientan sin que nadie lo note.
+    plan: text("plan"),
     metadata: jsonb("metadata"),
     active: boolean("active").notNull().default(true),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
@@ -670,6 +675,65 @@ export const alertEvents = pgTable(
   ]
 )
 
+// plan_quotas — cuánto incluye cada plan y cuánto cuesta pasarse.
+//
+// Ninguna de las APIs devuelve los topes del plan: sólo el consumo. Sin esta
+// tabla no hay contra qué calcular un porcentaje ni un excedente.
+//
+// Es configurable desde /consumo a propósito. Los precios y los límites de los
+// proveedores cambian, y un número codificado en el código envejece en silencio
+// mientras la barra sigue mostrándose igual de convincente. Acá al menos queda
+// claro que el valor lo declaró alguien y cuándo.
+export const planQuotas = pgTable(
+  "plan_quotas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: usageSourceEnum("source").notNull(),
+    // Texto y no enum: cada proveedor nombra sus planes distinto ("hobby",
+    // "free", "pro", "team", "enterprise") y agregan planes nuevos.
+    plan: text("plan").notNull(),
+    metric: text("metric").notNull(),
+    // Incluido en el plan, en la unidad canónica de la métrica (bytes,
+    // peticiones…). La UI hace la conversión a GB para escribirlo.
+    included: numeric("included", { precision: 20, scale: 6 }).notNull(),
+    // Precio del excedente por cada `overage_block` unidades canónicas. Nulo
+    // cuando el plan no cobra excedente sino que corta: en el Free de Supabase
+    // pasarse del tamaño de base bloquea la escritura, no genera una factura.
+    overagePriceUsd: numeric("overage_price_usd", { precision: 12, scale: 6 }),
+    // Cuántas unidades canónicas cubre ese precio. Para "$0,125 por GB" son
+    // 1073741824. Guardar el precio por byte daría un número ilegible y con
+    // pérdida de precisión al redondear.
+    overageBlock: numeric("overage_block", { precision: 20, scale: 6 })
+      .notNull()
+      .default("1"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("plan_quotas_source_plan_metric_idx").on(
+      t.source,
+      t.plan,
+      t.metric
+    ),
+  ]
+)
+
+// monitor_settings — preferencias del panel, clave/valor.
+//
+// Hoy guarda una sola cosa: con las cuotas de qué plan mirar cada fuente
+// ("plan_vista:supabase" → "pro"). Sirve para responder "¿cómo se vería mi
+// consumo si estuviera en Pro?" sin cambiar de plan, y por defecto vale el plan
+// detectado en `monitored_resources.plan`.
+//
+// Clave/valor y no una columna por preferencia porque es una tabla de una fila
+// por ajuste: una columna nueva por cada toggle sería una migración por toggle.
+export const monitorSettings = pgTable("monitor_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
 // sync_runs — quién vigila al vigilante.
 //
 // `monitored_resources.last_sync_at` no alcanza: no distingue "corrió y no
@@ -762,6 +826,9 @@ export type AlertRule = typeof alertRules.$inferSelect
 export type NewAlertRule = typeof alertRules.$inferInsert
 export type AlertEvent = typeof alertEvents.$inferSelect
 export type SyncRun = typeof syncRuns.$inferSelect
+export type PlanQuota = typeof planQuotas.$inferSelect
+export type MonitorSetting = typeof monitorSettings.$inferSelect
+export type NewPlanQuota = typeof planQuotas.$inferInsert
 
 export type UsageSource = (typeof usageSourceEnum.enumValues)[number]
 export type UsageAggregation = (typeof usageAggregationEnum.enumValues)[number]

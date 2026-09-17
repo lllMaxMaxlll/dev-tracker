@@ -5,12 +5,14 @@ import { PageHeader } from "@/components/layout/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FuenteCard } from "@/components/consumo/fuente-card"
+import { PlanToggle } from "@/components/consumo/plan-toggle"
 import { ReglasPanel } from "@/components/consumo/reglas-panel"
 import { SerieChart } from "@/components/consumo/serie-chart"
 import { requireUser } from "@/lib/auth/require-user"
 import {
   getEstadoDeFuentes,
   getGastoIaDelMes,
+  getPlanesPorFuente,
   getRecursosConConsumo,
   getReglasConEstado,
   getSerieDiaria,
@@ -128,6 +130,20 @@ async function Reglas() {
   return <ReglasPanel reglas={reglas} />
 }
 
+async function Planes() {
+  const planes = await getPlanesPorFuente()
+
+  if (planes.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Todavía no hay cuotas cargadas para comparar planes.
+      </p>
+    )
+  }
+
+  return <PlanToggle planes={planes} />
+}
+
 export default async function ConsumoPage() {
   // La página no filtra por usuario —el consumo es de la instancia— pero sigue
   // exigiendo sesión: la autorización acá es binaria, no de pertenencia.
@@ -163,6 +179,17 @@ export default async function ConsumoPage() {
       >
         <Graficos />
       </Suspense>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Suspense fallback={<Skeleton className="h-24 w-full" />}>
+            <Planes />
+          </Suspense>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

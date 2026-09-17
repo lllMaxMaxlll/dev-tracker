@@ -261,12 +261,43 @@ estimarlo: un número aproximado se ve igual de convincente que uno correcto.
 
 | Fuente | Se lee | No se puede leer |
 |---|---|---|
-| **Vercel** | inventario de proyectos, despliegues por día | **facturación y uso**: `/v1/billing/charges` devuelve `404 costs_not_found` en Hobby, y `/v2/observability/query` exige Observability Plus |
-| **Supabase** | estado del proyecto, tamaño de la base, disco usado y total, peticiones diarias por servicio | **egress** y **usuarios activos**: no hay endpoint público, viven en la facturación de la organización |
+| **Vercel** | inventario de proyectos, plan de la cuenta, despliegues por día | **facturación y uso**: `/v1/billing/charges` devuelve `404 costs_not_found` en Hobby, y `/v2/observability/query` exige Observability Plus |
+| **Supabase** | plan de la organización, estado del proyecto, tamaño de la base, disco usado y aprovisionado, peticiones diarias por servicio | **egress** y **usuarios activos**: no hay endpoint público, viven en la facturación de la organización |
 | **OpenRouter** | gasto del mes, saldo, cuota diaria de modelos gratuitos | — (el desglose por modelo ya está en Ajustes, desde `ai_usage_log`) |
 
 El colector de Vercel intenta la facturación primero y cae a contar despliegues
 si no está disponible; eso mide actividad, no costo, y la página lo aclara.
+
+### Cuotas, planes y excedentes
+
+El plan **se detecta**, no se declara: Supabase lo expone en
+`/v1/organizations/{slug}` y Vercel en `/v2/teams`. Un plan mal escrito a mano
+haría que todas las barras mientan sin que nadie lo note.
+
+Los topes de cada plan viven en la tabla `plan_quotas`, no en el código, y están
+verificados contra las páginas de precios el 2026-09-17. Un toggle en /consumo
+permite mirar el mismo consumo contra las cuotas de otro plan —para ver cuánto
+costaría antes de pagarlo—; cuando el plan de la vista no es el real, la tarjeta
+lo dice. **Las alertas se evalúan siempre contra el plan real**, porque una
+alerta tiene que dispararse contra la cuota que te van a cobrar.
+
+Cuando el plan factura excedente y el consumo se pasa, la barra muestra cuánto
+te pasaste y cuánto cuesta. En Free no se muestra excedente a propósito: el plan
+no factura de más, corta.
+
+Tres números de Supabase que **no son el mismo** y cada plan factura uno
+distinto — confundirlos es el error caro de este panel:
+
+| Métrica | Qué es | Quién la factura |
+|---|---|---|
+| Tamaño de la base | lo que ocupan tus datos (14 MB acá) | Free: 500 MB incluidos |
+| Disco usado | lo que ocupa el volumen, con WAL y overhead (277 MB acá) | nadie; sirve para saber si te quedás sin lugar |
+| Disco aprovisionado | el volumen contratado (1,93 GB acá) | Pro: 8 GB incluidos, USD 0,125 por GB |
+
+Lo que **no** lleva barra, porque no hay tope que mostrar: las peticiones a
+Supabase son ilimitadas en todos los planes según su propia página de precios, y
+los despliegues de Vercel no tienen cuota. Se muestran como número, con el
+motivo al lado.
 
 ### Credenciales
 

@@ -12,7 +12,7 @@ import {
   type AlertRule,
 } from "@/lib/db/schema"
 import { definicionDe, formatearValor } from "@/lib/monitor/metrics"
-import { resolverCuota } from "@/lib/monitor/quotas"
+import { Cuotas } from "@/lib/monitor/quotas"
 import { enviarMensaje } from "@/lib/telegram/client"
 import { escaparHtml, negrita } from "@/lib/telegram/format"
 
@@ -261,11 +261,21 @@ async function resolverUmbrales(
     return mapa
   }
 
-  const topes = await ultimosValores(recursos)
+  const [topes, cuotas, planes] = await Promise.all([
+    ultimosValores(recursos),
+    Cuotas.cargar(),
+    planesDeRecursos(recursos),
+  ])
 
   for (const recurso of recursos) {
-    const cuota = resolverCuota(regla.metric, (clave) =>
-      topes.get(`${recurso}:${clave}`)
+    // Deliberadamente el plan REAL del recurso y no el que esté eligiendo el
+    // toggle de la página: una alerta tiene que dispararse contra la cuota que
+    // te van a cobrar, no contra la que estabas mirando de curioso.
+    const cuota = cuotas.tope(
+      regla.source,
+      planes.get(recurso) ?? null,
+      regla.metric,
+      (clave) => topes.get(`${recurso}:${clave}`)
     )
 
     if (cuota === undefined) continue
@@ -274,6 +284,19 @@ async function resolverUmbrales(
   }
 
   return mapa
+}
+
+async function planesDeRecursos(
+  ids: string[]
+): Promise<Map<string, string | null>> {
+  if (ids.length === 0) return new Map()
+
+  const filas = await db
+    .select({ id: monitoredResources.id, plan: monitoredResources.plan })
+    .from(monitoredResources)
+    .where(inArray(monitoredResources.id, ids))
+
+  return new Map(filas.map((fila) => [fila.id, fila.plan]))
 }
 
 /** Último valor de cada métrica de cada recurso, para resolver cuotas. */

@@ -10,7 +10,6 @@ import {
   getReglasConEstado,
 } from "@/lib/db/queries/consumo"
 import { definicionDe, formatearValor } from "@/lib/monitor/metrics"
-import { cuotaDe } from "@/lib/monitor/quotas"
 import { escaparHtml, negrita } from "@/lib/telegram/format"
 
 /**
@@ -104,6 +103,9 @@ async function consumo(): Promise<string> {
 const DESTACADAS = [
   "supabase.db_size_bytes",
   "supabase.disk_used_bytes",
+  // Sólo aparece cuando el plan la factura: en Free es apenas el denominador
+  // del disco usado, en Pro es la métrica por la que te cobran.
+  "supabase.disk_size_bytes",
   "supabase.rest_requests",
   "supabase.auth_requests",
   "vercel.cost_usd",
@@ -121,12 +123,21 @@ function resumirRecurso(
   for (const clave of DESTACADAS) {
     const metrica = recurso.metricas.find((m) => m.metrica === clave)
 
-    if (!metrica || metrica.mes === 0) continue
+    if (!metrica || metrica.mes === 0 || metrica.soloTope) continue
 
     const definicion = definicionDe(clave)
 
+    const porcentaje =
+      metrica.tope && metrica.tope > 0
+        ? ` (${Math.round((metrica.mes / metrica.tope) * 100)} %)`
+        : ""
+
+    const excedente = metrica.excedente
+      ? ` ⚠️ +${formatearValor(metrica.excedente.costoUsd, "usd")}`
+      : ""
+
     partes.push(
-      `${definicion.etiqueta} ${formatearValor(metrica.mes, definicion.unidad)}${porcentaje(recurso, clave, metrica.mes)}`
+      `${definicion.etiqueta} ${formatearValor(metrica.mes, definicion.unidad)}${porcentaje}${excedente}`
     )
   }
 
@@ -139,22 +150,6 @@ function resumirRecurso(
   }
 
   return partes.length ? escaparHtml(partes.join(" · ")) : null
-}
-
-function porcentaje(
-  recurso: Awaited<ReturnType<typeof getRecursosConConsumo>>[number],
-  clave: string,
-  valor: number
-): string {
-  const cuota = cuotaDe(clave)
-
-  if (cuota?.tipo !== "derivada") return ""
-
-  const tope = recurso.metricas.find((m) => m.metrica === cuota.metrica)?.ultimo
-
-  if (!tope || tope <= 0) return ""
-
-  return ` (${Math.round((valor / tope) * 100)} %)`
 }
 
 async function limites(): Promise<string> {

@@ -57,6 +57,36 @@ export async function listarProyectos(
   })
 }
 
+/**
+ * Plan de cada organización.
+ *
+ * El plan es de la ORGANIZACIÓN, no del proyecto, y `/v1/projects` no lo trae:
+ * hay que pedirlo por slug. Se detecta en vez de preguntárselo al usuario
+ * porque un plan mal declarado a mano haría que las barras y los excedentes
+ * mientan sin que nadie lo note.
+ */
+export async function leerPlanesDeOrganizaciones(
+  slugs: string[],
+  señal?: AbortSignal
+): Promise<Map<string, string>> {
+  const planes = new Map<string, string>()
+
+  for (const slug of slugs) {
+    try {
+      const organizacion = await pedirJson<{ plan?: string }>(
+        `${BASE}/v1/organizations/${slug}`,
+        { token: credencial(), señal, proveedor: "Supabase" }
+      )
+
+      if (organizacion.plan) planes.set(slug, organizacion.plan)
+    } catch {
+      // Sin plan, la UI muestra el consumo sin barra. Preferible a suponer uno.
+    }
+  }
+
+  return planes
+}
+
 type UtilizacionDisco = {
   metrics: {
     fs_size_bytes: number
@@ -173,6 +203,13 @@ export const colectorSupabase: Colector = {
     const proyectos = await listarProyectos(señal)
     const hoy = diaUtc(new Date())
 
+    const planes = await leerPlanesDeOrganizaciones(
+      [
+        ...new Set(proyectos.map((p) => p.organization_slug).filter(Boolean)),
+      ] as string[],
+      señal
+    )
+
     const datos = await enTandas(proyectos, CONCURRENCIA, async (proyecto) => {
       const entrada: MedicionesDeRecurso = {
         recurso: {
@@ -181,6 +218,9 @@ export const colectorSupabase: Colector = {
           nombre: proyecto.name,
           organizacion: proyecto.organization_slug,
           estado: proyecto.status,
+          plan: proyecto.organization_slug
+            ? planes.get(proyecto.organization_slug)
+            : undefined,
           metadata: { region: proyecto.region, creado: proyecto.created_at },
         },
         mediciones: [],

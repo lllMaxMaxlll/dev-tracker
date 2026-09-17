@@ -2,7 +2,6 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarraCuota } from "@/components/consumo/barra-cuota"
 import { definicionDe, formatearValor } from "@/lib/monitor/metrics"
-import { cuotaDe } from "@/lib/monitor/quotas"
 import { haceCuanto } from "@/lib/utils/fechas"
 import type { EstadoFuente, RecursoConConsumo } from "@/lib/db/queries/consumo"
 
@@ -13,12 +12,32 @@ const TITULOS: Record<string, string> = {
 }
 
 /**
+ * Por qué una métrica no tiene barra.
+ *
+ * Decirlo es la mitad del valor: "sin tope" y "no pudimos leer el tope" son
+ * cosas distintas, y ninguna de las dos es "estás al 0 %".
+ */
+const SIN_TOPE: Record<string, string> = {
+  "supabase.db_size_bytes":
+    "El plan Pro factura disco aprovisionado, no tamaño de base",
+  "supabase.disk_used_bytes":
+    "Se compara contra el disco aprovisionado del proyecto",
+  "supabase.rest_requests": "Ilimitadas en todos los planes",
+  "supabase.auth_requests": "Ilimitadas en todos los planes",
+  "supabase.storage_requests": "Ilimitadas en todos los planes",
+  "supabase.realtime_requests": "Ilimitadas en todos los planes",
+  "vercel.deployments": "El plan no pone un tope de despliegues",
+  "openrouter.usage_monthly_usd": "Sin tope: se gasta lo que se carga",
+  "openrouter.credits_remaining_usd": "Saldo disponible, no un consumo",
+}
+
+/**
  * Una tarjeta por fuente.
  *
  * Tres estados distintos y visibles: apagada (falta la credencial), fallando
  * (la última recolección dio error) y con datos. Sin esa distinción, las tres
- * situaciones se verían como un panel vacío, que es la forma más fácil de que
- * un monitor mienta.
+ * situaciones se ven como un panel vacío, que es la forma más fácil de que un
+ * monitor mienta.
  */
 export function FuenteCard({
   fuente,
@@ -33,10 +52,32 @@ export function FuenteCard({
 }) {
   const conDatos = recursos.filter((recurso) => recurso.metricas.length > 0)
 
+  const excedenteTotal = conDatos.reduce(
+    (total, recurso) =>
+      total +
+      recurso.metricas.reduce(
+        (suma, metrica) => suma + (metrica.excedente?.costoUsd ?? 0),
+        0
+      ),
+    0
+  )
+
+  const enVista = conDatos[0]?.planDeVista
+  const real = conDatos[0]?.plan
+  const simulado = Boolean(enVista && real && enVista !== real)
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle>{TITULOS[fuente] ?? fuente}</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle>{TITULOS[fuente] ?? fuente}</CardTitle>
+          {enVista ? (
+            <Badge variant={simulado ? "outline" : "secondary"}>
+              {enVista}
+              {simulado ? " (simulado)" : ""}
+            </Badge>
+          ) : null}
+        </div>
         {estado?.ultimaOk ? (
           <span className="text-xs text-muted-foreground">
             {haceCuanto(estado.ultimaOk)}
@@ -48,6 +89,25 @@ export function FuenteCard({
         {estado?.fallando ? (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             La última recolección falló: {estado.ultimoError ?? "sin detalle"}
+          </p>
+        ) : null}
+
+        {simulado ? (
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Estás mirando las cuotas del plan <strong>{enVista}</strong>, pero
+            la cuenta está en <strong>{real}</strong>. Las alertas se siguen
+            evaluando contra el plan real.
+          </p>
+        ) : null}
+
+        {excedenteTotal > 0 ? (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm">
+            <strong className="text-destructive">
+              {formatearValor(excedenteTotal, "usd")}
+            </strong>{" "}
+            <span className="text-muted-foreground">
+              de excedente acumulado este mes
+            </span>
           </p>
         ) : null}
 
@@ -81,17 +141,13 @@ function RecursoBloque({ recurso }: { recurso: RecursoConConsumo }) {
     recurso.estado !== "ACTIVE_HEALTHY"
   )
 
-  // Las métricas que sólo existen para servir de tope no se listan solas: ya
-  // aparecen como denominador de la barra a la que pertenecen.
-  const topes = new Set(
-    recurso.metricas
-      .map((metrica) => cuotaDe(metrica.metrica))
-      .filter((cuota) => cuota?.tipo === "derivada")
-      .map((cuota) => (cuota?.tipo === "derivada" ? cuota.metrica : ""))
-  )
-
   const visibles = recurso.metricas.filter(
-    (metrica) => !topes.has(metrica.metrica)
+    (metrica) =>
+      // Las que sólo son el denominador de otra ya aparecen dentro de su barra.
+      !metrica.soloTope &&
+      // `project_paused` se muestra como badge arriba; repetirlo como
+      // "Proyecto pausado: no" sería ruido.
+      metrica.metrica !== "supabase.project_paused"
   )
 
   return (
@@ -106,47 +162,23 @@ function RecursoBloque({ recurso }: { recurso: RecursoConConsumo }) {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2 pl-1">
+      <div className="flex flex-col gap-2.5 pl-1">
         {visibles.map((metrica) => {
           const definicion = definicionDe(metrica.metrica)
-          const cuota = cuotaDe(metrica.metrica)
-
-          const tope =
-            cuota?.tipo === "derivada"
-              ? recurso.metricas.find((otra) => otra.metrica === cuota.metrica)
-                  ?.ultimo
-              : cuota?.tipo === "fija"
-                ? cuota.valor
-                : undefined
-
-          // `project_paused` ya se muestra como badge arriba; repetirlo como
-          // "Proyecto pausado: no" sería ruido.
-          if (metrica.metrica === "supabase.project_paused") return null
 
           return (
             <BarraCuota
               key={metrica.metrica}
               etiqueta={definicion.etiqueta}
               valor={metrica.mes}
-              tope={tope}
+              tope={metrica.tope}
+              excedente={metrica.excedente}
               unidad={definicion.unidad}
+              motivoSinTope={SIN_TOPE[metrica.metrica]}
             />
           )
         })}
       </div>
     </div>
   )
-}
-
-/** Total de una métrica entre todos los recursos, para las tarjetas de arriba. */
-export function totalDe(recursos: RecursoConConsumo[], metrica: string) {
-  const definicion = definicionDe(metrica)
-
-  const total = recursos.reduce((suma, recurso) => {
-    const encontrada = recurso.metricas.find((m) => m.metrica === metrica)
-
-    return suma + (encontrada?.mes ?? 0)
-  }, 0)
-
-  return { total, texto: formatearValor(total, definicion.unidad) }
 }

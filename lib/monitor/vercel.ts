@@ -60,6 +60,29 @@ type ProyectoVercel = {
   accountId?: string
 }
 
+/**
+ * Plan de cada cuenta o equipo.
+ *
+ * `/v9/projects` no trae el plan, pero cada proyecto trae un `accountId` con
+ * prefijo `team_` que se corresponde con el `id` de /v2/teams — también en una
+ * cuenta personal Hobby, donde el "equipo" es la propia cuenta.
+ */
+export async function leerPlanesDeEquipos(
+  señal?: AbortSignal
+): Promise<Map<string, string>> {
+  const respuesta = await pedirJson<{
+    teams?: { id: string; billing?: { plan?: string } }[]
+  }>(`${BASE}/v2/teams`, { token: credencial(), señal, proveedor: "Vercel" })
+
+  const planes = new Map<string, string>()
+
+  for (const equipo of respuesta.teams ?? []) {
+    if (equipo.billing?.plan) planes.set(equipo.id, equipo.billing.plan)
+  }
+
+  return planes
+}
+
 export async function listarProyectos(
   señal?: AbortSignal
 ): Promise<ProyectoVercel[]> {
@@ -263,6 +286,20 @@ export const colectorVercel: Colector = {
     const proyectos = await listarProyectos(señal)
     const nombrePorId = new Map(proyectos.map((p) => [p.id, p.name]))
 
+    const planesPorEquipo = await leerPlanesDeEquipos(señal).catch(() => {
+      // Sin plan la UI muestra el consumo sin barra, que es mejor que suponerlo.
+      avisos.push("No se pudo leer el plan de la cuenta de Vercel.")
+
+      return new Map<string, string>()
+    })
+
+    const planPorProyecto = new Map(
+      proyectos.map((p) => [
+        p.id,
+        p.accountId ? planesPorEquipo.get(p.accountId) : undefined,
+      ])
+    )
+
     const hasta = new Date()
     const desde = new Date(hasta.getTime() - DIAS * 24 * 60 * 60 * 1000)
 
@@ -274,7 +311,12 @@ export const colectorVercel: Colector = {
       if (existente) return existente
 
       const nuevo: MedicionesDeRecurso = {
-        recurso: { fuente: "vercel", idExterno, nombre },
+        recurso: {
+          fuente: "vercel",
+          idExterno,
+          nombre,
+          plan: planPorProyecto.get(idExterno),
+        },
         mediciones: [],
       }
 
