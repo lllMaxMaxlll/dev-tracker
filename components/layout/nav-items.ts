@@ -1,5 +1,6 @@
 import {
   BarChart3Icon,
+  GaugeIcon,
   FolderKanbanIcon,
   LayoutDashboardIcon,
   ListTodoIcon,
@@ -21,5 +22,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/proyectos", label: "Proyectos", icon: FolderKanbanIcon },
   { href: "/github", label: "GitHub", icon: GithubIcon },
   { href: "/resumenes", label: "Resúmenes", icon: BarChart3Icon },
+  { href: "/consumo", label: "Consumo", icon: GaugeIcon },
   { href: "/ajustes", label: "Ajustes", icon: SettingsIcon },
 ]
