@@ -10,6 +10,11 @@ import {
 } from "@/components/ui/chart"
 import { ClientOnly } from "@/components/ui/client-only"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  formatearBytes,
+  formatearValor,
+  type Unidad,
+} from "@/lib/monitor/metrics"
 
 const MESES = [
   "ene",
@@ -33,20 +38,43 @@ function etiquetaDia(iso: string) {
 }
 
 /**
+ * Rótulo del eje Y.
+ *
+ * Más corto que el del tooltip a propósito: `formatearValor` devuelve
+ * "US$ 0,0022", que no entra en el ancho del eje y lo empuja encima del
+ * gráfico. El tooltip sí usa el formato completo, que es donde se lee el
+ * número con atención.
+ */
+function etiquetaEje(valor: number, unidad: Unidad): string {
+  switch (unidad) {
+    case "usd":
+      return valor < 1 ? `$${valor.toFixed(3)}` : `$${valor.toFixed(0)}`
+    case "bytes":
+      return formatearBytes(valor)
+    default:
+      return String(Math.round(valor))
+  }
+}
+
+/**
  * Serie diaria de UNA unidad.
  *
  * Deliberadamente no apila fuentes: bytes, peticiones y dólares no se suman, y
  * un área apilada con unidades mezcladas tendría forma pero no significado.
  * Por eso hay un gráfico por fuente en vez de uno solo más vistoso.
+ *
+ * Recibe la unidad y no una función de formato: las funciones no cruzan la
+ * frontera de Server a Client Component —no son serializables— y pasarla
+ * rompía la página en tiempo de ejecución sin que el build dijera nada.
  */
 export function SerieChart({
   datos,
   etiqueta,
-  formato,
+  unidad = "cantidad",
 }: {
   datos: { dia: string; valor: number }[]
   etiqueta: string
-  formato?: (valor: number) => string
+  unidad?: Unidad
 }) {
   if (datos.length === 0) {
     return (
@@ -82,15 +110,13 @@ export function SerieChart({
           <YAxis
             tickLine={false}
             axisLine={false}
-            width={44}
-            tickFormatter={formato}
+            width={52}
+            tickFormatter={(valor) => etiquetaEje(Number(valor), unidad)}
           />
           <ChartTooltip
             content={
               <ChartTooltipContent
-                formatter={(valor) =>
-                  formato ? formato(Number(valor)) : String(valor)
-                }
+                formatter={(valor) => formatearValor(Number(valor), unidad)}
               />
             }
           />

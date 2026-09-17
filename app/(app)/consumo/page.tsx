@@ -85,7 +85,11 @@ async function Graficos() {
           <CardTitle className="text-base">Peticiones a Supabase</CardTitle>
         </CardHeader>
         <CardContent>
-          <SerieChart datos={peticiones} etiqueta="Peticiones" />
+          <SerieChart
+            datos={peticiones}
+            etiqueta="Peticiones"
+            unidad="peticiones"
+          />
         </CardContent>
       </Card>
 
@@ -94,7 +98,11 @@ async function Graficos() {
           <CardTitle className="text-base">Despliegues en Vercel</CardTitle>
         </CardHeader>
         <CardContent>
-          <SerieChart datos={despliegues} etiqueta="Despliegues" />
+          <SerieChart
+            datos={despliegues}
+            etiqueta="Despliegues"
+            unidad="despliegues"
+          />
         </CardContent>
       </Card>
 
@@ -107,11 +115,7 @@ async function Graficos() {
           </span>
         </CardHeader>
         <CardContent>
-          <SerieChart
-            datos={gastoIa}
-            etiqueta="USD"
-            formato={(valor) => `$${valor.toFixed(4)}`}
-          />
+          <SerieChart datos={gastoIa} etiqueta="Gasto" unidad="usd" />
         </CardContent>
       </Card>
     </div>
