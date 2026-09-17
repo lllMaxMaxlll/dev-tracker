@@ -95,6 +95,41 @@ export const aiModelRoleEnum = pgEnum("ai_model_role", [
 
 export const summarySourceEnum = pgEnum("summary_source", ["cron", "manual"])
 
+// Monitor de consumo. Los valores van en inglés porque nunca se renderizan
+// crudos: la etiqueta que ve el usuario sale de lib/monitor/metrics.ts.
+export const usageSourceEnum = pgEnum("usage_source", [
+  "vercel",
+  "supabase",
+  "openrouter",
+  // El monitor como fuente de datos sobre sí mismo: es lo que permite que la
+  // regla de "hace rato que no se recolecta" viva en la misma tabla que las
+  // demás en vez de ser un caso aparte.
+  "monitor",
+])
+
+// Cómo se combinan los valores de varios días. `maximo` existe para el disco:
+// en un mes lo que importa es el pico, no el último valor ni la suma.
+export const usageAggregationEnum = pgEnum("usage_aggregation", [
+  "suma",
+  "ultimo",
+  "maximo",
+])
+
+export const alertWindowEnum = pgEnum("alert_window", ["dia", "mes"])
+
+export const alertThresholdKindEnum = pgEnum("alert_threshold_kind", [
+  "absoluto",
+  "porcentaje_cuota",
+])
+
+// `pendiente` no es sólo el estado inicial: es al que se vuelve cuando
+// Telegram no aceptó el mensaje, para que la corrida siguiente reintente.
+export const alertEventStatusEnum = pgEnum("alert_event_status", [
+  "pendiente",
+  "enviada",
+  "fallida",
+])
+
 // Columnas comunes a todas las tablas de dominio.
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -487,6 +522,183 @@ export const githubCache = pgTable(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Monitor de consumo.
+//
+// Estas cinco tablas son las únicas del esquema SIN `user_id`, a propósito: no
+// describen a un usuario sino a la infraestructura de la instancia — los
+// proyectos de las cuentas de Vercel y Supabase, cuyas credenciales son
+// variables de entorno. Una columna `user_id` acá sería decorativa y peor que
+// no tenerla: invitaría a filtrar por ella y a creer que hay aislamiento donde
+// no lo hay. Quién puede ver la página lo decide `requireUser()` más la
+// whitelist, no una columna.
+//
+// La contracara está en la migración 0005: RLS habilitado, sin policies y sin
+// FORCE. Ahí está explicado el porqué de cada mitad.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// monitored_resources — un proyecto de Vercel, uno de Supabase, o la cuenta
+// entera de OpenRouter. El catálogo se descubre solo en cada recolección.
+export const monitoredResources = pgTable(
+  "monitored_resources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: usageSourceEnum("source").notNull(),
+    // projectId de Vercel, ref de Supabase, o "cuenta" cuando el recurso no es
+    // un proyecto sino la cuenta completa.
+    externalId: text("external_id").notNull(),
+    name: text("name").notNull(),
+    organization: text("organization"),
+    // Tal cual lo devuelve el proveedor (ACTIVE_HEALTHY, INACTIVE, PAUSING…).
+    // No lo mapeamos a un enum propio: la lista la maneja ellos y cambia.
+    status: text("status"),
+    metadata: jsonb("metadata"),
+    active: boolean("active").notNull().default(true),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    lastSyncOk: boolean("last_sync_ok"),
+    // Alimenta el cartel de la UI: sin esto, una fuente rota es
+    // indistinguible de una fuente sin consumo.
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("monitored_resources_source_external_idx").on(
+      t.source,
+      t.externalId
+    ),
+  ]
+)
+
+// usage_snapshots — la serie histórica, en formato largo.
+//
+// INVARIANTE: `value` es siempre el valor ABSOLUTO del día, nunca un delta.
+// Es lo que vuelve idempotente al cron: corra una vez o veinte, el upsert
+// sobre (resource_id, metric, day) deja la misma fila. Un colector que
+// devolviera deltas los duplicaría o los perdería según cómo esté escrito el
+// ON CONFLICT.
+//
+// `metric` es text y no un enum porque cada métrica nueva que aparezca en el
+// JSONL de Vercel pediría una migración; el tipado lo pone TypeScript con el
+// catálogo de lib/monitor/metrics.ts. Mismo criterio que github_cache.cache_key.
+//
+// La cuota del plan NO vive acá: ninguna API la devuelve, así que sería una
+// constante repetida una vez por día y por métrica. Está en
+// lib/monitor/quotas.ts.
+export const usageSnapshots = pgTable(
+  "usage_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    resourceId: uuid("resource_id")
+      .notNull()
+      .references(() => monitoredResources.id, { onDelete: "cascade" }),
+    metric: text("metric").notNull(),
+    day: date("day").notNull(),
+    // numeric y no real: los bytes de disco pasan holgados los 2^53.
+    value: numeric("value", { precision: 20, scale: 6 }).notNull(),
+    unit: text("unit").notNull(),
+    aggregation: usageAggregationEnum("aggregation").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("usage_snapshots_resource_metric_day_idx").on(
+      t.resourceId,
+      t.metric,
+      t.day
+    ),
+    index("usage_snapshots_metric_day_idx").on(t.metric, t.day.desc()),
+    index("usage_snapshots_resource_day_idx").on(t.resourceId, t.day.desc()),
+  ]
+)
+
+// alert_rules — los umbrales. La migración siembra un puñado por defecto: un
+// monitor que no alerta hasta que alguien entra a configurarlo no sirve.
+export const alertRules = pgTable(
+  "alert_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: usageSourceEnum("source").notNull(),
+    // null = la regla aplica a todos los recursos de la fuente.
+    resourceId: uuid("resource_id").references(() => monitoredResources.id, {
+      onDelete: "cascade",
+    }),
+    metric: text("metric").notNull(),
+    thresholdKind: alertThresholdKindEnum("threshold_kind").notNull(),
+    // USD, bytes, peticiones… o 0–100 si el tipo es porcentaje_cuota.
+    threshold: numeric("threshold", { precision: 20, scale: 6 }).notNull(),
+    // `window` a secas es palabra reservada en SQL.
+    windowKind: alertWindowEnum("window_kind").notNull().default("mes"),
+    label: text("label").notNull(),
+    active: boolean("active").notNull().default(true),
+    silencedUntil: timestamp("silenced_until", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("alert_rules_source_metric_idx").on(t.source, t.metric)]
+)
+
+// alert_events — una fila por regla y período. El UNIQUE es lo que evita que
+// el cron horario mande la misma alerta veinte veces.
+//
+// La fila nace `pendiente` y pasa a `enviada` recién cuando Telegram la
+// aceptó. Si se insertara ya como enviada y el envío fallara, el UNIQUE
+// impediría reintentar en todo el período: la alerta se perdería sin que nadie
+// se entere, que es exactamente lo que un monitor no puede hacer.
+export const alertEvents = pgTable(
+  "alert_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ruleId: uuid("rule_id")
+      .notNull()
+      .references(() => alertRules.id, { onDelete: "cascade" }),
+    // "2026-09-17" o "2026-09" según window_kind.
+    periodKey: text("period_key").notNull(),
+    value: numeric("value", { precision: 20, scale: 6 }).notNull(),
+    // El umbral vigente al disparar, no el actual: si después se cambia la
+    // regla, el histórico tiene que seguir contando lo que realmente pasó.
+    threshold: numeric("threshold", { precision: 20, scale: 6 }).notNull(),
+    message: text("message").notNull(),
+    status: alertEventStatusEnum("status").notNull().default("pendiente"),
+    attempts: integer("attempts").notNull().default(0),
+    triggeredAt: timestamp("triggered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("alert_events_rule_period_idx").on(t.ruleId, t.periodKey),
+    index("alert_events_status_idx").on(t.status, t.triggeredAt.desc()),
+  ]
+)
+
+// sync_runs — quién vigila al vigilante.
+//
+// `monitored_resources.last_sync_at` no alcanza: no distingue "corrió y no
+// había datos" de "no corrió". Un monitor que deja de recolectar en silencio
+// es peor que no tener monitor, porque da confianza falsa. Sobre esta tabla se
+// arma la regla `sync_stale`.
+export const syncRuns = pgTable(
+  "sync_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: usageSourceEnum("source").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ok: boolean("ok").notNull(),
+    // La corrida no llegó a pedir nada porque todavía no se cumplió la
+    // cadencia del colector. No es un fallo.
+    skipped: boolean("skipped").notNull().default(false),
+    resources: integer("resources").notNull().default(0),
+    rowsWritten: integer("rows_written").notNull().default(0),
+    error: text("error"),
+  },
+  (t) => [
+    index("sync_runs_source_started_idx").on(t.source, t.startedAt.desc()),
+  ]
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Relaciones (para las queries relacionales de Drizzle).
 // ─────────────────────────────────────────────────────────────────────────────
 export const projectsRelations = relations(projects, ({ many }) => ({
@@ -541,3 +753,19 @@ export type AiTaskKind = (typeof aiTaskKindEnum.enumValues)[number]
 export type IssueType = (typeof issueTypeEnum.enumValues)[number]
 export type IssuePriority = (typeof issuePriorityEnum.enumValues)[number]
 export type IssueStatus = (typeof issueStatusEnum.enumValues)[number]
+
+export type MonitoredResource = typeof monitoredResources.$inferSelect
+export type NewMonitoredResource = typeof monitoredResources.$inferInsert
+export type UsageSnapshot = typeof usageSnapshots.$inferSelect
+export type NewUsageSnapshot = typeof usageSnapshots.$inferInsert
+export type AlertRule = typeof alertRules.$inferSelect
+export type NewAlertRule = typeof alertRules.$inferInsert
+export type AlertEvent = typeof alertEvents.$inferSelect
+export type SyncRun = typeof syncRuns.$inferSelect
+
+export type UsageSource = (typeof usageSourceEnum.enumValues)[number]
+export type UsageAggregation = (typeof usageAggregationEnum.enumValues)[number]
+export type AlertWindow = (typeof alertWindowEnum.enumValues)[number]
+export type AlertThresholdKind =
+  (typeof alertThresholdKindEnum.enumValues)[number]
+export type AlertEventStatus = (typeof alertEventStatusEnum.enumValues)[number]

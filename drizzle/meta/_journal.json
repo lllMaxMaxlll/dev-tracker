@@ -36,6 +36,13 @@
       "when": 1788302380556,
       "tag": "0004_quitar_bloqueado",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789643548139,
+      "tag": "0005_monitor_consumo",
+      "breakpoints": true
     }
   ]
 }
