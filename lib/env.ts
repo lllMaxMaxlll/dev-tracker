@@ -47,6 +47,18 @@ const serverEnvSchema = z.object({
 
   CRON_SECRET: z.string().optional(),
 
+  // ── Monitor de consumo ─────────────────────────────────────────────────────
+  // Todas opcionales: sin ellas la app arranca igual y el bloque
+  // correspondiente de /consumo muestra un cartel explicando qué falta. Un
+  // colector sin credencial no es un error de configuración, es una fuente
+  // apagada.
+  VERCEL_TOKEN: z.string().optional(),
+  VERCEL_TEAM_ID: z.string().optional(),
+  SUPABASE_PAT: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHAT_ID: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+
   ALLOWED_EMAILS: csv,
   ALLOWED_GITHUB_LOGINS: csv,
 })

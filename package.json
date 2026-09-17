@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "sondear:uso": "bun run scripts/sondear-uso.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
