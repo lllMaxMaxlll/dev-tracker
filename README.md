@@ -173,6 +173,7 @@ Las declara [vercel.json](./vercel.json) y las corre Vercel Cron:
 |---|---|---|
 | Viernes 18:00 | `/api/cron/weekly-summary` | el resumen de la semana |
 | Todos los días 09:00 | `/api/health` | Supabase pausa los proyectos gratuitos a los 7 días sin actividad de base |
+| Todos los días 07:00 | `/api/cron/usage` | piso del monitor de consumo; el reloj real es GitHub Actions (ver abajo) |
 
 Vercel manda `Authorization: Bearer $CRON_SECRET` en cada disparo, que es lo que valida el handler del resumen.
 
@@ -180,7 +181,7 @@ Vercel manda `Authorization: Bearer $CRON_SECRET` en cada disparo, que es lo que
 
 ### Plan requerido
 
-**Workers Paid ($5/mes).** En el plan Free el límite de 10 ms de CPU por request hace inviable el SSR, y el bundle tiene tope de 3 MiB comprimido (10 MiB en Paid). El tiempo de espera de I/O —las llamadas de inferencia— no cuenta como CPU, así que el streaming de resúmenes no es problema.
+**Hobby alcanza.** Las dos restricciones que se notan son el timeout de 60 s por función —de ahí el presupuesto de tiempo del colector de consumo— y que cada cron corre como mucho una vez por día.
 
 ### Migraciones
 
@@ -192,13 +193,7 @@ bun run db:migrate
 
 ### Cron del resumen semanal
 
-Ya está declarado en `wrangler.jsonc` y se activa al desplegar:
-
-```jsonc
-"triggers": { "crons": ["0 18 * * 5"] }
-```
-
-Corre los viernes a las 18:00 UTC. Para probarlo sin esperar:
+Está declarado en [vercel.json](./vercel.json) y corre los viernes a las 18:00 UTC. Para probarlo sin esperar:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/weekly-summary
@@ -224,60 +219,105 @@ Se validan en el callback de OAuth: si el usuario no está en la lista, se cierr
 ## Comandos
 
 ```bash
-bun run dev          # servidor de desarrollo (vinext, sobre workerd)
-bun run build        # build del Worker
-bun run preview      # correr el Worker buildeado con wrangler
-bun run deploy       # desplegar a Cloudflare
-bun run cf-typegen   # regenerar los tipos de los bindings
+bun run dev          # servidor de desarrollo
+bun run build        # next build
+bun run start        # servir el build
 bun run typecheck    # tsc --noEmit
 bun run lint         # eslint
 bun run format       # prettier
 bun run db:generate  # generar migración desde el esquema
 bun run db:migrate   # aplicar migraciones
 bun run db:studio    # explorador de la base
+bun run sondear:uso  # sondear las APIs del monitor de consumo
 ```
 
-> No hay `next dev` ni `next build`: el build lo hace Vite vía vinext. Mantener los de Next daría una verificación falsa, porque pueden pasar mientras el build del Worker falla.
+El deploy no tiene comando: Vercel corre `next build` con cada push a `main`.
 
-### Tareas programadas
-
-Viven en un **Worker aparte** (`workers/cron`), no en el de la app:
-
-```bash
-bun run deploy:cron
-```
-
-> **Por qué separado.** vinext expone únicamente un handler de `fetch`
-> (`vinext/server/fetch-handler`), no uno de `scheduled`. Un `triggers.crons`
-> declarado en el Worker de la app haría que Cloudflare dispare el evento
-> contra un Worker que no sabe atenderlo, y la tarea nunca correría. El Worker
-> de cron no tiene lógica propia: sólo llama a los endpoints de la app.
-
-Dos horarios:
-
-| Cron | Qué hace |
-|---|---|
-| `0 18 * * 5` | Resumen semanal, viernes 18:00 UTC |
-| `0 12 * * *` | Ping diario a `/api/health` para que Supabase no pause el proyecto |
-
-El ping existe porque **Supabase pausa los proyectos del plan gratuito tras 7
-días sin actividad de base de datos**, y sólo cuentan las consultas reales:
-entrar al panel no alcanza. `/api/health` hace un `select 1` a través de
-Hyperdrive, así que sirve como señal de vida. Corre a diario y no semanal para
+El ping diario a `/api/health` existe porque **Supabase pausa los proyectos del
+plan gratuito tras 7 días sin actividad de base de datos**, y sólo cuentan las
+consultas reales: entrar al panel no alcanza. Corre a diario y no semanal para
 que una corrida fallida no deje el proyecto al borde de pausarse.
 
-Necesita su propio `CRON_SECRET`, el mismo que la app:
+Para probar cualquiera de los crons sin esperar al horario:
 
 ```bash
-wrangler secret put CRON_SECRET --config workers/cron/wrangler.jsonc --cwd workers/cron
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/weekly-summary
 ```
 
-Para probar sin esperar al horario:
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" "https://devtracker-cron.max-herr-88.workers.dev/?tarea=ping"
-```
-
-Cambiá `tarea=ping` por `tarea=resumen` para disparar el resumen semanal.
 También hay un botón «Generar resumen ahora» en la página Resúmenes.
+
+---
+
+## Monitor de consumo
+
+La página **/consumo** junta en un solo lugar lo que están gastando todos los
+proyectos de las cuentas de Vercel y Supabase más el estado de la cuenta de
+OpenRouter, guarda la serie histórica y avisa por Telegram al cruzar un umbral.
+
+### Qué se puede leer y qué no
+
+Los planes gratuitos no exponen todo, y el monitor prefiere decirlo antes que
+estimarlo: un número aproximado se ve igual de convincente que uno correcto.
+
+| Fuente | Se lee | No se puede leer |
+|---|---|---|
+| **Vercel** | inventario de proyectos, despliegues por día | **facturación y uso**: `/v1/billing/charges` devuelve `404 costs_not_found` en Hobby, y `/v2/observability/query` exige Observability Plus |
+| **Supabase** | estado del proyecto, tamaño de la base, disco usado y total, peticiones diarias por servicio | **egress** y **usuarios activos**: no hay endpoint público, viven en la facturación de la organización |
+| **OpenRouter** | gasto del mes, saldo, cuota diaria de modelos gratuitos | — (el desglose por modelo ya está en Ajustes, desde `ai_usage_log`) |
+
+El colector de Vercel intenta la facturación primero y cae a contar despliegues
+si no está disponible; eso mide actividad, no costo, y la página lo aclara.
+
+### Credenciales
+
+Todas opcionales: sin ellas la app arranca igual y el bloque correspondiente de
+/consumo explica qué falta. Están documentadas en [.env.example](./.env.example).
+
+| Variable | De dónde sale |
+|---|---|
+| `VERCEL_TOKEN` | vercel.com/account/settings/tokens |
+| `VERCEL_TEAM_ID` | sólo si los proyectos viven en un equipo |
+| `SUPABASE_PAT` | supabase.com/dashboard/account/tokens — **da acceso a todos tus proyectos** |
+| `TELEGRAM_BOT_TOKEN` | @BotFather → `/newbot` |
+| `TELEGRAM_CHAT_ID` | mandale un mensaje al bot y corré `bun run sondear:uso --fuente=telegram` |
+| `TELEGRAM_WEBHOOK_SECRET` | `openssl rand -hex 32` |
+
+Antes de tocar nada conviene sondear, porque lo que responde tu plan no siempre
+es lo que documenta el proveedor:
+
+```bash
+bun run sondear:uso                    # todo
+bun run sondear:uso --fuente=vercel    # una fuente
+bun run sondear:uso --registrar-webhook  # alta del webhook de Telegram (una vez)
+```
+
+### Los dos relojes
+
+En Hobby, cada cron de Vercel corre **como mucho una vez por día** y con ±59 min
+de imprecisión. Para un monitor de cuotas eso no alcanza: una alerta de «estás
+tocando el límite» que llega al día siguiente no sirve. Entonces:
+
+- **GitHub Actions**, cada hora ([.github/workflows/usage.yml](./.github/workflows/usage.yml)).
+  Es el reloj real. Necesita dos secretos en el repo: `CRON_SECRET` y `APP_URL`.
+- **Vercel Cron**, una vez al día. Es el piso que no se apaga: GitHub deshabilita
+  los workflows programados tras 60 días sin commits, y cuando eso pasa esta
+  corrida es la que dispara la alerta de «hace rato que no se recolecta».
+
+La recolección es idempotente —los snapshots se upsertean por (recurso, métrica,
+día)— así que correrla de más no duplica nada.
+
+### Alertas
+
+Las reglas se editan en /consumo y vienen sembradas cinco por la migración: disco
+de Supabase al 80 %, proyecto pausado, gasto de OpenRouter, cargos de Vercel y la
+antigüedad de la propia recolección.
+
+Cada alerta se manda **una sola vez por período y por recurso**: el candado es un
+UNIQUE en `alert_events`, no una variable en memoria. El evento nace `pendiente` y
+pasa a `enviada` sólo cuando Telegram lo aceptó, así un fallo del bot se reintenta
+en la corrida siguiente en vez de quemar el período. Si Telegram nunca contesta,
+la alerta igual queda visible en /consumo: la página es la fuente de verdad, el
+bot es el canal.
+
+Comandos del bot: `/consumo`, `/limites`, `/silencio 24h` (o `7d`, o `off`).
 
