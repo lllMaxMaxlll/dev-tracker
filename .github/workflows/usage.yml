@@ -1,0 +1,37 @@
+# Recolección horaria del consumo.
+#
+# El plan Hobby de Vercel limita cada cron a UNA corrida por día, con ±59 min de
+# imprecisión. Para un monitor de cuotas eso no alcanza: una alerta de "estás
+# tocando el límite" que llega al día siguiente ya no sirve. Así que el reloj
+# real es este workflow y el cron de vercel.json queda como piso.
+#
+# Y como este reloj también se puede morir —GitHub deshabilita los workflows
+# programados tras 60 días sin commits en el repo, y los `schedule` se atrasan
+# bajo carga—, la regla `monitor.sync_age_hours` avisa por Telegram cuando pasan
+# más de seis horas sin una recolección exitosa. De eso se encarga la corrida
+# diaria de Vercel, que no depende de GitHub.
+name: Recolectar consumo
+
+on:
+  schedule:
+    # Minuto 17 y no 0: los :00 en punto son los más congestionados de GitHub
+    # Actions y es cuando más se atrasan los disparos.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+# Si una corrida se atrasa y se solapa con la siguiente, alcanza con la nueva.
+# La recolección es idempotente, pero dos a la vez sólo gastan rate limit.
+concurrency:
+  group: recolectar-consumo
+  cancel-in-progress: false
+
+jobs:
+  recolectar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pegarle al endpoint de recolección
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/usage"

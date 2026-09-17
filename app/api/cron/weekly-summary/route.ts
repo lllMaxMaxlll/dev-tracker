@@ -7,6 +7,7 @@ import { env } from "@/lib/env"
 import { isAllowed } from "@/lib/auth/whitelist"
 import { generarResumenSemanal } from "@/lib/ai/tasks/summary"
 import { limpiarCacheVencido } from "@/lib/github/cache"
+import { podarHistorico } from "@/lib/monitor/collect"
 
 /**
  * Resumen semanal. Lo dispara el Cron Trigger de Workers los viernes.
@@ -75,6 +76,15 @@ export async function GET(request: NextRequest) {
     await limpiarCacheVencido()
   } catch (error) {
     console.error("[cron/weekly-summary] limpieza de caché", error)
+  }
+
+  // Y para podar la serie del monitor de consumo. Un monitor de cuota de disco
+  // que llena los 500 MB del plan Free sería un chiste, así que la serie tiene
+  // techo por diseño en vez de crecer para siempre.
+  try {
+    await podarHistorico()
+  } catch (error) {
+    console.error("[cron/weekly-summary] poda del consumo", error)
   }
 
   return NextResponse.json({ usuarios: usuarios.length, resultados })
