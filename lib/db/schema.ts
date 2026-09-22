@@ -155,6 +155,9 @@ export const profiles = pgTable("profiles", {
   githubLogin: text("github_login"),
   githubAvatarUrl: text("github_avatar_url"),
   displayName: text("display_name"),
+  // Días sin actividad tras los que una tarjeta cerrada deja de verse en el
+  // kanban. `null` = nunca: sólo se archiva a mano.
+  kanbanAutoArchiveDays: integer("kanban_auto_archive_days"),
   ...timestamps,
 })
 
@@ -239,6 +242,9 @@ export const issues = pgTable(
     }),
     createdVia: issueSourceEnum("created_via").notNull().default("manual"),
     kanbanOrder: real("kanban_order").notNull().default(0),
+    // Archivado a mano desde el kanban. Sólo esconde la tarjeta del tablero:
+    // la tabla y las métricas la siguen contando.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

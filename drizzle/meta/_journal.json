@@ -64,6 +64,13 @@
       "when": 1789646987005,
       "tag": "0008_corregir_cuota_de_disco",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790085709861,
+      "tag": "0009_archivar_tarjetas",
+      "breakpoints": true
     }
   ]
 }

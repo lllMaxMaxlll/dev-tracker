@@ -21,7 +21,13 @@ export function ViewSwitcher({ vista }: { vista: "tabla" | "kanban" }) {
         if (!nueva || nueva === vista) return
 
         router.push(
-          `${pathname}${conParametros(searchParams, { vista: nueva })}`
+          `${pathname}${conParametros(searchParams, {
+            vista: nueva,
+            // Cada vista tiene su propio parámetro; no tiene sentido
+            // arrastrarlo a la otra.
+            pagina: null,
+            archivadas: null,
+          })}`
         )
       }}
       aria-label="Cambiar de vista"

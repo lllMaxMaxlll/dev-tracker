@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { WeeklyChart } from "@/components/dashboard/weekly-chart"
 import { DistributionChart } from "@/components/dashboard/distribution-chart"
-import { RecentIssues } from "@/components/dashboard/recent-issues"
 import { InsightsPanel } from "@/components/dashboard/insights-panel"
 import { requireUser } from "@/lib/auth/require-user"
 import {
@@ -16,7 +15,6 @@ import {
   getResumen,
   getSerieSemanal,
 } from "@/lib/db/queries/metrics"
-import { listRecentIssues } from "@/lib/db/queries/issues"
 import { ETIQUETAS_TIPO, type Tipo } from "@/lib/schemas/enums"
 import { getInsights } from "@/lib/ai/tasks/insights-cache"
 import { getUltimoResumen } from "@/lib/db/queries/summaries"
@@ -109,22 +107,6 @@ async function Observaciones() {
   )
 }
 
-async function Recientes() {
-  const user = await requireUser()
-  const issues = await listRecentIssues(user.id, 6)
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Últimos problemas tocados</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <RecentIssues issues={issues} />
-      </CardContent>
-    </Card>
-  )
-}
-
 /**
  * Cada bloque tiene su propio Suspense: las tarjetas aparecen sin esperar a
  * los gráficos, que son las consultas más pesadas.
@@ -164,10 +146,6 @@ export default function DashboardPage() {
         }
       >
         <Graficos />
-      </Suspense>
-
-      <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
-        <Recientes />
       </Suspense>
     </div>
   )

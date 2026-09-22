@@ -66,7 +66,23 @@ export const issueFiltersSchema = z.object({
   q: z.string().trim().max(100).optional(),
   orden: z.enum(ORDENES).default("actualizado"),
   dir: z.enum(["asc", "desc"]).default("desc"),
+  // Sólo la usa la tabla. El `catch` va acá y no en el objeto entero: una
+  // página inválida vuelve a la primera sin tirar el resto de los filtros.
+  pagina: z.coerce.number().int().min(1).catch(1).default(1),
+  // Sólo la usa el kanban: muestra las tarjetas archivadas en vez del tablero.
+  archivadas: z.literal("1").optional(),
 })
+
+/** Filas por página de la vista de tabla. */
+export const TAMANO_PAGINA = 25
+
+/**
+ * Opciones del auto-archivado del kanban, en días sin actividad. Es una lista
+ * cerrada para que la acción no acepte cualquier número.
+ */
+export const DIAS_AUTO_ARCHIVO = [7, 14, 30, 90] as const
+
+export const autoArchivoSchema = z.literal(DIAS_AUTO_ARCHIVO).nullable()
 
 export type Orden = (typeof ORDENES)[number]
 

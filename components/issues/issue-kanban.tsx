@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   DndContext,
   DragOverlay,
@@ -18,18 +18,23 @@ import {
 } from "@dnd-kit/core"
 import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
+import { ArchiveIcon, ArchiveRestoreIcon, ArrowLeftIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { ClientOnly } from "@/components/ui/client-only"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { EnumSelect } from "@/components/ui/enum-select"
 import { toast } from "@/components/ui/toast"
 import {
   PrioridadBadge,
   ProyectoBadge,
   TipoBadge,
 } from "@/components/issues/issue-badges"
-import { moveIssue } from "@/actions/issues"
+import { archiveIssue, moveIssue, setAutoArchivoKanban } from "@/actions/issues"
 import { ESTADOS, ETIQUETAS_ESTADO, type Estado } from "@/lib/schemas/enums"
+import { DIAS_AUTO_ARCHIVO } from "@/lib/schemas/issue"
+import { conParametros } from "@/lib/utils/search-params"
 import type { IssueListItem } from "@/lib/db/queries/issues"
 
 /**
@@ -53,17 +58,28 @@ const TOP_PINEADO = 64
  */
 const CLASES_COLUMNA = "min-w-56 flex-1 basis-0"
 
+/**
+ * Qué hace el botón de la tarjeta: archivar en el tablero, desarchivar en la
+ * vista de archivadas.
+ */
+type AccionArchivo = {
+  archivada: boolean
+  onClick: (issue: IssueListItem) => void
+}
+
 function Tarjeta({
   issue,
   arrastrando,
+  archivo,
 }: {
   issue: IssueListItem
   arrastrando?: boolean
+  archivo?: AccionArchivo
 }) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-xs",
+        "group/tarjeta flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-xs",
         arrastrando && "opacity-50"
       )}
     >
@@ -71,7 +87,25 @@ function Tarjeta({
         <span className="text-xs text-muted-foreground tabular-nums">
           #{issue.number}
         </span>
-        <PrioridadBadge prioridad={issue.priority} />
+        <div className="flex items-center gap-1">
+          {archivo ? (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              // Sólo aparece al pasar el mouse, para no ensuciar el tablero.
+              // En pantallas táctiles no hay hover: se ve siempre.
+              className="text-muted-foreground opacity-0 group-hover/tarjeta:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+              aria-label={archivo.archivada ? "Desarchivar" : "Archivar"}
+              title={archivo.archivada ? "Desarchivar" : "Archivar"}
+              // El click no debe iniciar un arrastre.
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => archivo.onClick(issue)}
+            >
+              {archivo.archivada ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
+            </Button>
+          ) : null}
+          <PrioridadBadge prioridad={issue.priority} />
+        </div>
       </div>
 
       <Link
@@ -91,7 +125,13 @@ function Tarjeta({
   )
 }
 
-function TarjetaArrastrable({ issue }: { issue: IssueListItem }) {
+function TarjetaArrastrable({
+  issue,
+  archivo,
+}: {
+  issue: IssueListItem
+  archivo: AccionArchivo
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: issue.id, data: { issue } })
 
@@ -103,7 +143,7 @@ function TarjetaArrastrable({ issue }: { issue: IssueListItem }) {
       {...listeners}
       {...attributes}
     >
-      <Tarjeta issue={issue} arrastrando={isDragging} />
+      <Tarjeta issue={issue} arrastrando={isDragging} archivo={archivo} />
     </div>
   )
 }
@@ -111,9 +151,11 @@ function TarjetaArrastrable({ issue }: { issue: IssueListItem }) {
 function Columna({
   estado,
   issues,
+  archivo,
 }: {
   estado: Estado
   issues: IssueListItem[]
+  archivo: AccionArchivo
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: estado })
 
@@ -136,12 +178,12 @@ function Columna({
         )}
       >
         {issues.map((issue) => (
-          <TarjetaArrastrable key={issue.id} issue={issue} />
+          <TarjetaArrastrable key={issue.id} issue={issue} archivo={archivo} />
         ))}
 
         {issues.length === 0 ? (
           <p className="px-1 py-4 text-center text-xs text-muted-foreground">
-            Nada acá
+            {archivo.archivada ? "Nada archivado" : "Nada acá"}
           </p>
         ) : null}
       </div>
@@ -212,7 +254,114 @@ function EncabezadosPineados({
   )
 }
 
-export function IssueKanban({ issues }: { issues: IssueListItem[] }) {
+const OPCIONES_AUTO_ARCHIVO = DIAS_AUTO_ARCHIVO.map((dias) => ({
+  label: `A los ${dias} días`,
+  value: String(dias),
+}))
+
+/**
+ * Encima del tablero: el acceso a las archivadas y la preferencia de
+ * auto-archivado. El auto-archivado sólo toca tarjetas cerradas: una pendiente
+ * vieja es justamente la que no conviene perder de vista.
+ */
+function BarraArchivo({
+  archivadas,
+  verArchivadas,
+  diasAuto,
+}: {
+  archivadas: number
+  verArchivadas: boolean
+  diasAuto: number | null
+}) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [guardando, startTransition] = React.useTransition()
+
+  const href = `${pathname}${conParametros(searchParams, {
+    archivadas: verArchivadas ? null : "1",
+  })}`
+
+  function cambiarAutoArchivo(valor: string | null) {
+    startTransition(async () => {
+      const resultado = await setAutoArchivoKanban(
+        valor === null ? null : Number(valor)
+      )
+
+      if (!resultado.ok) {
+        toast.add({ title: resultado.error, type: "error" })
+
+        return
+      }
+
+      toast.add({
+        title:
+          valor === null
+            ? "Las tarjetas cerradas ya no se archivan solas"
+            : `Las cerradas se archivan a los ${valor} días sin actividad`,
+        type: "success",
+      })
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      {verArchivadas ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            render={<Link href={href} />}
+            nativeButton={false}
+          >
+            <ArrowLeftIcon />
+            Volver al tablero
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Moverla de columna o desarchivarla la devuelve al tablero.
+          </p>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          render={<Link href={href} />}
+          nativeButton={false}
+        >
+          <ArchiveIcon />
+          Archivadas
+          <Badge variant="secondary">{archivadas}</Badge>
+        </Button>
+      )}
+
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <label htmlFor="auto-archivo">Archivar cerradas</label>
+        <EnumSelect
+          id="auto-archivo"
+          value={diasAuto === null ? null : String(diasAuto)}
+          onValueChange={cambiarAutoArchivo}
+          opciones={OPCIONES_AUTO_ARCHIVO}
+          placeholder="Nunca"
+          className={cn("w-36", guardando && "opacity-60")}
+        />
+      </div>
+    </div>
+  )
+}
+
+export function IssueKanban({
+  issues,
+  archivadas,
+  verArchivadas,
+  diasAuto,
+}: {
+  issues: IssueListItem[]
+  /** Cuántas hay archivadas con los filtros actuales. */
+  archivadas: number
+  verArchivadas: boolean
+  diasAuto: number | null
+}) {
   const router = useRouter()
   // Copia local para poder mover la tarjeta al instante y revertir si el
   // servidor rechaza el cambio.
@@ -286,6 +435,34 @@ export function IssueKanban({ issues }: { issues: IssueListItem[] }) {
     [items]
   )
 
+  async function alternarArchivo(issue: IssueListItem) {
+    const anteriores = items
+    const archivar = !verArchivadas
+
+    // Sale de la vista actual al instante, sea cual sea la dirección.
+    setItems((previos) => previos.filter((i) => i.id !== issue.id))
+
+    const resultado = await archiveIssue(issue.id, archivar)
+
+    if (!resultado.ok) {
+      setItems(anteriores)
+      toast.add({ title: resultado.error, type: "error" })
+
+      return
+    }
+
+    toast.add({
+      title: `#${issue.number} ${archivar ? "archivado" : "vuelve al tablero"}`,
+      type: "success",
+    })
+    router.refresh()
+  }
+
+  const archivo: AccionArchivo = {
+    archivada: verArchivadas,
+    onClick: alternarArchivo,
+  }
+
   function onDragStart(event: DragStartEvent) {
     setActivo(
       (event.active.data.current?.issue as IssueListItem | undefined) ?? null
@@ -349,72 +526,80 @@ export function IssueKanban({ issues }: { issues: IssueListItem[] }) {
   }
 
   return (
-    <ClientOnly
-      fallback={
-        <div className="flex w-full min-w-0 gap-4 overflow-x-auto pb-4">
-          {ESTADOS.map((estado) => (
-            <div
-              key={estado}
-              className={cn("flex flex-col gap-2", CLASES_COLUMNA)}
-            >
-              <div className="flex items-center justify-between px-1">
-                <h2 className="text-sm font-medium">
-                  {ETIQUETAS_ESTADO[estado]}
-                </h2>
-                <Badge variant="secondary">
-                  {items.filter((i) => i.status === estado).length}
-                </Badge>
+    <div className="flex flex-col gap-3">
+      <BarraArchivo
+        archivadas={archivadas}
+        verArchivadas={verArchivadas}
+        diasAuto={diasAuto}
+      />
+      <ClientOnly
+        fallback={
+          <div className="flex w-full min-w-0 gap-4 overflow-x-auto pb-4">
+            {ESTADOS.map((estado) => (
+              <div
+                key={estado}
+                className={cn("flex flex-col gap-2", CLASES_COLUMNA)}
+              >
+                <div className="flex items-center justify-between px-1">
+                  <h2 className="text-sm font-medium">
+                    {ETIQUETAS_ESTADO[estado]}
+                  </h2>
+                  <Badge variant="secondary">
+                    {items.filter((i) => i.status === estado).length}
+                  </Badge>
+                </div>
+                <div className="min-h-32 rounded-xl border border-dashed p-2" />
               </div>
-              <div className="min-h-32 rounded-xl border border-dashed p-2" />
-            </div>
-          ))}
-        </div>
-      }
-    >
-      <DndContext
-        // Sin un id estable, dnd-kit numera sus ids de accesibilidad con un
-        // contador que arranca distinto en el servidor y en el cliente, y React
-        // reporta un mismatch de hidratación.
-        id="kanban"
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-        onDragCancel={onDragCancel}
+            ))}
+          </div>
+        }
       >
-        {/* `items-stretch` iguala el alto de las columnas; junto con el `flex-1`
+        <DndContext
+          // Sin un id estable, dnd-kit numera sus ids de accesibilidad con un
+          // contador que arranca distinto en el servidor y en el cliente, y React
+          // reporta un mismatch de hidratación.
+          id="kanban"
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+          onDragCancel={onDragCancel}
+        >
+          {/* `items-stretch` iguala el alto de las columnas; junto con el `flex-1`
             de la zona soltable, cualquier altura del tablero es un destino
             válido para las cinco. */}
-        <div
-          ref={tableroRef}
-          className="flex w-full min-w-0 items-stretch gap-4 overflow-x-auto pb-4"
-        >
-          {ESTADOS.map((estado) => (
-            <Columna
-              key={estado}
-              estado={estado}
-              issues={items.filter((i) => i.status === estado)}
+          <div
+            ref={tableroRef}
+            className="flex w-full min-w-0 items-stretch gap-4 overflow-x-auto pb-4"
+          >
+            {ESTADOS.map((estado) => (
+              <Columna
+                key={estado}
+                estado={estado}
+                issues={items.filter((i) => i.status === estado)}
+                archivo={archivo}
+              />
+            ))}
+          </div>
+
+          {activo && geometria?.tapados ? (
+            <EncabezadosPineados
+              geometria={geometria}
+              sobre={sobre}
+              conteos={conteos}
             />
-          ))}
-        </div>
-
-        {activo && geometria?.tapados ? (
-          <EncabezadosPineados
-            geometria={geometria}
-            sobre={sobre}
-            conteos={conteos}
-          />
-        ) : null}
-
-        <DragOverlay>
-          {activo ? (
-            <div className="w-64 rotate-2">
-              <Tarjeta issue={activo} />
-            </div>
           ) : null}
-        </DragOverlay>
-      </DndContext>
-    </ClientOnly>
+
+          <DragOverlay>
+            {activo ? (
+              <div className="w-64 rotate-2">
+                <Tarjeta issue={activo} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </ClientOnly>
+    </div>
   )
 }

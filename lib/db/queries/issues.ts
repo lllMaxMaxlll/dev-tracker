@@ -1,15 +1,27 @@
 import "server-only"
 
-import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  isNotNull,
+  not,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import {
   issueLinks,
   issueStatusHistory,
   issues,
+  profiles,
   projects,
 } from "@/lib/db/schema"
-import type { IssueFilters } from "@/lib/schemas/issue"
+import { TAMANO_PAGINA, type IssueFilters } from "@/lib/schemas/issue"
 
 export type IssueListItem = {
   id: string
@@ -22,6 +34,7 @@ export type IssueListItem = {
   updatedAt: Date
   resolvedAt: Date | null
   kanbanOrder: number
+  archivedAt: Date | null
   projectId: string | null
   projectName: string | null
   projectColor: string | null
@@ -38,6 +51,7 @@ const CAMPOS_LISTA = {
   updatedAt: issues.updatedAt,
   resolvedAt: issues.resolvedAt,
   kanbanOrder: issues.kanbanOrder,
+  archivedAt: issues.archivedAt,
   projectId: issues.projectId,
   projectName: projects.name,
   projectColor: projects.color,
@@ -105,29 +119,97 @@ function construirOrden(filtros: IssueFilters): SQL {
   }
 }
 
+/** Una página de la tabla, más el total para armar la paginación. */
 export async function listIssues(
   userId: string,
   filtros: IssueFilters
-): Promise<IssueListItem[]> {
-  return db
-    .select(CAMPOS_LISTA)
-    .from(issues)
-    .leftJoin(projects, eq(issues.projectId, projects.id))
-    .where(construirWhere(userId, filtros))
-    .orderBy(construirOrden(filtros))
+): Promise<{ issues: IssueListItem[]; total: number }> {
+  const where = construirWhere(userId, filtros)
+
+  const [filas, [{ total }]] = await Promise.all([
+    db
+      .select(CAMPOS_LISTA)
+      .from(issues)
+      .leftJoin(projects, eq(issues.projectId, projects.id))
+      .where(where)
+      // `number` desempata: sin un orden total, dos filas con la misma fecha
+      // pueden saltar de página entre una consulta y la siguiente.
+      .orderBy(construirOrden(filtros), desc(issues.number))
+      .limit(TAMANO_PAGINA)
+      .offset((filtros.pagina - 1) * TAMANO_PAGINA),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(issues)
+      .leftJoin(projects, eq(issues.projectId, projects.id))
+      .where(where),
+  ])
+
+  return { issues: filas, total }
 }
 
-/** Para el kanban: mismo filtrado, pero ordenado por la posición manual. */
+/**
+ * Cuándo una tarjeta no se ve en el tablero: si se archivó a mano, o si está
+ * cerrada y lleva `diasAuto` días sin actividad.
+ *
+ * El auto-archivado se calcula al consultar en vez de escribirse en la base.
+ * Así cambiar la preferencia actúa sobre todo el tablero al instante, y
+ * desarchivar una tarjeta basta con tocarla: el trigger de `updated_at` le
+ * reinicia el reloj.
+ */
+function condicionArchivada(diasAuto: number | null): SQL {
+  const manual = isNotNull(issues.archivedAt)
+
+  if (diasAuto === null) return manual
+
+  return or(
+    manual,
+    and(
+      sql`${issues.status} in ('resuelto', 'descartado')`,
+      sql`${issues.updatedAt} < now() - make_interval(days => ${diasAuto})`
+    )
+  )!
+}
+
+/**
+ * Para el kanban: mismo filtrado, pero ordenado por la posición manual. Trae
+ * el tablero o las archivadas según el filtro, y cuenta las del otro lado.
+ */
 export async function listIssuesForKanban(
   userId: string,
-  filtros: IssueFilters
-): Promise<IssueListItem[]> {
-  return db
-    .select(CAMPOS_LISTA)
-    .from(issues)
-    .leftJoin(projects, eq(issues.projectId, projects.id))
-    .where(construirWhere(userId, filtros))
-    .orderBy(asc(issues.kanbanOrder), desc(issues.updatedAt))
+  filtros: IssueFilters,
+  diasAuto: number | null
+): Promise<{ issues: IssueListItem[]; archivadas: number }> {
+  const archivada = condicionArchivada(diasAuto)
+  const where = construirWhere(userId, filtros)
+
+  const [filas, [{ archivadas }]] = await Promise.all([
+    db
+      .select(CAMPOS_LISTA)
+      .from(issues)
+      .leftJoin(projects, eq(issues.projectId, projects.id))
+      .where(and(where, filtros.archivadas ? archivada : not(archivada)))
+      .orderBy(asc(issues.kanbanOrder), desc(issues.updatedAt)),
+    db
+      .select({ archivadas: sql<number>`count(*)::int` })
+      .from(issues)
+      .leftJoin(projects, eq(issues.projectId, projects.id))
+      .where(and(where, archivada)),
+  ])
+
+  return { issues: filas, archivadas }
+}
+
+/** Preferencia de auto-archivado del kanban. `null` = nunca. */
+export async function getAutoArchivoKanban(
+  userId: string
+): Promise<number | null> {
+  const [fila] = await db
+    .select({ dias: profiles.kanbanAutoArchiveDays })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1)
+
+  return fila?.dias ?? null
 }
 
 export async function getIssueByNumber(userId: string, numero: number) {
@@ -166,17 +248,6 @@ export async function getIssueLinks(userId: string, issueId: string) {
     .from(issueLinks)
     .where(and(eq(issueLinks.userId, userId), eq(issueLinks.issueId, issueId)))
     .orderBy(desc(issueLinks.createdAt))
-}
-
-/** Últimos problemas tocados, para el dashboard (Fase 3). */
-export async function listRecentIssues(userId: string, limite = 5) {
-  return db
-    .select(CAMPOS_LISTA)
-    .from(issues)
-    .leftJoin(projects, eq(issues.projectId, projects.id))
-    .where(eq(issues.userId, userId))
-    .orderBy(desc(issues.updatedAt))
-    .limit(limite)
 }
 
 export async function countIssuesByStatus(userId: string) {

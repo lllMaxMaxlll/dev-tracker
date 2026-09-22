@@ -53,7 +53,11 @@ function CabeceraOrdenable({
     const dir = activa && dirActual === "desc" ? "asc" : "desc"
 
     router.push(
-      `${pathname}${conParametros(searchParams, { orden: campo, dir })}`
+      `${pathname}${conParametros(searchParams, {
+        orden: campo,
+        dir,
+        pagina: null,
+      })}`
     )
   }
 

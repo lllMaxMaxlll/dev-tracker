@@ -29,8 +29,12 @@ export function IssueFilters({ proyectos }: { proyectos: ProyectoOpcion[] }) {
 
   const [busqueda, setBusqueda] = React.useState(searchParams.get("q") ?? "")
 
+  // Cualquier cambio de filtro vuelve a la primera página: la actual puede
+  // no existir con el resultado nuevo.
   function aplicar(cambios: Record<string, string | null>) {
-    router.push(`${pathname}${conParametros(searchParams, cambios)}`)
+    router.push(
+      `${pathname}${conParametros(searchParams, { ...cambios, pagina: null })}`
+    )
   }
 
   // El buscador espera a que dejes de tipear para no navegar en cada tecla.

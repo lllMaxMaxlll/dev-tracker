@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
 import { PageHeader } from "@/components/layout/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,14 +9,19 @@ import { IssueKanban } from "@/components/issues/issue-kanban"
 import { IssueTable } from "@/components/issues/issue-table"
 import { ViewSwitcher } from "@/components/issues/view-switcher"
 import { requireUser } from "@/lib/auth/require-user"
-import { listIssues, listIssuesForKanban } from "@/lib/db/queries/issues"
-import { listProjectOptions } from "@/lib/db/queries/projects"
-import { issueFiltersSchema } from "@/lib/schemas/issue"
+import { IssuePagination } from "@/components/issues/issue-pagination"
 import {
-  PanelPriorizacion,
-  PanelSugerenciasCommits,
-} from "@/components/issues/ai-panels"
-import { listarSugerenciasPendientes } from "@/actions/commit-suggestions"
+  getAutoArchivoKanban,
+  listIssues,
+  listIssuesForKanban,
+} from "@/lib/db/queries/issues"
+import { listProjectOptions } from "@/lib/db/queries/projects"
+import {
+  TAMANO_PAGINA,
+  issueFiltersSchema,
+  type IssueFilters as Filtros,
+} from "@/lib/schemas/issue"
+import { conParametros } from "@/lib/utils/search-params"
 import { NewIssueButton } from "@/components/issues/new-issue-button"
 
 export const metadata: Metadata = { title: "Problemas · DevTracker" }
@@ -29,18 +35,60 @@ async function BotonNuevo() {
   return <NewIssueButton proyectos={proyectos} />
 }
 
-async function PanelesIA() {
-  const sugerencias = await listarSugerenciasPendientes()
+async function Kanban({
+  userId,
+  filtros,
+}: {
+  userId: string
+  filtros: Filtros
+}) {
+  const diasAuto = await getAutoArchivoKanban(userId)
+  const { issues, archivadas } = await listIssuesForKanban(
+    userId,
+    filtros,
+    diasAuto
+  )
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <PanelPriorizacion />
-      <PanelSugerenciasCommits
-        sugerencias={sugerencias.map((s) => ({
-          ...s,
-          justificacion: s.justificacion,
-        }))}
-      />
+    <IssueKanban
+      issues={issues}
+      archivadas={archivadas}
+      verArchivadas={Boolean(filtros.archivadas)}
+      diasAuto={diasAuto}
+    />
+  )
+}
+
+async function Tabla({
+  userId,
+  filtros,
+  crudos,
+}: {
+  userId: string
+  filtros: Filtros
+  crudos: Record<string, string | string[] | undefined>
+}) {
+  const { issues, total } = await listIssues(userId, filtros)
+  const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA))
+
+  // Una página que ya no existe (se borraron problemas, o cambió un filtro en
+  // una URL vieja) lleva a la última en vez de mostrar una tabla vacía.
+  if (filtros.pagina > paginas) {
+    const params = new URLSearchParams()
+
+    for (const [clave, valor] of Object.entries(crudos)) {
+      if (typeof valor === "string") params.set(clave, valor)
+    }
+
+    redirect(
+      `/problemas${conParametros(params, { pagina: paginas > 1 ? String(paginas) : null })}`
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <IssueTable issues={issues} />
+      <IssuePagination pagina={filtros.pagina} total={total} />
     </div>
   )
 }
@@ -56,15 +104,11 @@ async function Contenido({ searchParams }: { searchParams: SearchParams }) {
       vista: "kanban",
       orden: "actualizado",
       dir: "desc",
+      pagina: 1,
     })
     .parse(crudos)
 
-  const [proyectos, issues] = await Promise.all([
-    listProjectOptions(user.id),
-    filtros.vista === "kanban"
-      ? listIssuesForKanban(user.id, filtros)
-      : listIssues(user.id, filtros),
-  ])
+  const proyectos = await listProjectOptions(user.id)
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -74,9 +118,9 @@ async function Contenido({ searchParams }: { searchParams: SearchParams }) {
       </div>
 
       {filtros.vista === "kanban" ? (
-        <IssueKanban issues={issues} />
+        <Kanban userId={user.id} filtros={filtros} />
       ) : (
-        <IssueTable issues={issues} />
+        <Tabla userId={user.id} filtros={filtros} crudos={crudos} />
       )}
     </div>
   )
@@ -110,17 +154,6 @@ export default function ProblemasPage({
           <BotonNuevo />
         </Suspense>
       </PageHeader>
-      <Suspense
-        fallback={
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Skeleton className="h-24 rounded-xl" />
-            <Skeleton className="h-24 rounded-xl" />
-          </div>
-        }
-      >
-        <PanelesIA />
-      </Suspense>
-
       <Suspense fallback={<ContenidoSkeleton />}>
         <Contenido searchParams={searchParams} />
       </Suspense>

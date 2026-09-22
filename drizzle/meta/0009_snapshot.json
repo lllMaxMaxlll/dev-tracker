@@ -1,6 +1,6 @@
 {
-  "id": "08d5a0b0-c870-4565-a493-f4e16c4d8297",
-  "prevId": "592b28a3-af5f-4e6d-b15a-251003f5cd86",
+  "id": "d2014813-250e-4133-9845-166e5dbbd5bb",
+  "prevId": "08d5a0b0-c870-4565-a493-f4e16c4d8297",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1526,6 +1526,12 @@
           "notNull": true,
           "default": 0
         },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1970,6 +1976,12 @@
         "display_name": {
           "name": "display_name",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kanban_auto_archive_days": {
+          "name": "kanban_auto_archive_days",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },

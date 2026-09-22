@@ -8,11 +8,13 @@ import {
   issueLinks,
   issueStatusHistory,
   issues,
+  profiles,
   userCounters,
   type IssueStatus,
 } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
 import {
+  autoArchivoSchema,
   changeStatusSchema,
   createIssueSchema,
   linkIssueSchema,
@@ -192,7 +194,12 @@ async function aplicarCambioDeEstado(
   }
 ) {
   const ahora = new Date()
-  const cambios: Record<string, unknown> = { status: params.hacia }
+  // Cambiar de estado es volver a trabajar en la tarjeta: si estaba
+  // archivada, reaparece en el tablero.
+  const cambios: Record<string, unknown> = {
+    status: params.hacia,
+    archivedAt: null,
+  }
 
   if (params.hacia === "resuelto") {
     cambios.resolvedAt = ahora
@@ -320,6 +327,67 @@ export async function moveIssue(
     console.error("[moveIssue]", error)
 
     return actionError("No se pudo mover el problema")
+  }
+}
+
+/**
+ * Archiva o desarchiva una tarjeta del kanban. Desarchivar también saca del
+ * archivo a las que se archivaron solas: el update dispara el trigger de
+ * `updated_at` y eso les reinicia el reloj del auto-archivado.
+ */
+export async function archiveIssue(
+  id: string,
+  archivar: boolean
+): Promise<ActionResult> {
+  const user = await requireUser()
+
+  try {
+    const actualizados = await db
+      .update(issues)
+      .set({ archivedAt: archivar ? new Date() : null })
+      .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+      .returning({ number: issues.number })
+
+    if (actualizados.length === 0) {
+      return actionError("No se encontró el problema")
+    }
+
+    revalidarVistas(actualizados[0].number)
+
+    return actionOk()
+  } catch (error) {
+    console.error("[archiveIssue]", error)
+
+    return actionError(
+      archivar ? "No se pudo archivar" : "No se pudo desarchivar"
+    )
+  }
+}
+
+/** Días sin actividad tras los que se archivan las tarjetas cerradas. */
+export async function setAutoArchivoKanban(
+  dias: unknown
+): Promise<ActionResult> {
+  const user = await requireUser()
+  const parsed = autoArchivoSchema.safeParse(dias)
+
+  if (!parsed.success) {
+    return actionError("Opción inválida")
+  }
+
+  try {
+    await db
+      .update(profiles)
+      .set({ kanbanAutoArchiveDays: parsed.data })
+      .where(eq(profiles.id, user.id))
+
+    revalidatePath("/problemas")
+
+    return actionOk()
+  } catch (error) {
+    console.error("[setAutoArchivoKanban]", error)
+
+    return actionError("No se pudo guardar la preferencia")
   }
 }
 
