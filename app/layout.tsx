@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono, IBM_Plex_Sans, Space_Grotesk, Montserrat } from "next/font/google"
+import { Geist, Geist_Mono, Montserrat } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -7,9 +7,12 @@ import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-const montserratHeading = Montserrat({subsets:['latin'],variable:'--font-heading'});
+const fontHeading = Montserrat({
+  subsets: ["latin"],
+  variable: "--font-heading",
+})
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'})
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -76,9 +79,12 @@ export default function RootLayout({
       lang="es"
       suppressHydrationWarning
       className={cn(
-              "antialiased",
-              fontMono.variable
-            , "font-sans", geist.variable, montserratHeading.variable)}
+        "antialiased",
+        "font-sans",
+        geist.variable,
+        fontMono.variable,
+        fontHeading.variable
+      )}
     >
       <body>
         <ThemeProvider>
