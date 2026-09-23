@@ -30,6 +30,11 @@ import { createIssue, updateIssue } from "@/actions/issues"
 import { createProject } from "@/actions/projects"
 import { buscarPosiblesDuplicados } from "@/actions/duplicates"
 import { AvisoDuplicados } from "@/components/issues/similar-issues"
+import {
+  SelectorFotos,
+  type FotoPendiente,
+} from "@/components/issues/selector-fotos"
+import { mensajeDeError, subirFoto } from "@/lib/adjuntos/cliente"
 import type { Similar } from "@/lib/ai/embeddings"
 import {
   ESTADOS,
@@ -65,6 +70,9 @@ const OPCIONES_ESTADO = ESTADOS.map((e) => ({
   value: e,
 }))
 
+/** Tiene que coincidir con MAX_ADJUNTOS_POR_ISSUE del servidor. */
+const MAX_FOTOS = 10
+
 const VALORES_INICIALES: IssueFormValues = {
   title: "",
   description: "",
@@ -84,6 +92,8 @@ type Props = {
   /** Id del problema a editar. Si falta, es un alta. */
   issueId?: string
   valoresIniciales?: Partial<IssueFormValues>
+  /** Cuántas fotos tiene ya el problema que se edita. */
+  fotosExistentes?: number
   /** Texto extra bajo el título, p. ej. el aviso de la captura por IA. */
   encabezado?: React.ReactNode
   /** Proyecto que la IA mencionó y todavía no existe. Se ofrece crearlo. */
@@ -98,6 +108,7 @@ export function IssueFormDialog({
   areas = [],
   issueId,
   valoresIniciales,
+  fotosExistentes = 0,
   encabezado,
   proyectoNuevo,
   onGuardado,
@@ -111,6 +122,8 @@ export function IssueFormDialog({
   })
 
   const editando = Boolean(issueId)
+  const [fotos, setFotos] = React.useState<FotoPendiente[]>([])
+  const [subiendoFotos, setSubiendoFotos] = React.useState(false)
   const [duplicados, setDuplicados] = React.useState<Similar[]>([])
   const [buscandoDuplicados, setBuscandoDuplicados] = React.useState(false)
   const [duplicadosIgnorados, setDuplicadosIgnorados] = React.useState(false)
@@ -177,6 +190,53 @@ export function IssueFormDialog({
       setErrores({})
       setDuplicados([])
       setDuplicadosIgnorados(false)
+      descartarFotos()
+    }
+  }
+
+  /** Las previsualizaciones son object URLs: hay que soltarlas a mano. */
+  function descartarFotos() {
+    setFotos((previas) => {
+      for (const foto of previas) URL.revokeObjectURL(foto.preview)
+
+      return []
+    })
+  }
+
+  /**
+   * Las fotos se suben después de guardar, cuando el problema ya tiene id: la
+   * ruta del archivo en el bucket lo incluye. Si alguna falla, el problema
+   * queda creado igual y el aviso dice cuál no entró.
+   */
+  async function subirPendientes(idDelIssue: string) {
+    if (fotos.length === 0) return
+
+    setSubiendoFotos(true)
+
+    let fallaron = 0
+
+    for (const foto of fotos) {
+      try {
+        await subirFoto(idDelIssue, foto.imagen, foto.nombre)
+      } catch (error) {
+        fallaron++
+        toast.add({
+          title: `${foto.nombre}: ${mensajeDeError(error)}`,
+          type: "error",
+        })
+      }
+    }
+
+    setSubiendoFotos(false)
+    descartarFotos()
+
+    const subidas = fotos.length - fallaron
+
+    if (subidas > 0) {
+      toast.add({
+        title: subidas === 1 ? "Foto adjuntada" : `${subidas} fotos adjuntadas`,
+        type: "success",
+      })
     }
   }
 
@@ -244,10 +304,15 @@ export function IssueFormDialog({
       title: editando ? "Problema actualizado" : "Problema creado",
       type: "success",
     })
+
+    const creado = editando
+      ? null
+      : (resultado.data as { id: string; number: number })
+
+    await subirPendientes(issueId ?? creado!.id)
+
     onOpenChange(false)
-    onGuardado?.(
-      editando ? null : (resultado.data as { id: string; number: number })
-    )
+    onGuardado?.(creado)
     router.refresh()
   }
 
@@ -413,6 +478,19 @@ export function IssueFormDialog({
                 />
               </Field>
             </div>
+            <Field>
+              <FieldLabel>Fotos</FieldLabel>
+              <SelectorFotos
+                fotos={fotos}
+                onChange={setFotos}
+                disponibles={MAX_FOTOS - fotosExistentes}
+                disabled={guardando}
+              />
+              <FieldDescription>
+                Capturas de pantalla, la pizarra, el error en el celular. Se
+                suben cuando guardes.
+              </FieldDescription>
+            </Field>
           </FieldGroup>
 
           <DialogFooter>
@@ -447,13 +525,20 @@ export function IssueFormDialog({
               </Button>
             ) : null}
 
-            <Button type="submit" disabled={guardando || buscandoDuplicados}>
-              {guardando ? <Spinner data-icon="inline-start" /> : null}
-              {editando
-                ? "Guardar"
-                : duplicados.length > 0
-                  ? "Crear igual"
-                  : "Crear problema"}
+            <Button
+              type="submit"
+              disabled={guardando || subiendoFotos || buscandoDuplicados}
+            >
+              {guardando || subiendoFotos ? (
+                <Spinner data-icon="inline-start" />
+              ) : null}
+              {subiendoFotos
+                ? "Subiendo fotos…"
+                : editando
+                  ? "Guardar"
+                  : duplicados.length > 0
+                    ? "Crear igual"
+                    : "Crear problema"}
             </Button>
           </DialogFooter>
         </form>

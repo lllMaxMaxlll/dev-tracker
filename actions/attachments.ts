@@ -8,11 +8,13 @@ import { db } from "@/lib/db"
 import { issueAttachments, issues } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
 import {
+  EXTENSIONES_ADJUNTO,
   MAX_ADJUNTOS_POR_ISSUE,
   MAX_BYTES_ADJUNTO,
   TIPOS_ADJUNTO,
   borrarObjetos,
   esRutaPropia,
+  rutaAdjunto,
 } from "@/lib/storage/adjuntos"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 
@@ -25,6 +27,67 @@ const registrarSchema = z.object({
   width: z.number().int().positive().max(20_000).optional(),
   height: z.number().int().positive().max(20_000).optional(),
 })
+
+/**
+ * Reserva la ruta donde el navegador va a subir una foto.
+ *
+ * La arma el servidor y no el cliente porque incluye el id del usuario, que es
+ * lo que separa los archivos de una cuenta de los de otra. De paso se verifica
+ * acá —antes de gastar la subida— que el problema sea tuyo y que todavía entre
+ * una foto más.
+ */
+export async function prepararSubida(
+  issueId: unknown,
+  tipo: unknown
+): Promise<ActionResult<{ path: string }>> {
+  const user = await requireUser()
+  const parsed = z
+    .object({ issueId: z.uuid(), tipo: z.enum(TIPOS_ADJUNTO) })
+    .safeParse({ issueId, tipo })
+
+  if (!parsed.success) {
+    return actionError("No se pudo preparar la subida")
+  }
+
+  try {
+    const [issue] = await db
+      .select({ id: issues.id })
+      .from(issues)
+      .where(
+        and(eq(issues.id, parsed.data.issueId), eq(issues.userId, user.id))
+      )
+      .limit(1)
+
+    if (!issue) {
+      return actionError("No se encontró el problema")
+    }
+
+    const existentes = await db
+      .select({ id: issueAttachments.id })
+      .from(issueAttachments)
+      .where(eq(issueAttachments.issueId, parsed.data.issueId))
+
+    if (existentes.length >= MAX_ADJUNTOS_POR_ISSUE) {
+      return actionError(
+        `Un problema admite hasta ${MAX_ADJUNTOS_POR_ISSUE} fotos`
+      )
+    }
+
+    const extension = EXTENSIONES_ADJUNTO[parsed.data.tipo]
+
+    return actionOk({
+      path: rutaAdjunto(
+        user.id,
+        parsed.data.issueId,
+        `${crypto.randomUUID()}.${extension}`
+      ),
+    })
+  } catch (error) {
+    console.error("[prepararSubida]", error)
+
+    return actionError("No se pudo preparar la subida")
+  }
+}
 
 /**
  * Deja constancia en la base de una foto que el navegador ya subió al bucket.

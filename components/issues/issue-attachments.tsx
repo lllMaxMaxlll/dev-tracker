@@ -13,24 +13,13 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
-import { createClient } from "@/lib/supabase/client"
-import {
-  ImagenInvalidaError,
-  comprimirImagen,
-} from "@/lib/utils/comprimir-imagen"
-import { borrarAdjunto, registrarAdjunto } from "@/actions/attachments"
+import { comprimirImagen } from "@/lib/utils/comprimir-imagen"
+import { mensajeDeError, subirFoto } from "@/lib/adjuntos/cliente"
+import { borrarAdjunto } from "@/actions/attachments"
 import type { Adjunto } from "@/lib/db/queries/attachments"
 
 /** Tiene que coincidir con lo que valida la server action. */
 const MAX_ADJUNTOS = 10
-const BUCKET = "adjuntos"
-
-/** Los tipos que acepta el bucket (ver la migración 0010). */
-const EXTENSIONES: Record<string, string> = {
-  "image/webp": "webp",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-}
 
 function pesoLegible(bytes: number): string {
   return bytes >= 1024 * 1024
@@ -50,11 +39,9 @@ function pesoLegible(bytes: number): string {
  */
 export function IssueAttachments({
   issueId,
-  userId,
   adjuntos,
 }: {
   issueId: string
-  userId: string
   adjuntos: Adjunto[]
 }) {
   const router = useRouter()
@@ -64,44 +51,6 @@ export function IssueAttachments({
   const [mirando, setMirando] = React.useState<Adjunto | null>(null)
 
   const lugarLibre = MAX_ADJUNTOS - adjuntos.length
-
-  async function subir(archivo: File) {
-    const comprimida = await comprimirImagen(archivo)
-    // La extensión sale del tipo real que devolvió el navegador, no del que
-    // pedimos: si no soporta WebP, `toBlob` entrega PNG y el archivo tiene que
-    // llamarse como lo que es.
-    const extension = EXTENSIONES[comprimida.tipo] ?? "webp"
-    const path = `${userId}/${issueId}/${crypto.randomUUID()}.${extension}`
-
-    const supabase = createClient()
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, comprimida.blob, {
-        contentType: comprimida.tipo,
-        upsert: false,
-      })
-
-    if (error) {
-      throw new Error(error.message)
-    }
-
-    const resultado = await registrarAdjunto({
-      issueId,
-      path,
-      fileName: archivo.name.slice(0, 120),
-      mimeType: comprimida.tipo,
-      sizeBytes: comprimida.blob.size,
-      width: comprimida.width,
-      height: comprimida.height,
-    })
-
-    if (!resultado.ok) {
-      // La fila no se creó: sacar el archivo para no dejarlo huérfano.
-      await supabase.storage.from(BUCKET).remove([path])
-
-      throw new Error(resultado.error)
-    }
-  }
 
   async function onArchivos(event: React.ChangeEvent<HTMLInputElement>) {
     const elegidos = Array.from(event.target.files ?? [])
@@ -127,17 +76,13 @@ export function IssueAttachments({
 
     for (const archivo of elegidos) {
       try {
-        await subir(archivo)
+        await subirFoto(issueId, await comprimirImagen(archivo), archivo.name)
         subidas++
       } catch (error) {
-        const mensaje =
-          error instanceof ImagenInvalidaError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : "No se pudo subir"
-
-        toast.add({ title: `${archivo.name}: ${mensaje}`, type: "error" })
+        toast.add({
+          title: `${archivo.name}: ${mensajeDeError(error)}`,
+          type: "error",
+        })
       } finally {
         setSubiendo((previos) => previos.filter((n) => n !== archivo.name))
       }

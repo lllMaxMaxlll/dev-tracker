@@ -117,6 +117,7 @@ async function Detalle({ params }: { params: Params }) {
             numero={issue.number}
             proyectos={proyectos}
             areas={areas}
+            fotosExistentes={adjuntos.length}
             valoresIniciales={valoresActuales}
           />
         </div>
@@ -144,11 +145,7 @@ async function Detalle({ params }: { params: Params }) {
               <CardTitle>Fotos</CardTitle>
             </CardHeader>
             <CardContent>
-              <IssueAttachments
-                issueId={issue.id}
-                userId={user.id}
-                adjuntos={adjuntos}
-              />
+              <IssueAttachments issueId={issue.id} adjuntos={adjuntos} />
             </CardContent>
           </Card>
 

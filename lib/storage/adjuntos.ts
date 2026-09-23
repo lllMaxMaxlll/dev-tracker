@@ -16,6 +16,16 @@ export const MAX_BYTES_ADJUNTO = 2 * 1024 * 1024
 
 export const TIPOS_ADJUNTO = ["image/webp", "image/jpeg", "image/png"] as const
 
+/** El archivo se llama como lo que realmente es, no como lo que pedimos. */
+export const EXTENSIONES_ADJUNTO: Record<
+  (typeof TIPOS_ADJUNTO)[number],
+  string
+> = {
+  "image/webp": "webp",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+}
+
 /**
  * Ruta de un archivo dentro del bucket. La primera carpeta es el id del
  * usuario: es lo que miran las políticas del bucket para decidir de quién es.

@@ -92,12 +92,14 @@ export function AccionesIssue({
   numero,
   proyectos,
   areas,
+  fotosExistentes,
   valoresIniciales,
 }: {
   issueId: string
   numero: number
   proyectos: ProyectoOpcion[]
   areas: AreaOpcion[]
+  fotosExistentes: number
   valoresIniciales: IssueFormValues
 }) {
   const router = useRouter()
@@ -145,6 +147,7 @@ export function AccionesIssue({
         onOpenChange={setEditando}
         proyectos={proyectos}
         areas={areas}
+        fotosExistentes={fotosExistentes}
         issueId={issueId}
         valoresIniciales={valoresIniciales}
       />
