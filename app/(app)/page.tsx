@@ -7,17 +7,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SummaryCards } from "@/components/dashboard/summary-cards"
 import { WeeklyChart } from "@/components/dashboard/weekly-chart"
 import { DistributionChart } from "@/components/dashboard/distribution-chart"
-import { InsightsPanel } from "@/components/dashboard/insights-panel"
 import { requireUser } from "@/lib/auth/require-user"
 import {
+  getDistribucionPorArea,
   getDistribucionPorProyecto,
   getDistribucionPorTipo,
   getResumen,
   getSerieSemanal,
 } from "@/lib/db/queries/metrics"
 import { ETIQUETAS_TIPO, type Tipo } from "@/lib/schemas/enums"
-import { getInsights } from "@/lib/ai/tasks/insights-cache"
-import { getUltimoResumen } from "@/lib/db/queries/summaries"
 
 export const metadata: Metadata = { title: "Dashboard · DevTracker" }
 
@@ -42,10 +40,11 @@ async function Tarjetas() {
 async function Graficos() {
   const user = await requireUser()
 
-  const [serie, porTipo, porProyecto] = await Promise.all([
+  const [serie, porTipo, porProyecto, porArea] = await Promise.all([
     getSerieSemanal(user.id),
     getDistribucionPorTipo(user.id),
     getDistribucionPorProyecto(user.id),
+    getDistribucionPorArea(user.id),
   ])
 
   // Las etiquetas de tipo se traducen acá y no en SQL: el enum guarda el valor
@@ -54,6 +53,21 @@ async function Graficos() {
     ...fila,
     etiqueta: ETIQUETAS_TIPO[fila.clave as Tipo] ?? fila.clave,
   }))
+
+  // Dos proyectos pueden tener un área con el mismo nombre. Se aclara con el
+  // proyecto sólo cuando el nombre solo sería ambiguo.
+  const areas = porArea.map((fila) => {
+    const repetida = porArea.some(
+      (otra) => otra.clave !== fila.clave && otra.etiqueta === fila.etiqueta
+    )
+
+    return {
+      ...fila,
+      etiqueta: repetida
+        ? `${fila.etiqueta} · ${fila.proyecto}`
+        : fila.etiqueta,
+    }
+  })
 
   return (
     <>
@@ -86,24 +100,26 @@ async function Graficos() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Por área</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Qué parte de cada proyecto da más trabajo
+          </p>
+        </CardHeader>
+        <CardContent>
+          {areas.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Ningún problema tiene área todavía. Las áreas se crean en
+              Proyectos y se eligen al cargar un problema.
+            </p>
+          ) : (
+            <DistributionChart datos={areas} />
+          )}
+        </CardContent>
+      </Card>
     </>
-  )
-}
-
-async function Observaciones() {
-  const user = await requireUser()
-
-  const [{ contenido, generadoEn }, ultimoResumen] = await Promise.all([
-    getInsights(user.id),
-    getUltimoResumen(user.id),
-  ])
-
-  return (
-    <InsightsPanel
-      insights={contenido}
-      generadoEn={generadoEn}
-      ultimoResumen={ultimoResumen}
-    />
   )
 }
 
@@ -130,10 +146,6 @@ export default function DashboardPage() {
         <Tarjetas />
       </Suspense>
 
-      <Suspense fallback={<Skeleton className="h-40 rounded-xl" />}>
-        <Observaciones />
-      </Suspense>
-
       <Suspense
         fallback={
           <div className="flex flex-col gap-4">
@@ -142,6 +154,7 @@ export default function DashboardPage() {
               <Skeleton className="h-56 rounded-xl" />
               <Skeleton className="h-56 rounded-xl" />
             </div>
+            <Skeleton className="h-56 rounded-xl" />
           </div>
         }
       >

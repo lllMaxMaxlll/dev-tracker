@@ -178,6 +178,44 @@ export async function getDistribucionPorProyecto(
 }
 
 /**
+ * Problemas por área, para saber qué parte de un proyecto da más trabajo.
+ *
+ * Sólo cuenta los que tienen área: "sin área" sería casi siempre la barra más
+ * larga —es lo que traen los problemas viejos y los que se cargan a las
+ * apuradas— y taparía justamente la comparación que el gráfico viene a hacer.
+ *
+ * El nombre del proyecto viaja aparte porque dos proyectos pueden tener un área
+ * con el mismo nombre; quien dibuja decide si hace falta aclararlo.
+ */
+export async function getDistribucionPorArea(userId: string): Promise<
+  (Distribucion & {
+    proyecto: string
+    color: string | null
+  })[]
+> {
+  const resultado = await db.execute(sql`
+    select
+      a.id::text as clave,
+      a.name as etiqueta,
+      p.name as proyecto,
+      a.color as color,
+      count(*)::int as total
+    from issues i
+    join project_areas a on a.id = i.area_id
+    join projects p on p.id = a.project_id
+    where i.user_id = ${userId}
+    group by a.id, a.name, p.name, a.color
+    order by total desc
+    limit 8
+  `)
+
+  return resultado.rows as (Distribucion & {
+    proyecto: string
+    color: string | null
+  })[]
+}
+
+/**
  * Tiempo promedio de resolución partido por tipo. No entra en las tarjetas,
  * pero es lo que alimenta los insights de la Fase 6 ("resolvés bugs tres veces
  * más rápido que features").
