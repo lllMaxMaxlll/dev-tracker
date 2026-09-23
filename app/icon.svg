@@ -1,10 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <rect width="32" height="32" rx="7" fill="#2f5fe0"/>
-  <!-- Lomo del cuaderno -->
-  <rect x="7" y="7" width="2.5" height="18" rx="1.25" fill="#ffffff" opacity="0.55"/>
-  <!-- Renglones: el primero resuelto (tilde), los otros pendientes -->
-  <path d="M12.5 12.2l2 2 4-4.2" fill="none" stroke="#ffffff" stroke-width="2.2"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="12.5" y="17" width="12" height="2.2" rx="1.1" fill="#ffffff" opacity="0.9"/>
-  <rect x="12.5" y="21.5" width="8" height="2.2" rx="1.1" fill="#ffffff" opacity="0.6"/>
+  <!-- Teja en el verde del tema (token primary) y tinta en el verde oscuro
+       (token primary-foreground). El blanco sobre este lima da 1.5:1 y
+       desaparece; este par da 5.7:1. Un favicon no puede leer variables CSS,
+       así que acá los valores van resueltos a hex; el mismo dibujo con los
+       tokens está en components/icons/logo.tsx.
+
+       Un tilde grande y un solo renglón pendiente, y no la lista de tres que
+       había antes: a 16px —que es como se ve en una pestaña— tres renglones se
+       empastan en una mancha. -->
+  <rect width="32" height="32" rx="7.5" fill="#9ae600"/>
+  <g fill="#35530e">
+    <!-- Lomo del cuaderno -->
+    <rect x="7.4" y="7.6" width="3" height="16.8" rx="1.5" opacity="0.5"/>
+    <!-- Lo hecho -->
+    <path d="M13.8 15.9l2.6 2.6 6.6-6.6" fill="none" stroke="#35530e"
+          stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Lo que falta -->
+    <rect x="13.8" y="21.6" width="9.2" height="2.8" rx="1.4" opacity="0.5"/>
+  </g>
 </svg>
