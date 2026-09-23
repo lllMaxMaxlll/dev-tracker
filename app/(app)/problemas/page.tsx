@@ -15,7 +15,7 @@ import {
   listIssues,
   listIssuesForKanban,
 } from "@/lib/db/queries/issues"
-import { listProjectOptions } from "@/lib/db/queries/projects"
+import { listAreas, listProjectOptions } from "@/lib/db/queries/projects"
 import {
   TAMANO_PAGINA,
   issueFiltersSchema,
@@ -30,9 +30,12 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
 async function BotonNuevo() {
   const user = await requireUser()
-  const proyectos = await listProjectOptions(user.id)
+  const [proyectos, areas] = await Promise.all([
+    listProjectOptions(user.id),
+    listAreas(user.id),
+  ])
 
-  return <NewIssueButton proyectos={proyectos} />
+  return <NewIssueButton proyectos={proyectos} areas={areas} />
 }
 
 async function Kanban({
@@ -108,12 +111,15 @@ async function Contenido({ searchParams }: { searchParams: SearchParams }) {
     })
     .parse(crudos)
 
-  const proyectos = await listProjectOptions(user.id)
+  const [proyectos, areas] = await Promise.all([
+    listProjectOptions(user.id),
+    listAreas(user.id),
+  ])
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <IssueFilters proyectos={proyectos} />
+        <IssueFilters proyectos={proyectos} areas={areas} />
         <ViewSwitcher vista={filtros.vista} />
       </div>
 

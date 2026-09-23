@@ -218,6 +218,30 @@ export const projects = pgTable(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
+// project_areas — módulos o áreas dentro de un proyecto ("checkout", "api").
+// Es una tabla y no un enum porque cada proyecto tiene las suyas y se crean
+// desde la interfaz.
+// ─────────────────────────────────────────────────────────────────────────────
+export const projectAreas = pgTable(
+  "project_areas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId,
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    color: text("color"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("project_areas_project_slug_idx").on(t.projectId, t.slug),
+    index("project_areas_user_idx").on(t.userId),
+  ]
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 // issues
 // ─────────────────────────────────────────────────────────────────────────────
 export const issues = pgTable(
@@ -226,6 +250,12 @@ export const issues = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     userId,
     projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    // El área siempre pertenece al proyecto del problema; cambiar de proyecto
+    // la limpia. Eso se garantiza en las server actions, no en el esquema: una
+    // FK compuesta obligaría a project_id a ser not null.
+    areaId: uuid("area_id").references(() => projectAreas.id, {
       onDelete: "set null",
     }),
     number: integer("number").notNull(),
@@ -251,6 +281,7 @@ export const issues = pgTable(
     uniqueIndex("issues_user_number_idx").on(t.userId, t.number),
     index("issues_user_status_idx").on(t.userId, t.status),
     index("issues_user_project_idx").on(t.userId, t.projectId),
+    index("issues_area_idx").on(t.areaId),
     index("issues_user_created_idx").on(t.userId, t.createdAt.desc()),
     index("issues_user_updated_idx").on(t.userId, t.updatedAt.desc()),
   ]
@@ -309,6 +340,36 @@ export const issueEmbeddings = pgTable(
     ),
     index("issue_embeddings_user_idx").on(t.userId),
   ]
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// issue_attachments — fotos de un problema.
+//
+// El archivo vive en el bucket privado `adjuntos` de Supabase Storage; acá sólo
+// queda su ruta y lo que hace falta para pintar la galería sin bajar la imagen
+// (medidas, peso, tipo). El navegador comprime antes de subir.
+// ─────────────────────────────────────────────────────────────────────────────
+export const issueAttachments = pgTable(
+  "issue_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId,
+    issueId: uuid("issue_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    // `<user_id>/<issue_id>/<uuid>.webp`. Las políticas del bucket usan la
+    // primera carpeta para decidir de quién es el archivo.
+    path: text("path").notNull().unique(),
+    fileName: text("file_name"),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("issue_attachments_issue_idx").on(t.issueId, t.createdAt)]
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

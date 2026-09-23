@@ -5,15 +5,18 @@ import { PageHeader } from "@/components/layout/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ProjectsView } from "@/components/projects/projects-view"
 import { requireUser } from "@/lib/auth/require-user"
-import { listProjects } from "@/lib/db/queries/projects"
+import { listAreas, listProjects } from "@/lib/db/queries/projects"
 
 export const metadata: Metadata = { title: "Proyectos · DevTracker" }
 
 async function Proyectos() {
   const user = await requireUser()
-  const proyectos = await listProjects(user.id)
+  const [proyectos, areas] = await Promise.all([
+    listProjects(user.id),
+    listAreas(user.id),
+  ])
 
-  return <ProjectsView proyectos={proyectos} />
+  return <ProjectsView proyectos={proyectos} areas={areas} />
 }
 
 function ProyectosSkeleton() {

@@ -19,6 +19,7 @@ import {
   issueStatusHistory,
   issues,
   profiles,
+  projectAreas,
   projects,
 } from "@/lib/db/schema"
 import { TAMANO_PAGINA, type IssueFilters } from "@/lib/schemas/issue"
@@ -38,6 +39,9 @@ export type IssueListItem = {
   projectId: string | null
   projectName: string | null
   projectColor: string | null
+  areaId: string | null
+  areaName: string | null
+  areaColor: string | null
 }
 
 const CAMPOS_LISTA = {
@@ -55,6 +59,9 @@ const CAMPOS_LISTA = {
   projectId: issues.projectId,
   projectName: projects.name,
   projectColor: projects.color,
+  areaId: issues.areaId,
+  areaName: projectAreas.name,
+  areaColor: projectAreas.color,
 }
 
 /**
@@ -79,6 +86,10 @@ function construirWhere(
     condiciones.push(sql`${issues.status} in ('pendiente', 'en_progreso')`)
   } else if (filtros.estado) {
     condiciones.push(eq(issues.status, filtros.estado))
+  }
+
+  if (filtros.area) {
+    condiciones.push(eq(issues.areaId, filtros.area))
   }
 
   if (filtros.prioridad) {
@@ -131,6 +142,7 @@ export async function listIssues(
       .select(CAMPOS_LISTA)
       .from(issues)
       .leftJoin(projects, eq(issues.projectId, projects.id))
+      .leftJoin(projectAreas, eq(issues.areaId, projectAreas.id))
       .where(where)
       // `number` desempata: sin un orden total, dos filas con la misma fecha
       // pueden saltar de página entre una consulta y la siguiente.
@@ -141,6 +153,7 @@ export async function listIssues(
       .select({ total: sql<number>`count(*)::int` })
       .from(issues)
       .leftJoin(projects, eq(issues.projectId, projects.id))
+      .leftJoin(projectAreas, eq(issues.areaId, projectAreas.id))
       .where(where),
   ])
 
@@ -187,12 +200,14 @@ export async function listIssuesForKanban(
       .select(CAMPOS_LISTA)
       .from(issues)
       .leftJoin(projects, eq(issues.projectId, projects.id))
+      .leftJoin(projectAreas, eq(issues.areaId, projectAreas.id))
       .where(and(where, filtros.archivadas ? archivada : not(archivada)))
       .orderBy(asc(issues.kanbanOrder), desc(issues.updatedAt)),
     db
       .select({ archivadas: sql<number>`count(*)::int` })
       .from(issues)
       .leftJoin(projects, eq(issues.projectId, projects.id))
+      .leftJoin(projectAreas, eq(issues.areaId, projectAreas.id))
       .where(and(where, archivada)),
   ])
 
@@ -217,12 +232,14 @@ export async function getIssueByNumber(userId: string, numero: number) {
     .select({
       ...CAMPOS_LISTA,
       description: issues.description,
+      areaSlug: projectAreas.slug,
       firstInProgressAt: issues.firstInProgressAt,
       createdVia: issues.createdVia,
       projectSlug: projects.slug,
     })
     .from(issues)
     .leftJoin(projects, eq(issues.projectId, projects.id))
+    .leftJoin(projectAreas, eq(issues.areaId, projectAreas.id))
     .where(and(eq(issues.userId, userId), eq(issues.number, numero)))
     .limit(1)
 

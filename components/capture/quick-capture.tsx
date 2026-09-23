@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/command"
 import {
   IssueFormDialog,
+  type AreaOpcion,
   type ProyectoOpcion,
 } from "@/components/issues/issue-form-dialog"
 import { NAV_ITEMS } from "@/components/layout/nav-items"
@@ -47,7 +48,13 @@ function editandoTexto(target: EventTarget | null) {
   )
 }
 
-export function QuickCapture({ proyectos }: { proyectos: ProyectoOpcion[] }) {
+export function QuickCapture({
+  proyectos,
+  areas,
+}: {
+  proyectos: ProyectoOpcion[]
+  areas: AreaOpcion[]
+}) {
   const router = useRouter()
   const [paletaAbierta, setPaletaAbierta] = React.useState(false)
   const [formAbierto, setFormAbierto] = React.useState(false)
@@ -173,6 +180,7 @@ export function QuickCapture({ proyectos }: { proyectos: ProyectoOpcion[] }) {
         open={formAbierto}
         onOpenChange={setFormAbierto}
         proyectos={proyectos}
+        areas={areas}
         valoresIniciales={sugerencia?.valores}
         proyectoNuevo={sugerencia?.proyectoNuevo}
         encabezado={

@@ -18,6 +18,8 @@ export const issueFormSchema = z.object({
   description: z.string().trim().max(10_000).optional(),
   // "" = sin proyecto. Un <select> no puede tener value null.
   projectId: z.union([z.uuid(), z.literal("")]).optional(),
+  // El área es del proyecto elegido; si no le corresponde, se guarda vacía.
+  areaId: z.union([z.uuid(), z.literal("")]).optional(),
   type: tipoSchema,
   priority: prioridadSchema,
   status: estadoSchema,
@@ -63,6 +65,9 @@ export const issueFiltersSchema = z.object({
   // enlazar a exactamente lo que cuenta.
   estado: z.enum([...ESTADOS, "abiertos"]).optional(),
   prioridad: z.enum(PRIORIDADES).optional(),
+  // Un área pertenece a un solo proyecto, así que este filtro sólo se ofrece
+  // cuando ya hay un proyecto elegido.
+  area: z.uuid().optional(),
   q: z.string().trim().max(100).optional(),
   orden: z.enum(ORDENES).default("actualizado"),
   dir: z.enum(["asc", "desc"]).default("desc"),

@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Markdown } from "@/components/issues/markdown"
 import { StatusTimeline } from "@/components/issues/status-timeline"
 import {
+  AreaBadge,
   PrioridadBadge,
   ProyectoBadge,
   TipoBadge,
@@ -20,6 +21,7 @@ import {
   CambiarEstado,
   VinculosIssue,
 } from "@/components/issues/issue-detail-actions"
+import { IssueAttachments } from "@/components/issues/issue-attachments"
 import {
   SeccionEnriquecer,
   SeccionRelacionados,
@@ -30,7 +32,8 @@ import {
   getIssueHistory,
   getIssueLinks,
 } from "@/lib/db/queries/issues"
-import { listProjectOptions } from "@/lib/db/queries/projects"
+import { listAreas, listProjectOptions } from "@/lib/db/queries/projects"
+import { listAttachments } from "@/lib/db/queries/attachments"
 import { getRelacionesDeIssue } from "@/lib/db/queries/relaciones"
 import { fechaLarga, haceCuanto } from "@/lib/utils/fechas"
 import type { Estado } from "@/lib/schemas/enums"
@@ -54,17 +57,21 @@ async function Detalle({ params }: { params: Params }) {
     notFound()
   }
 
-  const [historial, vinculos, proyectos, relacionados] = await Promise.all([
-    getIssueHistory(user.id, issue.id),
-    getIssueLinks(user.id, issue.id),
-    listProjectOptions(user.id),
-    getRelacionesDeIssue(user.id, issue.id),
-  ])
+  const [historial, vinculos, proyectos, areas, relacionados, adjuntos] =
+    await Promise.all([
+      getIssueHistory(user.id, issue.id),
+      getIssueLinks(user.id, issue.id),
+      listProjectOptions(user.id),
+      listAreas(user.id),
+      getRelacionesDeIssue(user.id, issue.id),
+      listAttachments(user.id, issue.id),
+    ])
 
   const valoresActuales = {
     title: issue.title,
     description: issue.description ?? "",
     projectId: issue.projectId ?? "",
+    areaId: issue.areaId ?? "",
     type: issue.type as never,
     priority: issue.priority as never,
     status: issue.status as never,
@@ -99,6 +106,7 @@ async function Detalle({ params }: { params: Params }) {
               nombre={issue.projectName}
               color={issue.projectColor}
             />
+            <AreaBadge nombre={issue.areaName} color={issue.areaColor} />
           </div>
         </div>
 
@@ -108,6 +116,7 @@ async function Detalle({ params }: { params: Params }) {
             issueId={issue.id}
             numero={issue.number}
             proyectos={proyectos}
+            areas={areas}
             valoresIniciales={valoresActuales}
           />
         </div>
@@ -127,6 +136,19 @@ async function Detalle({ params }: { params: Params }) {
                   Sin descripción todavía.
                 </p>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Fotos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <IssueAttachments
+                issueId={issue.id}
+                userId={user.id}
+                adjuntos={adjuntos}
+              />
             </CardContent>
           </Card>
 

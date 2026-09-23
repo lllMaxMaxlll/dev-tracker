@@ -5,6 +5,7 @@ import { and, eq, sql } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import {
+  issueAttachments,
   issueLinks,
   issueStatusHistory,
   issues,
@@ -20,6 +21,8 @@ import {
   linkIssueSchema,
   updateIssueSchema,
 } from "@/lib/schemas/issue"
+import { areaValidaParaProyecto } from "@/lib/db/queries/projects"
+import { borrarObjetos } from "@/lib/storage/adjuntos"
 import { guardarEmbedding } from "@/lib/ai/embeddings"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 
@@ -47,6 +50,11 @@ export async function createIssue(
   }
 
   const datos = parsed.data
+  const areaId = await areaValidaParaProyecto(
+    user.id,
+    datos.projectId || null,
+    datos.areaId || null
+  )
 
   try {
     const creado = await db.transaction(async (tx) => {
@@ -73,6 +81,7 @@ export async function createIssue(
           title: datos.title,
           description: datos.description || null,
           projectId: datos.projectId || null,
+          areaId,
           type: datos.type,
           priority: datos.priority,
           status: datos.status,
@@ -124,6 +133,11 @@ export async function updateIssue(valores: unknown): Promise<ActionResult> {
   }
 
   const { id, ...datos } = parsed.data
+  const areaId = await areaValidaParaProyecto(
+    user.id,
+    datos.projectId || null,
+    datos.areaId || null
+  )
 
   try {
     const [actual] = await db
@@ -143,6 +157,7 @@ export async function updateIssue(valores: unknown): Promise<ActionResult> {
           title: datos.title,
           description: datos.description || null,
           projectId: datos.projectId || null,
+          areaId,
           type: datos.type,
           priority: datos.priority,
         })
@@ -395,6 +410,18 @@ export async function deleteIssue(id: string): Promise<ActionResult> {
   const user = await requireUser()
 
   try {
+    // Las filas de los adjuntos se van con el problema por la FK, pero los
+    // archivos del bucket no: hay que sacarlos antes de perder sus rutas.
+    const adjuntos = await db
+      .select({ path: issueAttachments.path })
+      .from(issueAttachments)
+      .where(
+        and(
+          eq(issueAttachments.issueId, id),
+          eq(issueAttachments.userId, user.id)
+        )
+      )
+
     const borrados = await db
       .delete(issues)
       .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
@@ -403,6 +430,8 @@ export async function deleteIssue(id: string): Promise<ActionResult> {
     if (borrados.length === 0) {
       return actionError("No se encontró el problema")
     }
+
+    await borrarObjetos(adjuntos.map((a) => a.path))
 
     revalidarVistas()
 

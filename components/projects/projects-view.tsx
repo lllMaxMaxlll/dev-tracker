@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   ExternalLinkIcon,
   FolderPlusIcon,
+  LayersIcon,
   MoreHorizontalIcon,
   PencilIcon,
   Trash2Icon,
@@ -47,18 +48,25 @@ import {
 } from "@/components/ui/empty"
 import { toast } from "@/components/ui/toast"
 import { ProjectFormDialog } from "@/components/projects/project-form-dialog"
+import { AreasDialog } from "@/components/projects/areas-dialog"
 import { deleteProject } from "@/actions/projects"
-import type { ProjectWithCounts } from "@/lib/db/queries/projects"
+import type {
+  AreaConConteo,
+  ProjectWithCounts,
+} from "@/lib/db/queries/projects"
 
 export function ProjectsView({
   proyectos,
+  areas,
 }: {
   proyectos: ProjectWithCounts[]
+  areas: AreaConConteo[]
 }) {
   const router = useRouter()
   const [formAbierto, setFormAbierto] = React.useState(false)
   const [editando, setEditando] = React.useState<ProjectWithCounts | null>(null)
   const [aBorrar, setABorrar] = React.useState<ProjectWithCounts | null>(null)
+  const [areasDe, setAreasDe] = React.useState<ProjectWithCounts | null>(null)
   const [borrando, setBorrando] = React.useState(false)
 
   function abrirNuevo() {
@@ -153,6 +161,10 @@ export function ProjectsView({
                           <PencilIcon />
                           Editar
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setAreasDe(proyecto)}>
+                          <LayersIcon />
+                          Áreas
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"
                           onClick={() => setABorrar(proyecto)}
@@ -180,6 +192,37 @@ export function ProjectsView({
                   <Badge variant="outline">
                     {proyecto.totalIssues} en total
                   </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {areas
+                    .filter((a) => a.projectId === proyecto.id)
+                    .map((area) => (
+                      <Badge
+                        key={area.id}
+                        variant="secondary"
+                        className="border-0 font-medium"
+                        style={
+                          area.color
+                            ? {
+                                color: area.color,
+                                backgroundColor: `color-mix(in oklch, ${area.color} 12%, transparent)`,
+                              }
+                            : undefined
+                        }
+                      >
+                        {area.name}
+                      </Badge>
+                    ))}
+
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setAreasDe(proyecto)}
+                  >
+                    <LayersIcon data-icon="inline-start" />
+                    Áreas
+                  </Button>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -213,6 +256,15 @@ export function ProjectsView({
         onOpenChange={setFormAbierto}
         proyecto={editando}
       />
+
+      {areasDe ? (
+        <AreasDialog
+          open
+          onOpenChange={(abierto) => !abierto && setAreasDe(null)}
+          proyecto={areasDe}
+          areas={areas.filter((a) => a.projectId === areasDe.id)}
+        />
+      ) : null}
 
       <AlertDialog
         open={aBorrar !== null}

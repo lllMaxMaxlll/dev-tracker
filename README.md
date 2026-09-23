@@ -96,10 +96,12 @@ openssl rand -hex 32      # → CRON_SECRET
 bun run db:migrate
 ```
 
-Aplica dos migraciones:
+Aplica todas las migraciones de [drizzle/](./drizzle) en orden. Las que hay que
+conocer:
 
 - `0000_inicial` — extensiones, enums, 14 tablas e índices (incluido el HNSW de pgvector).
 - `0001_rls_y_triggers` — Row Level Security en todas las tablas, triggers de `updated_at` e índices de búsqueda por texto.
+- `0010_areas_y_adjuntos` — áreas por proyecto, y el **bucket privado `adjuntos`** de Supabase Storage con sus políticas. No hace falta crear nada a mano en el panel de Supabase.
 
 ### 6. Configurar la IA
 
@@ -139,6 +141,15 @@ justamente el caso de uso de anotar un problema en el momento.
 - El **proxy** ([proxy.ts](./proxy.ts)) protege las rutas, pero tampoco es la barrera: un cambio en el `matcher` puede dejar una ruta afuera sin que se note, y una server action se puede invocar directamente. Por eso la autorización se verifica **también** dentro de cada server action.
 
 Las tres capas están a propósito. Ninguna sola alcanza.
+
+**Con las fotos de los problemas es al revés: ahí RLS sí es la barrera.** El
+navegador sube la imagen directo al bucket `adjuntos` con la `anon key` —no pasa
+por el servidor de Next— así que lo único que decide qué puede escribir y leer
+cada cuenta son las políticas de `storage.objects` que crea la migración 0010.
+Están armadas sobre la primera carpeta de la ruta (`<user_id>/<issue_id>/…`), y
+el bucket es privado: las imágenes se muestran con URLs firmadas que caducan a
+la hora. La server action que registra la foto vuelve a verificar la ruta antes
+de guardar la fila.
 
 ---
 

@@ -1,7 +1,7 @@
 import { QuickCapture } from "@/components/capture/quick-capture"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getUser } from "@/lib/auth/require-user"
-import { listProjectOptions } from "@/lib/db/queries/projects"
+import { listAreas, listProjectOptions } from "@/lib/db/queries/projects"
 
 /**
  * Carga la lista de proyectos para precargar el selector del alta rápida.
@@ -14,9 +14,12 @@ export async function QuickCaptureSlot() {
     return null
   }
 
-  const proyectos = await listProjectOptions(user.id)
+  const [proyectos, areas] = await Promise.all([
+    listProjectOptions(user.id),
+    listAreas(user.id),
+  ])
 
-  return <QuickCapture proyectos={proyectos} />
+  return <QuickCapture proyectos={proyectos} areas={areas} />
 }
 
 export function QuickCaptureFallback() {

@@ -71,6 +71,13 @@
       "when": 1790085709861,
       "tag": "0009_archivar_tarjetas",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790168426701,
+      "tag": "0010_areas_y_adjuntos",
+      "breakpoints": true
     }
   ]
 }

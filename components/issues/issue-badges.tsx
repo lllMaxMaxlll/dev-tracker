@@ -96,3 +96,36 @@ export function ProyectoBadge({
     </span>
   )
 }
+
+/**
+ * El área usa el color que el usuario le puso, así que no puede salir de las
+ * clases fijas de arriba: va como estilo en línea sobre un fondo tenue.
+ */
+export function AreaBadge({
+  nombre,
+  color,
+}: {
+  nombre: string | null
+  color?: string | null
+}) {
+  if (!nombre) return null
+
+  return (
+    <Badge
+      variant="secondary"
+      className="border-0 font-medium"
+      style={
+        color
+          ? {
+              // `color-mix` deja el texto con el color elegido y el fondo con
+              // una versión suave del mismo, sin tener que calcular dos.
+              color,
+              backgroundColor: `color-mix(in oklch, ${color} 12%, transparent)`,
+            }
+          : undefined
+      }
+    >
+      {nombre}
+    </Badge>
+  )
+}

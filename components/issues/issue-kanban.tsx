@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button"
 import { EnumSelect } from "@/components/ui/enum-select"
 import { toast } from "@/components/ui/toast"
 import {
+  AreaBadge,
   PrioridadBadge,
   ProyectoBadge,
   TipoBadge,
@@ -120,6 +121,7 @@ function Tarjeta({
       <div className="flex flex-wrap items-center gap-2">
         <TipoBadge tipo={issue.type} />
         <ProyectoBadge nombre={issue.projectName} color={issue.projectColor} />
+        <AreaBadge nombre={issue.areaName} color={issue.areaColor} />
       </div>
     </div>
   )

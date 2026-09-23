@@ -48,6 +48,13 @@ export type ProyectoOpcion = {
   color: string | null
 }
 
+export type AreaOpcion = {
+  id: string
+  projectId: string
+  name: string
+  color: string | null
+}
+
 const OPCIONES_TIPO = TIPOS.map((t) => ({ label: ETIQUETAS_TIPO[t], value: t }))
 const OPCIONES_PRIORIDAD = PRIORIDADES.map((p) => ({
   label: ETIQUETAS_PRIORIDAD[p],
@@ -62,6 +69,7 @@ const VALORES_INICIALES: IssueFormValues = {
   title: "",
   description: "",
   projectId: "",
+  areaId: "",
   type: "bug",
   priority: "media",
   status: "pendiente",
@@ -71,6 +79,8 @@ type Props = {
   open: boolean
   onOpenChange: (abierto: boolean) => void
   proyectos: ProyectoOpcion[]
+  /** Áreas de todos los proyectos; se filtran por el proyecto elegido. */
+  areas?: AreaOpcion[]
   /** Id del problema a editar. Si falta, es un alta. */
   issueId?: string
   valoresIniciales?: Partial<IssueFormValues>
@@ -85,6 +95,7 @@ export function IssueFormDialog({
   open,
   onOpenChange,
   proyectos,
+  areas = [],
   issueId,
   valoresIniciales,
   encabezado,
@@ -175,6 +186,16 @@ export function IssueFormDialog({
   ) {
     setValores((previos) => ({ ...previos, [campo]: valor }))
   }
+
+  // Un área pertenece a un proyecto: cambiar de proyecto deja el área vacía en
+  // vez de arrastrar una que no le corresponde.
+  function elegirProyecto(projectId: string) {
+    setValores((previos) => ({ ...previos, projectId, areaId: "" }))
+  }
+
+  const areasDelProyecto = areas.filter(
+    (a) => a.projectId === valores.projectId
+  )
 
   /**
    * Búsqueda de parecidos, a pedido.
@@ -314,12 +335,34 @@ export function IssueFormDialog({
                   className="w-full"
                   placeholder="Sin proyecto"
                   value={valores.projectId || null}
-                  onValueChange={(valor) => set("projectId", valor ?? "")}
+                  onValueChange={(valor) => elegirProyecto(valor ?? "")}
                   opciones={proyectosLocales.map((p) => ({
                     label: p.name,
                     value: p.id,
                   }))}
                 />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="areaId">Área</FieldLabel>
+                <EnumSelect
+                  id="areaId"
+                  className="w-full"
+                  placeholder="Sin área"
+                  value={valores.areaId || null}
+                  onValueChange={(valor) => set("areaId", valor ?? "")}
+                  opciones={areasDelProyecto.map((a) => ({
+                    label: a.name,
+                    value: a.id,
+                  }))}
+                />
+                <FieldDescription>
+                  {!valores.projectId
+                    ? "Elegí un proyecto para ver sus áreas."
+                    : areasDelProyecto.length === 0
+                      ? "Este proyecto todavía no tiene áreas. Se crean en Proyectos."
+                      : "El módulo o parte del proyecto."}
+                </FieldDescription>
               </Field>
 
               <Field>

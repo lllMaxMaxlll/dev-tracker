@@ -27,6 +27,7 @@ import {
 import { toast } from "@/components/ui/toast"
 import {
   IssueFormDialog,
+  type AreaOpcion,
   type ProyectoOpcion,
 } from "@/components/issues/issue-form-dialog"
 import {
@@ -90,11 +91,13 @@ export function AccionesIssue({
   issueId,
   numero,
   proyectos,
+  areas,
   valoresIniciales,
 }: {
   issueId: string
   numero: number
   proyectos: ProyectoOpcion[]
+  areas: AreaOpcion[]
   valoresIniciales: IssueFormValues
 }) {
   const router = useRouter()
@@ -141,6 +144,7 @@ export function AccionesIssue({
         open={editando}
         onOpenChange={setEditando}
         proyectos={proyectos}
+        areas={areas}
         issueId={issueId}
         valoresIniciales={valoresIniciales}
       />

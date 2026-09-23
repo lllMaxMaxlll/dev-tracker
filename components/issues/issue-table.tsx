@@ -21,6 +21,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import {
+  AreaBadge,
   EstadoBadge,
   PrioridadBadge,
   ProyectoBadge,
@@ -109,6 +110,7 @@ export function IssueTable({ issues }: { issues: IssueListItem[] }) {
             </CabeceraOrdenable>
             <TableHead className="min-w-64">Título</TableHead>
             <TableHead>Proyecto</TableHead>
+            <TableHead>Área</TableHead>
             <TableHead>Tipo</TableHead>
             <CabeceraOrdenable campo="prioridad">Prioridad</CabeceraOrdenable>
             <TableHead>Estado</TableHead>
@@ -140,6 +142,13 @@ export function IssueTable({ issues }: { issues: IssueListItem[] }) {
                   nombre={issue.projectName}
                   color={issue.projectColor}
                 />
+              </TableCell>
+              <TableCell>
+                {issue.areaName ? (
+                  <AreaBadge nombre={issue.areaName} color={issue.areaColor} />
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
               </TableCell>
               <TableCell>
                 <TipoBadge tipo={issue.type} />

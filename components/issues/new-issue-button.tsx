@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
 import {
   IssueFormDialog,
+  type AreaOpcion,
   type ProyectoOpcion,
 } from "@/components/issues/issue-form-dialog"
 
@@ -20,7 +21,13 @@ import {
  * el otro: ya estás sentado, sabés qué querés cargar y llenar cuatro campos es
  * más rápido y más barato que esperar al modelo.
  */
-export function NewIssueButton({ proyectos }: { proyectos: ProyectoOpcion[] }) {
+export function NewIssueButton({
+  proyectos,
+  areas,
+}: {
+  proyectos: ProyectoOpcion[]
+  areas: AreaOpcion[]
+}) {
   const router = useRouter()
   const [abierto, setAbierto] = React.useState(false)
 
@@ -36,6 +43,7 @@ export function NewIssueButton({ proyectos }: { proyectos: ProyectoOpcion[] }) {
         open={abierto}
         onOpenChange={setAbierto}
         proyectos={proyectos}
+        areas={areas}
         onGuardado={(creado) => {
           if (creado) {
             router.refresh()

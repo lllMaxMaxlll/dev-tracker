@@ -16,13 +16,22 @@ import {
   TIPOS,
 } from "@/lib/schemas/enums"
 import { conParametros } from "@/lib/utils/search-params"
-import type { ProyectoOpcion } from "@/components/issues/issue-form-dialog"
+import type {
+  AreaOpcion,
+  ProyectoOpcion,
+} from "@/components/issues/issue-form-dialog"
 
 /**
  * Los filtros viven en la URL, no en estado local: así la vista es
  * compartible, sobrevive al refresh y el servidor puede filtrar en SQL.
  */
-export function IssueFilters({ proyectos }: { proyectos: ProyectoOpcion[] }) {
+export function IssueFilters({
+  proyectos,
+  areas,
+}: {
+  proyectos: ProyectoOpcion[]
+  areas: AreaOpcion[]
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -51,9 +60,23 @@ export function IssueFilters({ proyectos }: { proyectos: ProyectoOpcion[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busqueda])
 
-  const hayFiltros = ["proyecto", "tipo", "estado", "prioridad", "q"].some(
-    (clave) => searchParams.get(clave)
+  // El filtro de área necesita un proyecto: son suyas y cambiar de proyecto
+  // deja de tener sentido la que estuviera elegida.
+  const proyectoElegido = proyectos.find(
+    (p) => p.slug === searchParams.get("proyecto")
   )
+  const areasDelProyecto = proyectoElegido
+    ? areas.filter((a) => a.projectId === proyectoElegido.id)
+    : []
+
+  const hayFiltros = [
+    "proyecto",
+    "tipo",
+    "estado",
+    "prioridad",
+    "area",
+    "q",
+  ].some((clave) => searchParams.get(clave))
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -71,9 +94,22 @@ export function IssueFilters({ proyectos }: { proyectos: ProyectoOpcion[] }) {
       <EnumSelect
         placeholder="Proyecto"
         value={searchParams.get("proyecto")}
-        onValueChange={(valor) => aplicar({ proyecto: valor })}
+        // Cambiar de proyecto descarta el área elegida.
+        onValueChange={(valor) => aplicar({ proyecto: valor, area: null })}
         opciones={proyectos.map((p) => ({ label: p.name, value: p.slug }))}
       />
+
+      {areasDelProyecto.length > 0 ? (
+        <EnumSelect
+          placeholder="Área"
+          value={searchParams.get("area")}
+          onValueChange={(valor) => aplicar({ area: valor })}
+          opciones={areasDelProyecto.map((a) => ({
+            label: a.name,
+            value: a.id,
+          }))}
+        />
+      ) : null}
 
       <EnumSelect
         placeholder="Tipo"
@@ -110,6 +146,7 @@ export function IssueFilters({ proyectos }: { proyectos: ProyectoOpcion[] }) {
             setBusqueda("")
             aplicar({
               proyecto: null,
+              area: null,
               tipo: null,
               estado: null,
               prioridad: null,
