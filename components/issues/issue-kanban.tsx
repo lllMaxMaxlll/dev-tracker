@@ -18,12 +18,18 @@ import {
 } from "@dnd-kit/core"
 import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
-import { ArchiveIcon, ArchiveRestoreIcon, ArrowLeftIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  ArrowLeftIcon,
+  PencilIcon,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { ClientOnly } from "@/components/ui/client-only"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { EnumSelect } from "@/components/ui/enum-select"
 import { toast } from "@/components/ui/toast"
 import {
@@ -32,11 +38,22 @@ import {
   ProyectoBadge,
   TipoBadge,
 } from "@/components/issues/issue-badges"
-import { archiveIssue, moveIssue, setAutoArchivoKanban } from "@/actions/issues"
+import {
+  IssueFormDialog,
+  type AreaOpcion,
+  type ProyectoOpcion,
+} from "@/components/issues/issue-form-dialog"
+import {
+  archiveIssue,
+  getIssueFormValues,
+  moveIssue,
+  setAutoArchivoKanban,
+} from "@/actions/issues"
 import { ESTADOS, ETIQUETAS_ESTADO, type Estado } from "@/lib/schemas/enums"
 import { DIAS_AUTO_ARCHIVO } from "@/lib/schemas/issue"
 import { conParametros } from "@/lib/utils/search-params"
 import type { IssueListItem } from "@/lib/db/queries/issues"
+import type { IssueFormValues } from "@/lib/schemas/issue"
 
 /**
  * Distancia desde el borde de la ventana a la que se pinean los encabezados
@@ -68,14 +85,30 @@ type AccionArchivo = {
   onClick: (issue: IssueListItem) => void
 }
 
+/** Abrir el formulario de edición desde la tarjeta. */
+type AccionEditar = {
+  /** Id de la tarjeta cuyos datos se están pidiendo, si hay alguna. */
+  abriendo: string | null
+  onClick: (issue: IssueListItem) => void
+}
+
+/**
+ * Los botones de la tarjeta aparecen al pasar el mouse, para no ensuciar el
+ * tablero. En pantallas táctiles no hay hover: se ven siempre.
+ */
+const CLASES_BOTON_TARJETA =
+  "text-muted-foreground opacity-0 group-hover/tarjeta:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+
 function Tarjeta({
   issue,
   arrastrando,
   archivo,
+  editar,
 }: {
   issue: IssueListItem
   arrastrando?: boolean
   archivo?: AccionArchivo
+  editar?: AccionEditar
 }) {
   return (
     <div
@@ -89,13 +122,27 @@ function Tarjeta({
           #{issue.number}
         </span>
         <div className="flex items-center gap-1">
+          {editar ? (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className={CLASES_BOTON_TARJETA}
+              aria-label={`Editar #${issue.number}`}
+              title="Editar"
+              // El click no debe iniciar un arrastre.
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => editar.onClick(issue)}
+              disabled={editar.abriendo !== null}
+            >
+              {editar.abriendo === issue.id ? <Spinner /> : <PencilIcon />}
+            </Button>
+          ) : null}
+
           {archivo ? (
             <Button
               variant="ghost"
               size="icon-xs"
-              // Sólo aparece al pasar el mouse, para no ensuciar el tablero.
-              // En pantallas táctiles no hay hover: se ve siempre.
-              className="text-muted-foreground opacity-0 group-hover/tarjeta:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+              className={CLASES_BOTON_TARJETA}
               aria-label={archivo.archivada ? "Desarchivar" : "Archivar"}
               title={archivo.archivada ? "Desarchivar" : "Archivar"}
               // El click no debe iniciar un arrastre.
@@ -130,9 +177,11 @@ function Tarjeta({
 function TarjetaArrastrable({
   issue,
   archivo,
+  editar,
 }: {
   issue: IssueListItem
   archivo: AccionArchivo
+  editar: AccionEditar
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: issue.id, data: { issue } })
@@ -145,7 +194,12 @@ function TarjetaArrastrable({
       {...listeners}
       {...attributes}
     >
-      <Tarjeta issue={issue} arrastrando={isDragging} archivo={archivo} />
+      <Tarjeta
+        issue={issue}
+        arrastrando={isDragging}
+        archivo={archivo}
+        editar={editar}
+      />
     </div>
   )
 }
@@ -154,10 +208,12 @@ function Columna({
   estado,
   issues,
   archivo,
+  editar,
 }: {
   estado: Estado
   issues: IssueListItem[]
   archivo: AccionArchivo
+  editar: AccionEditar
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: estado })
 
@@ -180,7 +236,12 @@ function Columna({
         )}
       >
         {issues.map((issue) => (
-          <TarjetaArrastrable key={issue.id} issue={issue} archivo={archivo} />
+          <TarjetaArrastrable
+            key={issue.id}
+            issue={issue}
+            archivo={archivo}
+            editar={editar}
+          />
         ))}
 
         {issues.length === 0 ? (
@@ -357,12 +418,16 @@ export function IssueKanban({
   archivadas,
   verArchivadas,
   diasAuto,
+  proyectos,
+  areas,
 }: {
   issues: IssueListItem[]
   /** Cuántas hay archivadas con los filtros actuales. */
   archivadas: number
   verArchivadas: boolean
   diasAuto: number | null
+  proyectos: ProyectoOpcion[]
+  areas: AreaOpcion[]
 }) {
   const router = useRouter()
   // Copia local para poder mover la tarjeta al instante y revertir si el
@@ -371,6 +436,11 @@ export function IssueKanban({
   const [activo, setActivo] = React.useState<IssueListItem | null>(null)
   const [sobre, setSobre] = React.useState<Estado | null>(null)
   const [geometria, setGeometria] = React.useState<Geometria | null>(null)
+  const [abriendo, setAbriendo] = React.useState<string | null>(null)
+  const [editando, setEditando] = React.useState<{
+    id: string
+    valores: IssueFormValues
+  } | null>(null)
   const tableroRef = React.useRef<HTMLDivElement>(null)
 
   // Cuando el servidor manda datos nuevos (un refresh, un cambio de filtro),
@@ -464,6 +534,26 @@ export function IssueKanban({
     archivada: verArchivadas,
     onClick: alternarArchivo,
   }
+
+  /**
+   * El formulario necesita la descripción, y la tarjeta no la trae: se pide al
+   * abrir. Guardar sin ella la borraría.
+   */
+  async function abrirEdicion(issue: IssueListItem) {
+    setAbriendo(issue.id)
+    const resultado = await getIssueFormValues(issue.id)
+    setAbriendo(null)
+
+    if (!resultado.ok) {
+      toast.add({ title: resultado.error, type: "error" })
+
+      return
+    }
+
+    setEditando({ id: issue.id, valores: resultado.data })
+  }
+
+  const editar: AccionEditar = { abriendo, onClick: abrirEdicion }
 
   function onDragStart(event: DragStartEvent) {
     setActivo(
@@ -581,6 +671,7 @@ export function IssueKanban({
                 estado={estado}
                 issues={items.filter((i) => i.status === estado)}
                 archivo={archivo}
+                editar={editar}
               />
             ))}
           </div>
@@ -602,6 +693,17 @@ export function IssueKanban({
           </DragOverlay>
         </DndContext>
       </ClientOnly>
+
+      {editando ? (
+        <IssueFormDialog
+          open
+          onOpenChange={(abierto) => !abierto && setEditando(null)}
+          proyectos={proyectos}
+          areas={areas}
+          issueId={editando.id}
+          valoresIniciales={editando.valores}
+        />
+      ) : null}
     </div>
   )
 }

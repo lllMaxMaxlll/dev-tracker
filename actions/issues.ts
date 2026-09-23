@@ -20,6 +20,7 @@ import {
   createIssueSchema,
   linkIssueSchema,
   updateIssueSchema,
+  type IssueFormValues,
 } from "@/lib/schemas/issue"
 import { areaValidaParaProyecto } from "@/lib/db/queries/projects"
 import { borrarObjetos } from "@/lib/storage/adjuntos"
@@ -118,6 +119,53 @@ export async function createIssue(
     console.error("[createIssue]", error)
 
     return actionError("No se pudo crear el problema")
+  }
+}
+
+/**
+ * Valores del formulario de un problema, para editarlo sin salir de donde estés.
+ *
+ * El kanban y la tabla no traen la descripción —serían cientos de líneas de
+ * texto por tarjeta que nadie mira—, así que el diálogo la pide acá al abrirse.
+ * Sin esto, guardar desde el tablero borraría la descripción.
+ */
+export async function getIssueFormValues(
+  id: string
+): Promise<ActionResult<IssueFormValues>> {
+  const user = await requireUser()
+
+  try {
+    const [issue] = await db
+      .select({
+        title: issues.title,
+        description: issues.description,
+        projectId: issues.projectId,
+        areaId: issues.areaId,
+        type: issues.type,
+        priority: issues.priority,
+        status: issues.status,
+      })
+      .from(issues)
+      .where(and(eq(issues.id, id), eq(issues.userId, user.id)))
+      .limit(1)
+
+    if (!issue) {
+      return actionError("No se encontró el problema")
+    }
+
+    return actionOk({
+      title: issue.title,
+      description: issue.description ?? "",
+      projectId: issue.projectId ?? "",
+      areaId: issue.areaId ?? "",
+      type: issue.type,
+      priority: issue.priority,
+      status: issue.status,
+    })
+  } catch (error) {
+    console.error("[getIssueFormValues]", error)
+
+    return actionError("No se pudo abrir el problema")
   }
 }
 

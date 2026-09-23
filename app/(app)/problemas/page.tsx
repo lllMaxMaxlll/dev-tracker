@@ -41,9 +41,13 @@ async function BotonNuevo() {
 async function Kanban({
   userId,
   filtros,
+  proyectos,
+  areas,
 }: {
   userId: string
   filtros: Filtros
+  proyectos: Awaited<ReturnType<typeof listProjectOptions>>
+  areas: Awaited<ReturnType<typeof listAreas>>
 }) {
   const diasAuto = await getAutoArchivoKanban(userId)
   const { issues, archivadas } = await listIssuesForKanban(
@@ -58,6 +62,8 @@ async function Kanban({
       archivadas={archivadas}
       verArchivadas={Boolean(filtros.archivadas)}
       diasAuto={diasAuto}
+      proyectos={proyectos}
+      areas={areas}
     />
   )
 }
@@ -124,7 +130,12 @@ async function Contenido({ searchParams }: { searchParams: SearchParams }) {
       </div>
 
       {filtros.vista === "kanban" ? (
-        <Kanban userId={user.id} filtros={filtros} />
+        <Kanban
+          userId={user.id}
+          filtros={filtros}
+          proyectos={proyectos}
+          areas={areas}
+        />
       ) : (
         <Tabla userId={user.id} filtros={filtros} crudos={crudos} />
       )}
