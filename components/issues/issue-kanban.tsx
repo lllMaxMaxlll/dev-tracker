@@ -38,22 +38,17 @@ import {
   ProyectoBadge,
   TipoBadge,
 } from "@/components/issues/issue-badges"
-import {
-  IssueFormDialog,
-  type AreaOpcion,
-  type ProyectoOpcion,
+import type {
+  AreaOpcion,
+  ProyectoOpcion,
 } from "@/components/issues/issue-form-dialog"
-import {
-  archiveIssue,
-  getIssueFormValues,
-  moveIssue,
-  setAutoArchivoKanban,
-} from "@/actions/issues"
+import { useEdicionRapida } from "@/components/issues/edicion-rapida"
+import { TituloIssue } from "@/components/issues/titulo-issue"
+import { archiveIssue, moveIssue, setAutoArchivoKanban } from "@/actions/issues"
 import { ESTADOS, ETIQUETAS_ESTADO, type Estado } from "@/lib/schemas/enums"
 import { DIAS_AUTO_ARCHIVO } from "@/lib/schemas/issue"
 import { conParametros } from "@/lib/utils/search-params"
 import type { IssueListItem } from "@/lib/db/queries/issues"
-import type { IssueFormValues } from "@/lib/schemas/issue"
 
 /**
  * Distancia desde el borde de la ventana a la que se pinean los encabezados
@@ -156,14 +151,14 @@ function Tarjeta({
         </div>
       </div>
 
-      <Link
-        href={`/problemas/${issue.number}`}
-        className="text-sm leading-snug font-medium underline-offset-4 hover:underline"
+      <TituloIssue
+        numero={issue.number}
+        titulo={issue.title}
+        excerpt={issue.excerpt}
+        className="text-sm leading-snug font-medium"
         // El click no debe iniciar un arrastre.
         onPointerDown={(e) => e.stopPropagation()}
-      >
-        {issue.title}
-      </Link>
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <TipoBadge tipo={issue.type} />
@@ -436,11 +431,7 @@ export function IssueKanban({
   const [activo, setActivo] = React.useState<IssueListItem | null>(null)
   const [sobre, setSobre] = React.useState<Estado | null>(null)
   const [geometria, setGeometria] = React.useState<Geometria | null>(null)
-  const [abriendo, setAbriendo] = React.useState<string | null>(null)
-  const [editando, setEditando] = React.useState<{
-    id: string
-    valores: IssueFormValues
-  } | null>(null)
+  const edicion = useEdicionRapida({ proyectos, areas })
   const tableroRef = React.useRef<HTMLDivElement>(null)
 
   // Cuando el servidor manda datos nuevos (un refresh, un cambio de filtro),
@@ -535,25 +526,10 @@ export function IssueKanban({
     onClick: alternarArchivo,
   }
 
-  /**
-   * El formulario necesita la descripción, y la tarjeta no la trae: se pide al
-   * abrir. Guardar sin ella la borraría.
-   */
-  async function abrirEdicion(issue: IssueListItem) {
-    setAbriendo(issue.id)
-    const resultado = await getIssueFormValues(issue.id)
-    setAbriendo(null)
-
-    if (!resultado.ok) {
-      toast.add({ title: resultado.error, type: "error" })
-
-      return
-    }
-
-    setEditando({ id: issue.id, valores: resultado.data })
+  const editar: AccionEditar = {
+    abriendo: edicion.abriendo,
+    onClick: (issue) => edicion.abrir(issue.id),
   }
-
-  const editar: AccionEditar = { abriendo, onClick: abrirEdicion }
 
   function onDragStart(event: DragStartEvent) {
     setActivo(
@@ -694,16 +670,7 @@ export function IssueKanban({
         </DndContext>
       </ClientOnly>
 
-      {editando ? (
-        <IssueFormDialog
-          open
-          onOpenChange={(abierto) => !abierto && setEditando(null)}
-          proyectos={proyectos}
-          areas={areas}
-          issueId={editando.id}
-          valoresIniciales={editando.valores}
-        />
-      ) : null}
+      {edicion.dialogo}
     </div>
   )
 }

@@ -72,10 +72,14 @@ async function Tabla({
   userId,
   filtros,
   crudos,
+  proyectos,
+  areas,
 }: {
   userId: string
   filtros: Filtros
   crudos: Record<string, string | string[] | undefined>
+  proyectos: Awaited<ReturnType<typeof listProjectOptions>>
+  areas: Awaited<ReturnType<typeof listAreas>>
 }) {
   const { issues, total } = await listIssues(userId, filtros)
   const paginas = Math.max(1, Math.ceil(total / TAMANO_PAGINA))
@@ -96,7 +100,7 @@ async function Tabla({
 
   return (
     <div className="flex flex-col gap-3">
-      <IssueTable issues={issues} />
+      <IssueTable issues={issues} proyectos={proyectos} areas={areas} />
       <IssuePagination pagina={filtros.pagina} total={total} />
     </div>
   )
@@ -137,7 +141,13 @@ async function Contenido({ searchParams }: { searchParams: SearchParams }) {
           areas={areas}
         />
       ) : (
-        <Tabla userId={user.id} filtros={filtros} crudos={crudos} />
+        <Tabla
+          userId={user.id}
+          filtros={filtros}
+          crudos={crudos}
+          proyectos={proyectos}
+          areas={areas}
+        />
       )}
     </div>
   )

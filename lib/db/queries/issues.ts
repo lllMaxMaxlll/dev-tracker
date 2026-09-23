@@ -36,6 +36,13 @@ export type IssueListItem = {
   resolvedAt: Date | null
   kanbanOrder: number
   archivedAt: Date | null
+  /**
+   * Arranque de la descripción, para el tooltip del título. Se traen 281
+   * caracteres y no la descripción entera: con cien problemas en pantalla, el
+   * texto completo serían cientos de kilobytes que casi nadie llega a leer. El
+   * carácter 281 sólo sirve para saber que hay más y poner los puntos.
+   */
+  excerpt: string | null
   projectId: string | null
   projectName: string | null
   projectColor: string | null
@@ -56,6 +63,7 @@ const CAMPOS_LISTA = {
   resolvedAt: issues.resolvedAt,
   kanbanOrder: issues.kanbanOrder,
   archivedAt: issues.archivedAt,
+  excerpt: sql<string | null>`left(${issues.description}, 281)`,
   projectId: issues.projectId,
   projectName: projects.name,
   projectColor: projects.color,
