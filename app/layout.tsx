@@ -7,12 +7,9 @@ import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-const fontHeading = Montserrat({
-  subsets: ["latin"],
-  variable: "--font-heading",
-})
+const montserratHeading = Montserrat({subsets:['latin'],variable:'--font-heading'})
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const geist = Geist({subsets:['latin'],variable:'--font-sans'})
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -83,7 +80,7 @@ export default function RootLayout({
         "font-sans",
         geist.variable,
         fontMono.variable,
-        fontHeading.variable
+        montserratHeading.variable
       )}
     >
       <body>
