@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { duracionLegible } from "@/lib/utils/fechas"
+import { duracionLaboralLegible } from "@/lib/utils/horario-laboral"
 import type { ResumenMetricas } from "@/lib/db/queries/metrics"
 
 function Tarjeta({
@@ -86,12 +86,14 @@ export function SummaryCards({ resumen }: { resumen: ResumenMetricas }) {
         valor={
           resumen.tiempoPromedioMs === null
             ? "—"
-            : duracionLegible(resumen.tiempoPromedioMs)
+            : duracionLaboralLegible(resumen.tiempoPromedioMs)
         }
+        // Se cuenta en horas de trabajo, no de reloj: lo que pasa de noche o el
+        // fin de semana no suma. Una jornada son 8,5 horas.
         detalle={
           resumen.muestraPromedio === 0
             ? "Todavía no resolviste nada"
-            : `Promedio de ${resumen.muestraPromedio} ${
+            : `En horario laboral · ${resumen.muestraPromedio} ${
                 resumen.muestraPromedio === 1 ? "problema" : "problemas"
               } en 90 días`
         }

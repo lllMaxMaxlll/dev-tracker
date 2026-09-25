@@ -3,6 +3,7 @@ import "server-only"
 import { sql } from "drizzle-orm"
 
 import { db } from "@/lib/db"
+import { msLaborales } from "@/lib/utils/horario-laboral"
 
 /**
  * Métricas del dashboard.
@@ -20,7 +21,10 @@ export type ResumenMetricas = {
   abiertos: number
   resueltosEstaSemana: number
   enProgreso: number
-  /** Promedio de resolución en milisegundos, o `null` si todavía no hay datos. */
+  /**
+   * Promedio de resolución en milisegundos de jornada laboral, o `null` si
+   * todavía no hay datos. No es tiempo de reloj: ver lib/utils/horario-laboral.
+   */
   tiempoPromedioMs: number | null
   /** Cuántos problemas resueltos alimentan ese promedio. */
   muestraPromedio: number
@@ -38,34 +42,36 @@ export async function getResumen(userId: string): Promise<ResumenMetricas> {
           and resolved_at >= date_trunc('week', now())
       )::int as resueltos_esta_semana,
 
-      count(*) filter (where status = 'en_progreso')::int as en_progreso,
-
-      -- El promedio se limita a los últimos 90 días para que refleje cómo
-      -- venís trabajando ahora y no quede anclado a la historia vieja.
-      avg(
-        extract(epoch from (resolved_at - created_at)) * 1000
-      ) filter (
-        where status = 'resuelto'
-          and resolved_at is not null
-          and resolved_at >= now() - interval '90 days'
-      ) as tiempo_promedio_ms,
-
-      count(*) filter (
-        where status = 'resuelto'
-          and resolved_at is not null
-          and resolved_at >= now() - interval '90 days'
-      )::int as muestra_promedio
+      count(*) filter (where status = 'en_progreso')::int as en_progreso
     from issues
     where user_id = ${userId}
   `)
+
+  // El promedio es la excepción a la regla de agregar todo en SQL: se mide en
+  // horas de jornada, y eso necesita la zona horaria del usuario y el calendario
+  // de la semana. Hacerlo en SQL sería un generate_series por problema; en
+  // JavaScript es una función pura que se puede leer y probar. La muestra está
+  // acotada a 90 días, así que son unas decenas de filas.
+  const resueltos = await db.execute(sql`
+    select created_at, resolved_at
+    from issues
+    where user_id = ${userId}
+      and status = 'resuelto'
+      and resolved_at is not null
+      and resolved_at >= now() - interval '90 days'
+  `)
+
+  const duraciones = (
+    resueltos.rows as { created_at: Date; resolved_at: Date }[]
+  ).map((fila) =>
+    msLaborales(new Date(fila.created_at), new Date(fila.resolved_at))
+  )
 
   const fila = resultado.rows[0] as
     | {
         abiertos: number
         resueltos_esta_semana: number
         en_progreso: number
-        tiempo_promedio_ms: string | number | null
-        muestra_promedio: number
       }
     | undefined
 
@@ -73,10 +79,10 @@ export async function getResumen(userId: string): Promise<ResumenMetricas> {
     abiertos: fila?.abiertos ?? 0,
     resueltosEstaSemana: fila?.resueltos_esta_semana ?? 0,
     enProgreso: fila?.en_progreso ?? 0,
-    // `avg` de Postgres vuelve como numeric, que node-postgres entrega string.
-    tiempoPromedioMs:
-      fila?.tiempo_promedio_ms == null ? null : Number(fila.tiempo_promedio_ms),
-    muestraPromedio: fila?.muestra_promedio ?? 0,
+    tiempoPromedioMs: duraciones.length
+      ? duraciones.reduce((total, ms) => total + ms, 0) / duraciones.length
+      : null,
+    muestraPromedio: duraciones.length,
   }
 }
 

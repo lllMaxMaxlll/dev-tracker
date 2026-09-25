@@ -2,6 +2,7 @@ import "server-only"
 
 import { pedirTexto } from "@/lib/ai/client"
 import { duracionLegible } from "@/lib/utils/fechas"
+import { duracionLaboralLegible } from "@/lib/utils/horario-laboral"
 import type { Distribucion, ResumenMetricas } from "@/lib/db/queries/metrics"
 
 /**
@@ -40,7 +41,8 @@ export async function generarInsights(params: {
   const datos = [
     `Abiertos: ${params.resumen.abiertos}. En progreso: ${params.resumen.enProgreso}. Resueltos esta semana: ${params.resumen.resueltosEstaSemana}.`,
     params.resumen.tiempoPromedioMs !== null
-      ? `Tiempo promedio de resolución: ${duracionLegible(params.resumen.tiempoPromedioMs)} sobre ${params.resumen.muestraPromedio} problemas.`
+      ? // Este viene en horas de jornada, así que se formatea como tal.
+        `Tiempo promedio de resolución: ${duracionLaboralLegible(params.resumen.tiempoPromedioMs)} de trabajo sobre ${params.resumen.muestraPromedio} problemas.`
       : "Todavía no hay problemas resueltos.",
     tiempos ? `Tiempo promedio por tipo: ${tiempos}.` : "",
     `Distribución por tipo: ${params.porTipo.map((d) => `${d.etiqueta} ${d.total}`).join(", ") || "sin datos"}.`,
