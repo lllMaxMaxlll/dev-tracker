@@ -30,8 +30,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Sin esto, un secreto que falta hace fallar al curl con un mensaje que no
+      # dice nada ("URL rejected" o un 401 pelado). Este paso nombra cuál falta.
+      - name: Comprobar los secretos del repositorio
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          faltan=""
+          [ -n "$APP_URL" ] || faltan="$faltan APP_URL"
+          [ -n "$CRON_SECRET" ] || faltan="$faltan CRON_SECRET"
+
+          if [ -n "$faltan" ]; then
+            echo "::error title=Faltan secretos del repositorio::Cargá$faltan en Settings → Secrets and variables → Actions. APP_URL es la URL de la app sin barra final; CRON_SECRET tiene que ser el mismo valor que la variable de entorno de Vercel."
+            exit 1
+          fi
+
+      # Los secretos van por `env` y no interpolados en el comando: así no
+      # quedan en la línea de comandos del runner.
       - name: Pegarle al endpoint de recolección
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl --fail-with-body --silent --show-error --max-time 90 \
-            --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.APP_URL }}/api/cron/usage"
+            --write-out '\nHTTP %{http_code} en %{time_total}s\n' \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/usage"

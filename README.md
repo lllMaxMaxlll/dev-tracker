@@ -340,10 +340,22 @@ de imprecisión. Para un monitor de cuotas eso no alcanza: una alerta de «está
 tocando el límite» que llega al día siguiente no sirve. Entonces:
 
 - **GitHub Actions**, cada hora ([.github/workflows/usage.yml](./.github/workflows/usage.yml)).
-  Es el reloj real. Necesita dos secretos en el repo: `CRON_SECRET` y `APP_URL`.
+  Es el reloj real.
 - **Vercel Cron**, una vez al día. Es el piso que no se apaga: GitHub deshabilita
   los workflows programados tras 60 días sin commits, y cuando eso pasa esta
   corrida es la que dispara la alerta de «hace rato que no se recolecta».
+
+**El workflow no anda solo: hay que cargarle dos secretos al repositorio**, en
+*Settings → Secrets and variables → Actions → New repository secret*:
+
+| Secreto | Valor |
+|---|---|
+| `APP_URL` | La URL de la app, sin barra final: `https://devtracker.maxherr.com` |
+| `CRON_SECRET` | El mismo valor que la variable de entorno `CRON_SECRET` de Vercel |
+
+Sin ellos el workflow falla en segundos, en todas sus corridas. El primer paso
+del job los comprueba y dice cuál falta; para probar sin esperar a la hora en
+punto, *Actions → Recolectar consumo → Run workflow*.
 
 La recolección es idempotente —los snapshots se upsertean por (recurso, métrica,
 día)— así que correrla de más no duplica nada.
