@@ -10,7 +10,11 @@
  * de una, y también el que pediste al revés: un movimiento fuera de hora no
  * suma nada hasta que abre el día siguiente, así que cuenta como si hubiera
  * pasado recién ahí.
+ *
+ * Los feriados nacionales tampoco cuentan; la lista está en lib/utils/feriados.
  */
+
+import { esFeriado } from "@/lib/utils/feriados"
 
 /** Zona del usuario. Argentina no tiene horario de verano desde 2009. */
 export const ZONA = "America/Argentina/Buenos_Aires"
@@ -88,10 +92,14 @@ export function msLaborales(desde: Date, hasta: Date): number {
   let total = 0
 
   for (let dia = primerDia; dia <= fin; dia += MS_POR_DIA) {
-    const diaDeSemana = new Date(dia).getUTCDay()
+    const fecha = new Date(dia)
+    const diaDeSemana = fecha.getUTCDay()
 
     // 0 domingo, 6 sábado.
     if (diaDeSemana === 0 || diaDeSemana === 6) continue
+
+    // `fecha` ya está en el reloj local, así que su parte UTC es la fecha local.
+    if (esFeriado(fecha.toISOString().slice(0, 10))) continue
 
     const abre = dia + JORNADA.inicio * 60_000
     const cierra = dia + JORNADA.fin * 60_000
