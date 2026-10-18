@@ -18,22 +18,28 @@ function Fila({
   similar: Similar
   accion?: React.ReactNode
 }) {
+  // Dos líneas y no una: en una columna angosta, número, título, estado,
+  // porcentaje y botón en la misma fila se partían en cualquier lugar.
   return (
-    <li className="flex flex-wrap items-center gap-2 py-2 text-sm">
-      <span className="text-xs text-muted-foreground tabular-nums">
-        #{similar.number}
-      </span>
-      <Link
-        href={`/ordenes/${similar.number}`}
-        className="min-w-0 flex-1 truncate font-medium underline-offset-4 hover:underline"
-      >
-        {similar.title}
-      </Link>
-      <EstadoBadge estado={similar.status} />
-      <Badge variant="outline" className="tabular-nums">
-        {Math.round(similar.similitud * 100)}%
-      </Badge>
-      {accion}
+    <li className="flex items-center gap-3 py-2 text-sm">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <Link
+          href={`/ordenes/${similar.number}`}
+          className="truncate font-medium underline-offset-4 hover:underline"
+        >
+          <span className="font-mono text-xs text-muted-foreground">
+            #{similar.number}
+          </span>{" "}
+          {similar.title}
+        </Link>
+        <span className="flex items-center gap-2 text-muted-foreground">
+          <EstadoBadge estado={similar.status} />
+          <span className="font-mono text-xs">
+            {Math.round(similar.similitud * 100)} % parecida
+          </span>
+        </span>
+      </div>
+      {accion ? <div className="shrink-0">{accion}</div> : null}
     </li>
   )
 }
@@ -105,7 +111,7 @@ export function ListaRelacionados({
   if (similares.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No encontré problemas parecidos.
+        No encontré órdenes parecidas.
       </p>
     )
   }

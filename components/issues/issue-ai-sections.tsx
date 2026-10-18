@@ -60,6 +60,7 @@ export function SeccionRelacionados({
         <Button
           variant="outline"
           size="sm"
+          className="w-fit"
           onClick={buscar}
           disabled={cargando}
         >
@@ -68,7 +69,7 @@ export function SeccionRelacionados({
           ) : (
             <SparklesIcon data-icon="inline-start" />
           )}
-          Buscar parecidos
+          Buscar parecidas
         </Button>
       ) : (
         <ListaRelacionados
@@ -148,7 +149,7 @@ export function SeccionEnriquecer({
         ) : (
           <SparklesIcon data-icon="inline-start" />
         )}
-        Ayudame a completarlo
+        Ayudame a completarla
       </Button>
     )
   }
@@ -161,8 +162,8 @@ export function SeccionEnriquecer({
   if (vacio) {
     return (
       <p className="text-sm text-muted-foreground">
-        No se me ocurre nada para agregar: el problema ya está bastante
-        completo.
+        No se me ocurre nada para agregar: la orden ya está bastante
+        completa.
       </p>
     )
   }

@@ -306,7 +306,7 @@ export function IssueFormDialog({
     }
 
     toast.add({
-      title: editando ? "Problema actualizado" : "Problema creado",
+      title: editando ? "Orden actualizada" : "Orden creada",
       type: "success",
     })
 
@@ -326,7 +326,7 @@ export function IssueFormDialog({
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {editando ? "Editar problema" : "Nuevo problema"}
+            {editando ? "Editar orden" : "Nueva orden"}
           </DialogTitle>
           <DialogDescription>
             Anotalo como lo harías en el cuaderno. Podés completarlo después.

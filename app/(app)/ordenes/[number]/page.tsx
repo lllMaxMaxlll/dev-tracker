@@ -2,12 +2,11 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-import { ArrowLeftIcon } from "lucide-react"
+import { ChevronLeftIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
 import { Markdown } from "@/components/issues/markdown"
 import { StatusTimeline } from "@/components/issues/status-timeline"
 import {
@@ -36,11 +35,87 @@ import { listAreas, listProjectOptions } from "@/lib/db/queries/projects"
 import { listAttachments } from "@/lib/db/queries/attachments"
 import { getRelacionesDeIssue } from "@/lib/db/queries/relaciones"
 import { fechaLarga, haceCuanto } from "@/lib/utils/fechas"
+import {
+  duracionLaboralLegible,
+  msLaborales,
+} from "@/lib/utils/horario-laboral"
 import type { Estado } from "@/lib/schemas/enums"
 
 export const metadata: Metadata = { title: "Orden · Taller" }
 
 type Params = Promise<{ number: string }>
+
+/**
+ * Una celda de la franja de propiedades. Todas tienen el mismo alto de valor
+ * (el de un botón), así el selector de estado y los badges quedan alineados.
+ */
+function Propiedad({
+  etiqueta,
+  children,
+  className,
+}: {
+  etiqueta: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1.5 bg-card p-3", className)}>
+      <dt className="font-mono text-[0.7rem] tracking-wide text-muted-foreground uppercase">
+        {etiqueta}
+      </dt>
+      <dd className="flex min-h-8 min-w-0 items-center">{children}</dd>
+    </div>
+  )
+}
+
+/** Título de sección de la columna principal, con el mismo estilo que las tarjetas. */
+function Seccion({
+  titulo,
+  children,
+}: {
+  titulo: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{titulo}</CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Cuánto tiempo lleva o llevó, en horas de trabajo, según el estado. Es la
+ * misma medida que el tiempo de resolución del Banco.
+ */
+function tiempoDeLaOrden(issue: {
+  status: string
+  createdAt: Date
+  resolvedAt: Date | null
+  firstInProgressAt: Date | null
+}): { etiqueta: string; valor: string } {
+  if (issue.status === "resuelto" && issue.resolvedAt) {
+    return {
+      etiqueta: "Resuelta en",
+      valor: duracionLaboralLegible(
+        msLaborales(issue.createdAt, issue.resolvedAt)
+      ),
+    }
+  }
+
+  if (issue.status === "en_progreso" && issue.firstInProgressAt) {
+    return {
+      etiqueta: "En el banco",
+      valor: duracionLaboralLegible(
+        msLaborales(issue.firstInProgressAt, new Date())
+      ),
+    }
+  }
+
+  return { etiqueta: "Abierta", valor: haceCuanto(issue.createdAt) }
+}
 
 async function Detalle({ params }: { params: Params }) {
   const user = await requireUser()
@@ -77,170 +152,163 @@ async function Detalle({ params }: { params: Params }) {
     status: issue.status as never,
   }
 
+  const tiempo = tiempoDeLaOrden(issue)
+
+  const fechas: [string, Date][] = [
+    ["Creada", issue.createdAt],
+    ["Actualizada", issue.updatedAt],
+  ]
+
+  if (issue.resolvedAt) fechas.push(["Resuelta", issue.resolvedAt])
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href="/ordenes" />}
-        >
-          <ArrowLeftIcon data-icon="inline-start" />
-          Volver a órdenes
-        </Button>
-      </div>
+      <header className="flex flex-col gap-4">
+        {/* Ruta y acciones en la misma línea: los botones quedan arriba a la
+            derecha siempre, sin importar cuánto mida el título. */}
+        <div className="flex items-center justify-between gap-3">
+          <nav
+            aria-label="Ruta"
+            className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground"
+          >
+            <Link
+              href="/ordenes"
+              className="inline-flex items-center gap-1 rounded-sm py-1 pr-1 hover:text-foreground"
+            >
+              <ChevronLeftIcon className="size-4" />
+              ÓRDENES
+            </Link>
+            <span aria-hidden="true">/</span>
+            <span className="text-foreground">#{issue.number}</span>
+            <span className="hidden truncate sm:inline">
+              · {issue.createdVia === "ai_capture" ? "captura por IA" : "a mano"}
+            </span>
+          </nav>
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-2">
-          <span className="text-sm text-muted-foreground tabular-nums">
-            #{issue.number}
-          </span>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {issue.title}
-          </h1>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
+            <AccionesIssue
+              issueId={issue.id}
+              numero={issue.number}
+              proyectos={proyectos}
+              areas={areas}
+              fotosExistentes={adjuntos.length}
+              valoresIniciales={valoresActuales}
+            />
+          </div>
+        </div>
+
+        <h1 className="text-2xl leading-tight font-bold tracking-tight text-balance md:text-3xl">
+          {issue.title}
+        </h1>
+
+        {/* gap-px sobre fondo de borde: las líneas entre celdas quedan de
+            1px sin importar cuántas columnas entren en cada ancho. */}
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-3 lg:grid-cols-6">
+          <Propiedad etiqueta="Estado">
+            <CambiarEstado
+              issueId={issue.id}
+              estado={issue.status as Estado}
+              className="w-full"
+            />
+          </Propiedad>
+          <Propiedad etiqueta="Tipo">
             <TipoBadge tipo={issue.type} />
+          </Propiedad>
+          <Propiedad etiqueta="Prioridad">
             <PrioridadBadge prioridad={issue.priority} />
+          </Propiedad>
+          <Propiedad etiqueta="Proyecto">
             <ProyectoBadge
               nombre={issue.projectName}
               color={issue.projectColor}
             />
-            <AreaBadge nombre={issue.areaName} color={issue.areaColor} />
-          </div>
+          </Propiedad>
+          <Propiedad etiqueta="Área">
+            {issue.areaName ? (
+              <AreaBadge nombre={issue.areaName} color={issue.areaColor} />
+            ) : (
+              <span className="text-sm text-muted-foreground">Sin área</span>
+            )}
+          </Propiedad>
+          <Propiedad etiqueta={tiempo.etiqueta}>
+            <span className="truncate font-mono text-sm">{tiempo.valor}</span>
+          </Propiedad>
+        </dl>
+      </header>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="flex min-w-0 flex-col gap-6">
+          <Seccion titulo="Descripción">
+            {issue.description ? (
+              <Markdown>{issue.description}</Markdown>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Sin descripción todavía. «Ayuda para completarla», más abajo,
+                propone una a partir del título.
+              </p>
+            )}
+          </Seccion>
+
+          <Seccion titulo="Fotos">
+            <IssueAttachments issueId={issue.id} adjuntos={adjuntos} />
+          </Seccion>
+
+          <Seccion titulo="Commits y PRs">
+            <VinculosIssue issueId={issue.id} vinculos={vinculos} />
+          </Seccion>
+
+          <Seccion titulo="Relacionadas">
+            <SeccionRelacionados
+              issueId={issue.id}
+              vinculadosIniciales={relacionados.map((r) => r.relatedIssueId)}
+            />
+          </Seccion>
+
+          <Seccion titulo="Ayuda para completarla">
+            <SeccionEnriquecer
+              issueId={issue.id}
+              valoresActuales={valoresActuales}
+            />
+          </Seccion>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <CambiarEstado issueId={issue.id} estado={issue.status as Estado} />
-          <AccionesIssue
-            issueId={issue.id}
-            numero={issue.number}
-            proyectos={proyectos}
-            areas={areas}
-            fotosExistentes={adjuntos.length}
-            valoresIniciales={valoresActuales}
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Descripción</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {issue.description ? (
-                <Markdown>{issue.description}</Markdown>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Sin descripción todavía.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Fotos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <IssueAttachments issueId={issue.id} adjuntos={adjuntos} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Commits y PRs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <VinculosIssue issueId={issue.id} vinculos={vinculos} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Relacionados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SeccionRelacionados
-                issueId={issue.id}
-                vinculadosIniciales={relacionados.map((r) => r.relatedIssueId)}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Ayuda para completarlo</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SeccionEnriquecer
-                issueId={issue.id}
-                valoresActuales={valoresActuales}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historial</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
+        <aside className="flex flex-col gap-6 lg:sticky lg:top-18">
+          <Seccion titulo="Cronología">
+            <div className="flex flex-col gap-4">
               <StatusTimeline historial={historial} />
 
-              <Separator />
-
-              <dl className="flex flex-col gap-2 text-sm">
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Creado</dt>
-                  <dd title={fechaLarga(issue.createdAt)}>
-                    {haceCuanto(issue.createdAt)}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Actualizado</dt>
-                  <dd title={fechaLarga(issue.updatedAt)}>
-                    {haceCuanto(issue.updatedAt)}
-                  </dd>
-                </div>
-                {issue.resolvedAt ? (
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-muted-foreground">Resuelto</dt>
-                    <dd title={fechaLarga(issue.resolvedAt)}>
-                      {haceCuanto(issue.resolvedAt)}
-                    </dd>
+              <dl className="flex flex-col border-t pt-3 font-mono text-xs">
+                {fechas.map(([etiqueta, fecha]) => (
+                  <div key={etiqueta} className="flex justify-between gap-2 py-1">
+                    <dt className="text-muted-foreground uppercase">
+                      {etiqueta}
+                    </dt>
+                    <dd title={fechaLarga(fecha)}>{haceCuanto(fecha)}</dd>
                   </div>
-                ) : null}
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Origen</dt>
-                  <dd>
-                    {issue.createdVia === "ai_capture"
-                      ? "Captura por IA"
-                      : "Manual"}
-                  </dd>
-                </div>
+                ))}
               </dl>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </Seccion>
+        </aside>
       </div>
     </div>
   )
 }
 
-export default function ProblemaPage({ params }: { params: Params }) {
+export default function OrdenPage({ params }: { params: Params }) {
   return (
     <Suspense
       fallback={
         <div className="flex flex-col gap-6">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-10 w-96 max-w-full" />
-          <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
-            <Skeleton className="h-64 rounded-xl" />
-            <Skeleton className="h-64 rounded-xl" />
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-8 w-28" />
+          </div>
+          <Skeleton className="h-9 w-[32rem] max-w-full" />
+          <Skeleton className="h-20" />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
           </div>
         </div>
       }

@@ -9,6 +9,7 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EnumSelect } from "@/components/ui/enum-select"
@@ -44,9 +45,11 @@ import type { IssueLink } from "@/lib/db/schema"
 export function CambiarEstado({
   issueId,
   estado,
+  className,
 }: {
   issueId: string
   estado: Estado
+  className?: string
 }) {
   const router = useRouter()
   const [guardando, setGuardando] = React.useState(false)
@@ -71,18 +74,23 @@ export function CambiarEstado({
     router.refresh()
   }
 
+  // El spinner va encima del selector y no al lado: al costado empujaba los
+  // botones vecinos cada vez que aparecía.
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn("relative", className)}>
       <EnumSelect
         placeholder="Estado"
         value={estado}
         onValueChange={cambiar}
+        className="w-full"
         opciones={ESTADOS.map((e) => ({
           label: ETIQUETAS_ESTADO[e],
           value: e,
         }))}
       />
-      {guardando ? <Spinner /> : null}
+      {guardando ? (
+        <Spinner className="absolute top-1/2 right-8 -translate-y-1/2" />
+      ) : null}
     </div>
   )
 }
@@ -118,7 +126,7 @@ export function AccionesIssue({
       return
     }
 
-    toast.add({ title: `Problema #${numero} borrado`, type: "success" })
+    toast.add({ title: `Orden #${numero} borrada`, type: "success" })
 
     // `push` sola dejaba la tabla mostrando el problema recién borrado: el
     // router del cliente sirve la lista desde su caché de payloads RSC, que la
@@ -136,8 +144,11 @@ export function AccionesIssue({
 
       <Button
         variant="outline"
-        aria-label="Borrar problema"
+        size="icon"
+        aria-label="Borrar orden"
+        title="Borrar"
         onClick={() => setConfirmando(true)}
+        className="text-muted-foreground hover:text-destructive"
       >
         <Trash2Icon />
       </Button>
@@ -155,7 +166,7 @@ export function AccionesIssue({
       <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Borrar el problema #{numero}?</AlertDialogTitle>
+            <AlertDialogTitle>¿Borrar la orden #{numero}?</AlertDialogTitle>
             <AlertDialogDescription>
               Se borra también su historial de estados. No se puede deshacer.
             </AlertDialogDescription>
@@ -250,7 +261,7 @@ export function VinculosIssue({
           <FieldLabel htmlFor="url-vinculo" className="sr-only">
             URL del commit o PR
           </FieldLabel>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <EnumSelect
               placeholder="Tipo"
               value={kind}
@@ -267,7 +278,7 @@ export function VinculosIssue({
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://github.com/usuario/repo/commit/abc123"
-              className="min-w-48 flex-1"
+              className="min-w-0 flex-1 font-mono text-xs"
               aria-invalid={error ? true : undefined}
             />
             <Button
