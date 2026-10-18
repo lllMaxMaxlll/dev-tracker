@@ -43,7 +43,7 @@ const serverEnvSchema = z.object({
   // Las dos siguientes sólo sirven para que OpenRouter atribuya el consumo en
   // su panel.
   OPENROUTER_SITE_URL: z.string().optional(),
-  OPENROUTER_APP_NAME: z.string().default("DevTracker"),
+  OPENROUTER_APP_NAME: z.string().default("Taller"),
 
   CRON_SECRET: z.string().optional(),
 

@@ -7,7 +7,7 @@ import { ProjectsView } from "@/components/projects/projects-view"
 import { requireUser } from "@/lib/auth/require-user"
 import { listAreas, listProjects } from "@/lib/db/queries/projects"
 
-export const metadata: Metadata = { title: "Proyectos · DevTracker" }
+export const metadata: Metadata = { title: "Proyectos · Taller" }
 
 async function Proyectos() {
   const user = await requireUser()

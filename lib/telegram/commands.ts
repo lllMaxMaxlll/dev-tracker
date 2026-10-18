@@ -40,7 +40,7 @@ export async function responder(texto: string): Promise<string> {
 
 function ayuda(): string {
   return [
-    negrita("DevTracker · monitor de consumo"),
+    negrita("Taller · monitor de consumo"),
     "",
     "/consumo — qué se está gastando ahora",
     "/limites — umbrales configurados y su estado",

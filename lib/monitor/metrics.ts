@@ -103,7 +103,7 @@ export const METRICAS = {
     etiqueta: "Tamaño de la base",
     unidad: "bytes",
     agregacion: "maximo",
-    nota: "Lo que Supabase factura, y no lo mismo que el disco usado: en DevTracker la base son 14 MB y el disco 276 MB. El plan Free documenta un tope de 500 MB, pero la API no informa el tope de ningún plan, así que no se muestra como porcentaje.",
+    nota: "Lo que Supabase factura, y no lo mismo que el disco usado: en esta app la base son 14 MB y el disco 276 MB. El plan Free documenta un tope de 500 MB, pero la API no informa el tope de ningún plan, así que no se muestra como porcentaje.",
   },
   "supabase.rest_requests": {
     etiqueta: "Peticiones REST",

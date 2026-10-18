@@ -10,7 +10,8 @@ function ThemeProvider({
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="system"
+      // Taller es oscuro por diseño; el claro queda a un atajo de distancia.
+      defaultTheme="dark"
       enableSystem
       disableTransitionOnChange
       {...props}

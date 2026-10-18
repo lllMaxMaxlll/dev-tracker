@@ -24,7 +24,7 @@ import {
 import { conParametros } from "@/lib/utils/search-params"
 import { NewIssueButton } from "@/components/issues/new-issue-button"
 
-export const metadata: Metadata = { title: "Problemas · DevTracker" }
+export const metadata: Metadata = { title: "Problemas · Taller" }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 

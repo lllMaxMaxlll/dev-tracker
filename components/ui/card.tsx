@@ -36,7 +36,12 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-title"
-      className={cn("font-heading text-base font-medium", className)}
+      className={cn(
+        // Rótulo de Taller: expandido y en mayúsculas, como una etiqueta de
+        // máquina. El contenido de la tarjeta es lo que se lee.
+        "font-heading text-sm font-bold tracking-wide uppercase [font-stretch:125%]",
+        className
+      )}
       {...props}
     />
   )

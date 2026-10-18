@@ -1,13 +1,13 @@
 {
-  "name": "DevTracker",
-  "short_name": "DevTracker",
-  "description": "Tu cuaderno de problemas, bugs e ideas, conectado a tus repos.",
+  "name": "Taller",
+  "short_name": "Taller",
+  "description": "Órdenes de trabajo para tus proyectos: bugs, ideas y deudas, conectados a tus repos.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0a0a0a",
-  "theme_color": "#2f5fe0",
+  "background_color": "#121211",
+  "theme_color": "#121211",
   "lang": "es-AR",
   "icons": [
     {

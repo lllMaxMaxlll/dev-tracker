@@ -12,7 +12,7 @@ import { getRateLimit } from "@/lib/github/client"
 import { cargarSeguro } from "@/lib/github/cargar-seguro"
 import { listProjects } from "@/lib/db/queries/projects"
 
-export const metadata: Metadata = { title: "GitHub · DevTracker" }
+export const metadata: Metadata = { title: "GitHub · Taller" }
 
 async function Repos() {
   const user = await requireUser()

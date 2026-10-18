@@ -38,7 +38,7 @@ import { getRelacionesDeIssue } from "@/lib/db/queries/relaciones"
 import { fechaLarga, haceCuanto } from "@/lib/utils/fechas"
 import type { Estado } from "@/lib/schemas/enums"
 
-export const metadata: Metadata = { title: "Problema · DevTracker" }
+export const metadata: Metadata = { title: "Problema · Taller" }
 
 type Params = Promise<{ number: string }>
 

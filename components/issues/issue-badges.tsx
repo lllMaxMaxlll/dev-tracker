@@ -14,50 +14,78 @@ import {
  * las detecte al escanear el código.
  */
 const COLOR_ESTADO: Record<Estado, string> = {
-  pendiente: "bg-slate-500/10 text-slate-700 dark:text-slate-300",
-  en_progreso: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  resuelto: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  descartado: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
+  pendiente: "bg-muted-foreground",
+  en_progreso: "bg-primary",
+  resuelto: "bg-emerald-600 dark:bg-emerald-400",
+  descartado: "bg-transparent border border-muted-foreground",
 }
 
-const COLOR_PRIORIDAD: Record<Prioridad, string> = {
-  baja: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
-  media: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  alta: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  urgente: "bg-red-500/10 text-red-700 dark:text-red-300",
+/** Barras encendidas y su color: urgente es la única que va en rojo. */
+const SENAL_PRIORIDAD: Record<Prioridad, { barras: number; color: string }> = {
+  baja: { barras: 1, color: "bg-muted-foreground" },
+  media: { barras: 2, color: "bg-muted-foreground" },
+  alta: { barras: 3, color: "bg-amber-500 dark:bg-amber-400" },
+  urgente: { barras: 4, color: "bg-red-600 dark:bg-red-500" },
 }
+
+const ALTURAS_BARRA = ["h-1", "h-1.5", "h-2.5", "h-3"]
 
 const COLOR_TIPO: Record<Tipo, string> = {
-  bug: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
-  feature: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  mejora: "bg-teal-500/10 text-teal-700 dark:text-teal-300",
-  idea: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300",
-  deuda_tecnica: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  bug: "bg-red-500/15 text-red-700 dark:text-red-400",
+  feature: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  mejora: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  idea: "bg-yellow-500/20 text-yellow-800 dark:text-yellow-300",
+  deuda_tecnica: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+}
+
+/** Código corto, como en una orden de trabajo. La etiqueta va en el title. */
+const CODIGO_TIPO: Record<Tipo, string> = {
+  bug: "BUG",
+  feature: "FEAT",
+  mejora: "MEJ",
+  idea: "IDEA",
+  deuda_tecnica: "DEUDA",
 }
 
 export function EstadoBadge({ estado }: { estado: string }) {
   const valor = estado as Estado
 
   return (
-    <Badge
-      variant="secondary"
-      className={cn("border-0 font-medium", COLOR_ESTADO[valor])}
-    >
-      {ETIQUETAS_ESTADO[valor] ?? estado}
-    </Badge>
+    <span className="inline-flex items-center gap-1.5 font-mono text-xs">
+      <span
+        aria-hidden="true"
+        className={cn("size-2 shrink-0", COLOR_ESTADO[valor])}
+      />
+      <span className={cn(valor === "descartado" && "line-through")}>
+        {ETIQUETAS_ESTADO[valor] ?? estado}
+      </span>
+    </span>
   )
 }
 
 export function PrioridadBadge({ prioridad }: { prioridad: string }) {
   const valor = prioridad as Prioridad
+  const senal = SENAL_PRIORIDAD[valor] ?? SENAL_PRIORIDAD.media
 
   return (
-    <Badge
-      variant="secondary"
-      className={cn("border-0 font-medium", COLOR_PRIORIDAD[valor])}
+    <span
+      className="inline-flex items-center gap-1.5 font-mono text-xs"
+      title={`Prioridad ${ETIQUETAS_PRIORIDAD[valor] ?? prioridad}`}
     >
+      <span aria-hidden="true" className="inline-flex h-3 items-end gap-0.5">
+        {ALTURAS_BARRA.map((altura, i) => (
+          <span
+            key={altura}
+            className={cn(
+              "w-0.75",
+              altura,
+              i < senal.barras ? senal.color : "bg-border"
+            )}
+          />
+        ))}
+      </span>
       {ETIQUETAS_PRIORIDAD[valor] ?? prioridad}
-    </Badge>
+    </span>
   )
 }
 
@@ -67,9 +95,13 @@ export function TipoBadge({ tipo }: { tipo: string }) {
   return (
     <Badge
       variant="secondary"
-      className={cn("border-0 font-medium", COLOR_TIPO[valor])}
+      title={ETIQUETAS_TIPO[valor] ?? tipo}
+      className={cn(
+        "rounded-sm border-0 font-mono text-[0.7rem] font-bold tracking-wide",
+        COLOR_TIPO[valor]
+      )}
     >
-      {ETIQUETAS_TIPO[valor] ?? tipo}
+      {CODIGO_TIPO[valor] ?? tipo}
     </Badge>
   )
 }
@@ -89,7 +121,7 @@ export function ProyectoBadge({
     <span className="inline-flex items-center gap-1.5 text-sm">
       <span
         aria-hidden="true"
-        className="size-2 shrink-0 rounded-full bg-muted-foreground"
+        className="size-2 shrink-0 bg-muted-foreground"
         style={color ? { backgroundColor: color } : undefined}
       />
       <span className="truncate">{nombre}</span>

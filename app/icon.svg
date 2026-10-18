@@ -1,21 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <!-- Teja en el verde del tema (token primary) y tinta en el verde oscuro
-       (token primary-foreground). El blanco sobre este lima da 1.5:1 y
-       desaparece; este par da 5.7:1. Un favicon no puede leer variables CSS,
-       así que acá los valores van resueltos a hex; el mismo dibujo con los
-       tokens está en components/icons/logo.tsx.
-
-       Un tilde grande y un solo renglón pendiente, y no la lista de tres que
-       había antes: a 16px —que es como se ve en una pestaña— tres renglones se
-       empastan en una mancha. -->
-  <rect width="32" height="32" rx="7.5" fill="#9ae600"/>
-  <g fill="#35530e">
-    <!-- Lomo del cuaderno -->
-    <rect x="7.4" y="7.6" width="3" height="16.8" rx="1.5" opacity="0.5"/>
-    <!-- Lo hecho -->
-    <path d="M13.8 15.9l2.6 2.6 6.6-6.6" fill="none" stroke="#35530e"
-          stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- Lo que falta -->
-    <rect x="13.8" y="21.6" width="9.2" height="2.8" rx="1.4" opacity="0.5"/>
+  <!-- Teja en el naranja de seguridad (token primary) y tinta casi negra
+       (token primary-foreground). Un favicon no puede leer variables CSS, así
+       que acá los valores van resueltos a hex; el mismo dibujo con los tokens
+       está en components/icons/logo.tsx. -->
+  <rect width="32" height="32" rx="4" fill="#ff5f1f"/>
+  <g fill="#111111">
+    <!-- Techo de diente de sierra -->
+    <path d="M6 25V14l5-3.4v5l5-3.4v5l5-3.4V25z"/>
+    <!-- Chimenea -->
+    <rect x="22.5" y="7" width="3.5" height="18"/>
+    <!-- Piso -->
+    <rect x="4.5" y="25" width="23" height="2.5"/>
   </g>
 </svg>

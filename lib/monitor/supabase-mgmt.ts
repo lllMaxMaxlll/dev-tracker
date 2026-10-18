@@ -137,7 +137,7 @@ export async function leerPeticiones(
  *
  * `pg_database_size_bytes` es el tamaño real de la base, que es lo que Supabase
  * factura y lo que se llena en el plan Free. No es lo mismo que el disco:
- * medido en DevTracker, la base son 14 MB y el disco usado 276 MB — la
+ * medido en esta app, la base son 14 MB y el disco usado 276 MB — la
  * diferencia son WAL, índices del sistema y overhead del volumen. Alertar sobre
  * el disco y creer que se está mirando la base sería un malentendido caro.
  */

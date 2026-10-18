@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono, Montserrat } from "next/font/google"
+import { Archivo, JetBrains_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -7,11 +7,15 @@ import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-const montserratHeading = Montserrat({subsets:['latin'],variable:'--font-heading'})
+// Archivo para todo, con el eje de ancho cargado: los títulos usan la versión
+// expandida (font-stretch 125 %) y el texto corrido la normal.
+const archivo = Archivo({
+  subsets: ["latin"],
+  axes: ["wdth"],
+  variable: "--font-sans",
+})
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'})
-
-const fontMono = Geist_Mono({
+const fontMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
@@ -34,12 +38,12 @@ const APP_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "DevTracker",
+    default: "Taller",
     template: "%s",
   },
   description:
     "Dashboard personal para registrar y seguir problemas, bugs e ideas de desarrollo, con integración a GitHub.",
-  applicationName: "DevTracker",
+  applicationName: "Taller",
   manifest: "/manifest.webmanifest",
   robots: {
     index: false,
@@ -48,7 +52,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "DevTracker",
+    title: "Taller",
     statusBarStyle: "black-translucent",
   },
   formatDetection: {
@@ -60,10 +64,10 @@ export const viewport: Viewport = {
   // Acompaña el tema: la barra del navegador en el celular deja de cortar
   // contra el fondo de la app.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#eeece6" },
+    { media: "(prefers-color-scheme: dark)", color: "#121211" },
   ],
-  colorScheme: "light dark",
+  colorScheme: "dark light",
 }
 
 export default function RootLayout({
@@ -78,9 +82,8 @@ export default function RootLayout({
       className={cn(
         "antialiased",
         "font-sans",
-        geist.variable,
-        fontMono.variable,
-        montserratHeading.variable
+        archivo.variable,
+        fontMono.variable
       )}
     >
       <body>

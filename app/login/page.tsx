@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { GithubLoginButton } from "@/components/auth/github-login-button"
 
 export const metadata: Metadata = {
-  title: "Entrar · DevTracker",
+  title: "Entrar · Taller",
 }
 
 const ERRORES: Record<string, string> = {
@@ -38,10 +38,12 @@ async function LoginCard({
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="items-center text-center">
-        <Logotipo className="mb-2 size-11 rounded-xl" />
-        <CardTitle className="text-xl">DevTracker</CardTitle>
+        <Logotipo className="mx-auto mb-2 size-11" />
+        <CardTitle className="text-2xl font-extrabold tracking-tight uppercase [font-stretch:125%]">
+          Taller
+        </CardTitle>
         <CardDescription>
-          Tu cuaderno de problemas, bugs e ideas — conectado a tus repos.
+          Órdenes de trabajo para tus proyectos: bugs, ideas y deudas, conectados a tus repos.
         </CardDescription>
       </CardHeader>
 

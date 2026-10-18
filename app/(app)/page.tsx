@@ -17,7 +17,7 @@ import {
 } from "@/lib/db/queries/metrics"
 import { ETIQUETAS_TIPO, type Tipo } from "@/lib/schemas/enums"
 
-export const metadata: Metadata = { title: "Dashboard · DevTracker" }
+export const metadata: Metadata = { title: "Dashboard · Taller" }
 
 async function Saludo() {
   const user = await requireUser()

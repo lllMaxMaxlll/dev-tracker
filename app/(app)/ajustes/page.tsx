@@ -11,7 +11,7 @@ import { getAjustes } from "@/lib/ai/settings"
 import { getModelosDeEmbeddings, getModelosDeTexto } from "@/lib/ai/models"
 import { getConsumoDelMes } from "@/lib/ai/usage"
 
-export const metadata: Metadata = { title: "Ajustes · DevTracker" }
+export const metadata: Metadata = { title: "Ajustes · Taller" }
 
 async function Ajustes() {
   const user = await requireUser()

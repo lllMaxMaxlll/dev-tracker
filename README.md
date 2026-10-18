@@ -1,4 +1,6 @@
-# DevTracker
+# Taller
+
+> Antes se llamaba DevTracker. El repo y el dominio conservan el nombre viejo.
 
 Dashboard personal para registrar y seguir los problemas, bugs e ideas que aparecen mientras desarrollás — el reemplazo del cuaderno de papel. Integrado con GitHub y con una capa de IA sobre OpenRouter.
 

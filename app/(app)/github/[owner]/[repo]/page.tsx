@@ -26,7 +26,7 @@ import {
 } from "@/lib/github/queries"
 import { cargarSeguro } from "@/lib/github/cargar-seguro"
 
-export const metadata: Metadata = { title: "Repositorio · DevTracker" }
+export const metadata: Metadata = { title: "Repositorio · Taller" }
 
 type Params = Promise<{ owner: string; repo: string }>
 

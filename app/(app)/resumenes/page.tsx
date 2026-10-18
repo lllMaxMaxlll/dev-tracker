@@ -8,7 +8,7 @@ import { GenerateSummaryButton } from "@/components/summaries/generate-button"
 import { requireUser } from "@/lib/auth/require-user"
 import { listarResumenes } from "@/lib/db/queries/summaries"
 
-export const metadata: Metadata = { title: "Resúmenes · DevTracker" }
+export const metadata: Metadata = { title: "Resúmenes · Taller" }
 
 async function Resumenes() {
   const user = await requireUser()
