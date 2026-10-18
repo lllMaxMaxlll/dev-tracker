@@ -1,8 +1,14 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
-import { FolderPlusIcon, ListTodoIcon, SparklesIcon } from "lucide-react"
+import {
+  FolderPlusIcon,
+  ListTodoIcon,
+  MicIcon,
+  SparklesIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
@@ -21,14 +27,19 @@ import {
   type ProyectoOpcion,
 } from "@/components/issues/issue-form-dialog"
 import { NAV_ITEMS } from "@/components/layout/nav-items"
-import { NaturalCaptureDialog } from "@/components/capture/natural-capture-dialog"
+import {
+  NaturalCaptureDialog,
+  type ModoCaptura,
+} from "@/components/capture/natural-capture-dialog"
 import type { CapturaSugerida } from "@/actions/ai"
 import type { IssueFormValues } from "@/lib/schemas/issue"
+import type { Similar } from "@/lib/ai/embeddings"
 
 /**
  * Alta rápida accesible desde cualquier página.
  *
  * - `A` abre la captura en lenguaje natural (el camino principal).
+ * - `V` mantenida dicta la nota y, al soltarla, la interpreta.
  * - `C` abre el formulario de alta manual.
  * - `Cmd/Ctrl + K` abre la paleta de comandos.
  *
@@ -59,15 +70,23 @@ export function QuickCapture({
   const [paletaAbierta, setPaletaAbierta] = React.useState(false)
   const [formAbierto, setFormAbierto] = React.useState(false)
   const [naturalAbierto, setNaturalAbierto] = React.useState(false)
+  const [modoCaptura, setModoCaptura] = React.useState<ModoCaptura>("texto")
   const [sugerencia, setSugerencia] = React.useState<{
     valores: Partial<IssueFormValues>
     proyectoNuevo: string | null
+    similares: Similar[]
   } | null>(null)
+
+  function abrirCaptura(modo: ModoCaptura) {
+    setModoCaptura(modo)
+    setNaturalAbierto(true)
+  }
 
   function aplicarSugerencia(datos: CapturaSugerida) {
     setSugerencia({
       valores: datos.valores,
       proyectoNuevo: datos.proyectoNuevo,
+      similares: datos.similares,
     })
     setFormAbierto(true)
   }
@@ -95,7 +114,12 @@ export function QuickCapture({
 
       if (tecla === "a") {
         event.preventDefault()
-        setNaturalAbierto(true)
+        abrirCaptura("texto")
+      }
+
+      if (tecla === "v") {
+        event.preventDefault()
+        abrirCaptura("voz")
       }
 
       if (tecla === "c") {
@@ -117,13 +141,14 @@ export function QuickCapture({
 
   return (
     <>
-      <Button size="sm" onClick={() => setNaturalAbierto(true)}>
-        <SparklesIcon data-icon="inline-start" />
-        <span className="hidden sm:inline">Anotar</span>
-        <Kbd className="ml-1 hidden md:inline-flex">A</Kbd>
-      </Button>
-
       <ClientOnly>
+        {/* Portal: el header tiene backdrop-blur, que convierte a `fixed` en
+            relativo al header en vez de a la ventana. */}
+        <BotonAnotar
+          onEscribir={() => abrirCaptura("texto")}
+          onDictar={() => abrirCaptura("voz")}
+        />
+
         <CommandDialog open={paletaAbierta} onOpenChange={setPaletaAbierta}>
           <CommandInput placeholder="Buscar una acción o una sección…" />
           <CommandList>
@@ -133,7 +158,7 @@ export function QuickCapture({
               <CommandItem
                 onSelect={() => {
                   setPaletaAbierta(false)
-                  setNaturalAbierto(true)
+                  abrirCaptura("texto")
                 }}
               >
                 <SparklesIcon />
@@ -173,6 +198,7 @@ export function QuickCapture({
       <NaturalCaptureDialog
         open={naturalAbierto}
         onOpenChange={setNaturalAbierto}
+        modo={modoCaptura}
         onSugerencia={aplicarSugerencia}
       />
 
@@ -183,6 +209,7 @@ export function QuickCapture({
         areas={areas}
         valoresIniciales={sugerencia?.valores}
         proyectoNuevo={sugerencia?.proyectoNuevo}
+        duplicadosIniciales={sugerencia?.similares}
         encabezado={
           sugerencia ? (
             <p className="text-sm text-muted-foreground">
@@ -198,5 +225,64 @@ export function QuickCapture({
         }}
       />
     </>
+  )
+}
+
+/**
+ * Botón flotante: un toque abre la captura para escribir; mantenerlo apretado
+ * dicta, igual que la tecla V. El diálogo escucha cuándo se suelta.
+ */
+function BotonAnotar({
+  onEscribir,
+  onDictar,
+}: {
+  onEscribir: () => void
+  onDictar: () => void
+}) {
+  const temporizador = React.useRef<ReturnType<typeof setTimeout>>(undefined)
+  // Después de una pulsación larga llega igual un click: hay que ignorarlo.
+  const fuePulsacionLarga = React.useRef(false)
+
+  function cancelar() {
+    clearTimeout(temporizador.current)
+  }
+
+  // `document` sólo existe en el cliente: el portal se arma acá adentro y no
+  // en el padre, para que el ClientOnly que lo envuelve lo proteja del render
+  // del servidor.
+  return createPortal(
+    <Button
+      size="lg"
+      className="fixed right-6 bottom-6 z-40 touch-none rounded-full shadow-lg select-none"
+      title="Anotar (A) · mantené apretado o la tecla V para dictar"
+      onPointerDown={() => {
+        fuePulsacionLarga.current = false
+        temporizador.current = setTimeout(() => {
+          fuePulsacionLarga.current = true
+          onDictar()
+        }, 350)
+      }}
+      onPointerUp={cancelar}
+      onPointerLeave={cancelar}
+      onContextMenu={(event) => event.preventDefault()}
+      onClick={() => {
+        if (fuePulsacionLarga.current) {
+          fuePulsacionLarga.current = false
+
+          return
+        }
+
+        onEscribir()
+      }}
+    >
+      <SparklesIcon data-icon="inline-start" />
+      Anotar
+      <span className="ml-1 hidden items-center gap-1 md:inline-flex">
+        <Kbd>A</Kbd>
+        <MicIcon className="size-3.5 opacity-70" />
+        <Kbd>V</Kbd>
+      </span>
+    </Button>,
+    document.body
   )
 }

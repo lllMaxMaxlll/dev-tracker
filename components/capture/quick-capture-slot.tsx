@@ -1,5 +1,4 @@
 import { QuickCapture } from "@/components/capture/quick-capture"
-import { Skeleton } from "@/components/ui/skeleton"
 import { getUser } from "@/lib/auth/require-user"
 import { listAreas, listProjectOptions } from "@/lib/db/queries/projects"
 
@@ -22,6 +21,7 @@ export async function QuickCaptureSlot() {
   return <QuickCapture proyectos={proyectos} areas={areas} />
 }
 
+/** El botón de anotar es flotante: no hay nada que reservar en el header. */
 export function QuickCaptureFallback() {
-  return <Skeleton className="h-8 w-24" />
+  return null
 }

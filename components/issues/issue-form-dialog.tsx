@@ -98,6 +98,8 @@ type Props = {
   encabezado?: React.ReactNode
   /** Proyecto que la IA mencionó y todavía no existe. Se ofrece crearlo. */
   proyectoNuevo?: string | null
+  /** Parecidos que ya encontró la captura, para avisar sin buscar de nuevo. */
+  duplicadosIniciales?: Similar[]
   onGuardado?: (resultado: { id: string; number: number } | null) => void
 }
 
@@ -111,6 +113,7 @@ export function IssueFormDialog({
   fotosExistentes = 0,
   encabezado,
   proyectoNuevo,
+  duplicadosIniciales,
   onGuardado,
 }: Props) {
   const router = useRouter()
@@ -124,7 +127,9 @@ export function IssueFormDialog({
   const editando = Boolean(issueId)
   const [fotos, setFotos] = React.useState<FotoPendiente[]>([])
   const [subiendoFotos, setSubiendoFotos] = React.useState(false)
-  const [duplicados, setDuplicados] = React.useState<Similar[]>([])
+  const [duplicados, setDuplicados] = React.useState<Similar[]>(
+    duplicadosIniciales ?? []
+  )
   const [buscandoDuplicados, setBuscandoDuplicados] = React.useState(false)
   const [duplicadosIgnorados, setDuplicadosIgnorados] = React.useState(false)
   const [creandoProyecto, setCreandoProyecto] = React.useState(false)
@@ -188,7 +193,7 @@ export function IssueFormDialog({
     if (open) {
       setValores({ ...VALORES_INICIALES, ...valoresIniciales })
       setErrores({})
-      setDuplicados([])
+      setDuplicados(duplicadosIniciales ?? [])
       setDuplicadosIgnorados(false)
       descartarFotos()
     }

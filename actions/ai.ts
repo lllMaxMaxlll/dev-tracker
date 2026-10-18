@@ -11,8 +11,10 @@ import { enriquecer, type Enriquecimiento } from "@/lib/ai/tasks/enrich"
 import { generarResumenSemanal } from "@/lib/ai/tasks/summary"
 import { getAbiertosParaPriorizar } from "@/lib/db/queries/semana"
 import { capturarProblema } from "@/lib/ai/tasks/capture"
-import { listProjectOptions } from "@/lib/db/queries/projects"
+import { listAreas, listProjectOptions } from "@/lib/db/queries/projects"
 import { esErrorIA } from "@/lib/ai/errors"
+import { buscarPosiblesDuplicados } from "@/actions/duplicates"
+import type { Similar } from "@/lib/ai/embeddings"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 import type { IssueFormValues } from "@/lib/schemas/issue"
 
@@ -21,6 +23,8 @@ export type CapturaSugerida = {
   /** Nombre del proyecto que el modelo mencionó y todavía no existe. */
   proyectoNuevo: string | null
   confianza: number
+  /** Problemas parecidos a la nota, para avisar antes de crear otro igual. */
+  similares: Similar[]
 }
 
 /**
@@ -43,23 +47,48 @@ export async function capturarDesdeTexto(
   }
 
   try {
-    const proyectos = await listProjectOptions(user.id)
+    const [proyectos, areas] = await Promise.all([
+      listProjectOptions(user.id),
+      listAreas(user.id),
+    ])
 
-    const resultado = await capturarProblema({
-      userId: user.id,
-      texto: limpio,
-      proyectos: proyectos.map((p) => ({ slug: p.slug, name: p.name })),
-    })
+    const slugDeProyecto = new Map(proyectos.map((p) => [p.id, p.slug]))
+
+    // Los parecidos se buscan en paralelo con la interpretación: el modelo ya
+    // tarda unos segundos, así que el aviso de duplicado no suma espera. Si la
+    // búsqueda falla devuelve lista vacía; nunca bloquea la captura.
+    const [resultado, similares] = await Promise.all([
+      capturarProblema({
+        userId: user.id,
+        texto: limpio,
+        proyectos: proyectos.map((p) => ({ slug: p.slug, name: p.name })),
+        areas: areas.flatMap((a) => {
+          const proyectoSlug = slugDeProyecto.get(a.projectId)
+
+          return proyectoSlug ? [{ slug: a.slug, name: a.name, proyectoSlug }] : []
+        }),
+      }),
+      buscarPosiblesDuplicados(limpio),
+    ])
 
     const proyecto = resultado.proyectoSlug
       ? proyectos.find((p) => p.slug === resultado.proyectoSlug)
       : undefined
+
+    // Un área sólo vale si es del proyecto elegido: los slugs se repiten.
+    const area =
+      proyecto && resultado.areaSlug
+        ? areas.find(
+            (a) => a.projectId === proyecto.id && a.slug === resultado.areaSlug
+          )
+        : undefined
 
     return actionOk({
       valores: {
         title: resultado.titulo,
         description: resultado.descripcion || "",
         projectId: proyecto?.id ?? "",
+        areaId: area?.id ?? "",
         type: resultado.tipo,
         priority: resultado.prioridad,
         status: resultado.estado,
@@ -69,6 +98,7 @@ export async function capturarDesdeTexto(
         resultado.proyectoNuevo ??
         (resultado.proyectoSlug && !proyecto ? resultado.proyectoSlug : null),
       confianza: resultado.confianza,
+      similares,
     })
   } catch (error) {
     if (esErrorIA(error)) {

@@ -27,6 +27,9 @@ const capturaSchema = z.object({
   // nombre suelto si mencionaste uno que todavía no existe.
   proyectoSlug: z.string().trim().nullable().optional(),
   proyectoNuevo: textoAcotado(80).nullable().optional(),
+  // Sólo tiene sentido junto con proyectoSlug: los slugs de área se repiten
+  // entre proyectos.
+  areaSlug: z.string().trim().nullable().optional(),
   confianza: numeroTolerante({ min: 0, max: 1 }).optional().default(0.5),
 })
 
@@ -34,15 +37,25 @@ export type ResultadoCaptura = z.infer<typeof capturaSchema>
 
 export type ProyectoConocido = { slug: string; name: string }
 
+export type AreaConocida = { slug: string; name: string; proyectoSlug: string }
+
 export async function capturarProblema(params: {
   userId: string
   texto: string
   proyectos: ProyectoConocido[]
+  areas: AreaConocida[]
 }): Promise<ResultadoCaptura> {
   const listaProyectos =
     params.proyectos.length > 0
       ? params.proyectos.map((p) => `- ${p.slug}: ${p.name}`).join("\n")
       : "(el usuario todavía no tiene proyectos)"
+
+  const listaAreas =
+    params.areas.length > 0
+      ? params.areas
+          .map((a) => `- ${a.proyectoSlug} / ${a.slug}: ${a.name}`)
+          .join("\n")
+      : "(ningún proyecto tiene áreas)"
 
   const sistema = [
     "Convertís notas sueltas de un desarrollador en problemas estructurados.",
@@ -62,6 +75,13 @@ export async function capturarProblema(params: {
     "Si la nota menciona uno de esos proyectos, devolvé su slug en proyectoSlug.",
     "Si menciona un proyecto que no está en la lista, devolvé su nombre en proyectoNuevo y dejá proyectoSlug en null.",
     "Si no menciona ninguno, dejá los dos en null.",
+    "Si la nota no nombra el proyecto pero habla de algo que sólo puede ser de uno (por sus áreas), elegí ese.",
+    "",
+    "Áreas de cada proyecto (proyecto / slug: nombre):",
+    listaAreas,
+    "",
+    "Si elegiste un proyecto y la nota habla de una parte que coincide con una de SUS áreas, devolvé el slug del área en areaSlug.",
+    "Nunca devuelvas un área de otro proyecto. Si ninguna encaja con claridad, dejá areaSlug en null.",
     "",
     "En confianza va tu certeza de haber interpretado bien la nota, de 0 a 1.",
   ].join("\n")
@@ -101,6 +121,10 @@ export async function capturarProblema(params: {
             type: ["string", "null"],
             description:
               "Nombre de un proyecto mencionado que no existe, o null",
+          },
+          areaSlug: {
+            type: ["string", "null"],
+            description: "Slug de un área del proyecto elegido, o null",
           },
           confianza: { type: "number", description: "Entre 0 y 1" },
         },

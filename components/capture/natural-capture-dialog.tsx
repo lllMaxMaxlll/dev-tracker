@@ -3,7 +3,6 @@
 import * as React from "react"
 import { MicIcon, SparklesIcon, SquareIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
+import { Kbd } from "@/components/ui/kbd"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/toast"
 import { useDictado } from "@/hooks/use-dictado"
@@ -24,8 +24,17 @@ const EJEMPLO =
   "el login se rompe cuando el mail tiene mayúsculas, es urgente, es del proyecto fischer"
 
 /**
- * Captura en lenguaje natural: escribís la nota como en el cuaderno y el modelo
- * la estructura.
+ * Cómo se abrió la captura.
+ *
+ * - `texto`: para escribir.
+ * - `voz`: con la tecla V o el botón flotante apretados. Escucha mientras se
+ *   mantienen y, al soltarlos, interpreta sola lo que se dijo.
+ */
+export type ModoCaptura = "texto" | "voz"
+
+/**
+ * Captura en lenguaje natural: escribís o dictás la nota como en el cuaderno y
+ * el modelo la estructura.
  *
  * Nunca guarda directo: al terminar abre el formulario precargado para que
  * revises y confirmes.
@@ -33,15 +42,30 @@ const EJEMPLO =
 export function NaturalCaptureDialog({
   open,
   onOpenChange,
+  modo = "texto",
   onSugerencia,
 }: {
   open: boolean
   onOpenChange: (abierto: boolean) => void
+  modo?: ModoCaptura
   onSugerencia: (sugerencia: CapturaSugerida) => void
 }) {
   const [texto, setTexto] = React.useState("")
   const [procesando, setProcesando] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  // El dictado entrega el texto en callbacks que corren fuera del render, y al
+  // terminar hay que interpretar lo último que llegó: el estado todavía puede
+  // no estar actualizado en ese momento, el ref sí.
+  const textoRef = React.useRef("")
+  // Se soltó la tecla o el botón: cuando el reconocimiento termine de
+  // entregar el texto, se interpreta solo.
+  const interpretarAlTerminarRef = React.useRef(false)
+
+  function escribir(nuevo: string) {
+    textoRef.current = nuevo
+    setTexto(nuevo)
+  }
 
   const [abiertoPrevio, setAbiertoPrevio] = React.useState(open)
 
@@ -54,15 +78,11 @@ export function NaturalCaptureDialog({
     }
   }
 
-  const { soportado, escuchando, alternar } = useDictado((dictado) =>
-    setTexto((previo) => (previo ? `${previo} ${dictado}` : dictado))
-  )
-
-  async function interpretar() {
+  async function interpretar(nota: string) {
     setProcesando(true)
     setError(null)
 
-    const resultado = await capturarDesdeTexto(texto)
+    const resultado = await capturarDesdeTexto(nota)
 
     setProcesando(false)
 
@@ -84,24 +104,92 @@ export function NaturalCaptureDialog({
     onSugerencia(resultado.data)
   }
 
+  const dictado = useDictado({
+    onTexto: (frase) =>
+      escribir(textoRef.current ? `${textoRef.current} ${frase}` : frase),
+    onFin: () => {
+      if (!interpretarAlTerminarRef.current) return
+
+      interpretarAlTerminarRef.current = false
+
+      if (textoRef.current.trim().length >= 5) {
+        interpretar(textoRef.current)
+      }
+    },
+  })
+
+  const { iniciar, detener } = dictado
+
+  // Pulsar para hablar. Los listeners van en `window` porque al abrirse el
+  // diálogo el foco y el puntero quedan en otro lado: el botón flotante o la
+  // tecla V siguen apretados, pero sus eventos ya no llegan a quien los
+  // empezó.
+  React.useEffect(() => {
+    if (!open) return
+
+    textoRef.current = ""
+    interpretarAlTerminarRef.current = false
+
+    if (modo !== "voz") return
+
+    let manteniendo = true
+
+    function soltar() {
+      if (!manteniendo) return
+
+      manteniendo = false
+      interpretarAlTerminarRef.current = true
+      detener()
+    }
+
+    // Mientras V sigue apretada, el autorrepetir del teclado escribiría
+    // "vvvv" en el textarea.
+    function onKeyDown(event: KeyboardEvent) {
+      if (manteniendo && event.key.toLowerCase() === "v") {
+        event.preventDefault()
+      }
+    }
+
+    function onKeyUp(event: KeyboardEvent) {
+      if (event.key.toLowerCase() === "v") soltar()
+    }
+
+    window.addEventListener("keydown", onKeyDown, true)
+    window.addEventListener("keyup", onKeyUp)
+    window.addEventListener("pointerup", soltar)
+    window.addEventListener("pointercancel", soltar)
+    iniciar()
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true)
+      window.removeEventListener("keyup", onKeyUp)
+      window.removeEventListener("pointerup", soltar)
+      window.removeEventListener("pointercancel", soltar)
+      // Si se cerró a mitad del dictado, lo que llegue después no se usa.
+      interpretarAlTerminarRef.current = false
+      detener()
+    }
+  }, [open, modo, iniciar, detener])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Anotar en lenguaje natural</DialogTitle>
           <DialogDescription>
-            Escribilo como lo anotarías en el cuaderno. Después vas a poder
-            revisar y corregir todo antes de guardar.
+            Escribilo o dictalo como lo anotarías en el cuaderno: el modelo
+            elige tipo, prioridad, proyecto y área. Después vas a poder revisar
+            y corregir todo antes de guardar.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
           <Textarea
             value={texto}
-            onChange={(e) => setTexto(e.target.value)}
+            onChange={(e) => escribir(e.target.value)}
             placeholder={EJEMPLO}
             rows={5}
-            autoFocus
+            autoFocus={modo === "texto" || !dictado.soportado}
             disabled={procesando}
             onKeyDown={(e) => {
               // Cmd/Ctrl + Enter para no tener que ir al botón.
@@ -111,33 +199,53 @@ export function NaturalCaptureDialog({
                 texto.trim()
               ) {
                 e.preventDefault()
-                interpretar()
+                interpretar(texto)
               }
             }}
           />
 
-          {soportado ? (
-            <div className="flex items-center gap-2">
+          {dictado.parcial ? (
+            <p className="text-sm text-muted-foreground italic">
+              {dictado.parcial}…
+            </p>
+          ) : null}
+
+          {dictado.soportado ? (
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
-                variant={escuchando ? "default" : "outline"}
+                variant={dictado.escuchando ? "default" : "outline"}
                 size="sm"
-                onClick={alternar}
+                onClick={dictado.alternar}
                 disabled={procesando}
               >
-                {escuchando ? (
+                {dictado.escuchando ? (
                   <SquareIcon data-icon="inline-start" />
                 ) : (
                   <MicIcon data-icon="inline-start" />
                 )}
-                {escuchando ? "Detener" : "Dictar"}
+                {dictado.escuchando ? "Detener" : "Dictar"}
               </Button>
-              {escuchando ? (
-                <span className={cn("text-xs text-muted-foreground")}>
-                  Escuchando… hablá normal, se transcribe al soltar.
-                </span>
-              ) : null}
+              <span className="text-xs text-muted-foreground">
+                {dictado.escuchando ? (
+                  modo === "voz" ? (
+                    "Escuchando… soltá para interpretar."
+                  ) : (
+                    "Escuchando… hablá normal."
+                  )
+                ) : (
+                  <>
+                    O mantené <Kbd>V</Kbd> desde cualquier pantalla.
+                  </>
+                )}
+              </span>
             </div>
+          ) : null}
+
+          {dictado.error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{dictado.error}</AlertDescription>
+            </Alert>
           ) : null}
 
           {error ? (
@@ -163,7 +271,10 @@ export function NaturalCaptureDialog({
           >
             Cancelar
           </Button>
-          <Button onClick={interpretar} disabled={procesando || !texto.trim()}>
+          <Button
+            onClick={() => interpretar(texto)}
+            disabled={procesando || !texto.trim()}
+          >
             {procesando ? (
               <Spinner data-icon="inline-start" />
             ) : (

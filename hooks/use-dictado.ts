@@ -41,8 +41,28 @@ function constructor(): (new () => ReconocimientoLike) | null {
 
 const suscripcionVacia = () => () => {}
 
-export function useDictado(onTexto: (texto: string) => void) {
+/** Los errores que vale la pena explicar; el resto se ve como un corte. */
+const MENSAJES_DE_ERROR: Record<string, string> = {
+  "not-allowed": "El navegador no tiene permiso para usar el micrófono.",
+  "service-not-allowed": "El navegador no tiene permiso para usar el micrófono.",
+  "audio-capture": "No se encontró un micrófono.",
+  network: "El dictado necesita conexión a internet.",
+}
+
+export function useDictado({
+  onTexto,
+  onFin,
+}: {
+  /** Cada frase que el reconocimiento da por terminada. */
+  onTexto: (texto: string) => void
+  /** Cuando el reconocimiento se cerró y ya entregó todo el texto. */
+  onFin?: () => void
+}) {
   const [escuchando, setEscuchando] = React.useState(false)
+  // Lo que se está diciendo y todavía puede cambiar. Se muestra aparte para
+  // no pisar lo que el usuario edita a mano en el textarea.
+  const [parcial, setParcial] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
   const referencia = React.useRef<ReconocimientoLike | null>(null)
 
   // useSyncExternalStore en vez de un flag en useEffect: la API sólo existe en
@@ -53,21 +73,19 @@ export function useDictado(onTexto: (texto: string) => void) {
     () => false
   )
 
-  // El callback se guarda en un ref para que `alternar` no dependa de él y no
-  // haya que recrear el reconocimiento en cada render. Se sincroniza en un
+  // Los callbacks se guardan en refs para que `iniciar` no dependa de ellos y
+  // no haya que recrear el reconocimiento en cada render. Se sincronizan en un
   // effect: escribir un ref durante el render no está permitido.
   const onTextoRef = React.useRef(onTexto)
+  const onFinRef = React.useRef(onFin)
 
   React.useEffect(() => {
     onTextoRef.current = onTexto
-  }, [onTexto])
+    onFinRef.current = onFin
+  }, [onTexto, onFin])
 
-  const alternar = React.useCallback(() => {
-    if (escuchando) {
-      referencia.current?.stop()
-
-      return
-    }
+  const iniciar = React.useCallback(() => {
+    if (referencia.current) return
 
     const Constructor = constructor()
 
@@ -76,31 +94,66 @@ export function useDictado(onTexto: (texto: string) => void) {
     const reconocimiento = new Constructor()
     reconocimiento.lang = "es-AR"
     reconocimiento.continuous = true
-    reconocimiento.interimResults = false
+    reconocimiento.interimResults = true
 
     reconocimiento.onresult = (evento) => {
-      let texto = ""
+      let final = ""
+      let provisorio = ""
 
       for (let i = evento.resultIndex; i < evento.results.length; i++) {
-        if (evento.results[i].isFinal) {
-          texto += evento.results[i][0].transcript
+        const resultado = evento.results[i]
+
+        if (resultado.isFinal) {
+          final += resultado[0].transcript
+        } else {
+          provisorio += resultado[0].transcript
         }
       }
 
-      if (texto) {
-        onTextoRef.current(texto)
+      if (final.trim()) {
+        onTextoRef.current(final.trim())
       }
+
+      setParcial(provisorio)
     }
 
-    reconocimiento.onerror = () => setEscuchando(false)
-    reconocimiento.onend = () => setEscuchando(false)
+    reconocimiento.onerror = (evento) => {
+      setError(MENSAJES_DE_ERROR[evento.error ?? ""] ?? null)
+    }
+
+    // `onend` llega siempre, también después de un error, y siempre después
+    // del último `onresult`: es el único lugar seguro para avisar que terminó.
+    reconocimiento.onend = () => {
+      referencia.current = null
+      setEscuchando(false)
+      setParcial("")
+      onFinRef.current?.()
+    }
 
     referencia.current = reconocimiento
-    reconocimiento.start()
-    setEscuchando(true)
-  }, [escuchando])
+    setError(null)
+
+    try {
+      reconocimiento.start()
+      setEscuchando(true)
+    } catch {
+      referencia.current = null
+    }
+  }, [])
+
+  const detener = React.useCallback(() => {
+    referencia.current?.stop()
+  }, [])
+
+  const alternar = React.useCallback(() => {
+    if (referencia.current) {
+      detener()
+    } else {
+      iniciar()
+    }
+  }, [detener, iniciar])
 
   React.useEffect(() => () => referencia.current?.stop(), [])
 
-  return { soportado, escuchando, alternar }
+  return { soportado, escuchando, parcial, error, iniciar, detener, alternar }
 }
