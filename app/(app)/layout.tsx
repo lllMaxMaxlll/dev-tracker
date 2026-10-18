@@ -32,9 +32,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Separator orientation="vertical" className="h-4" />
 
           <div className="ml-auto flex items-center gap-1">
-            <Suspense fallback={<QuickCaptureFallback />}>
-              <QuickCaptureSlot />
-            </Suspense>
             <ThemeToggle />
             <Suspense fallback={<UserMenuFallback />}>
               <UserMenuSlot />
@@ -45,6 +42,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
           {children}
         </div>
+
+        {/* Al pie: la línea de comandos es sticky y tiene que quedar última
+            dentro del inset. El botón flotante y los diálogos van por portal. */}
+        <Suspense fallback={<QuickCaptureFallback />}>
+          <QuickCaptureSlot />
+        </Suspense>
       </SidebarInset>
     </SidebarProvider>
   )

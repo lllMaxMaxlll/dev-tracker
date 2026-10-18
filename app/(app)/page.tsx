@@ -9,6 +9,7 @@ import { Cola } from "@/components/banco/cola"
 import { requireUser } from "@/lib/auth/require-user"
 import {
   PUESTOS_DEL_BANCO,
+  contarCerradasDesde,
   getActividadReciente,
   getCola,
   getEnProgreso,
@@ -17,9 +18,13 @@ import {
 import { getResumen } from "@/lib/db/queries/metrics"
 import { getEstancados } from "@/lib/db/queries/semana"
 import {
+  JORNADA,
+  MS_POR_JORNADA,
   ZONA,
   duracionLaboralLegible,
+  horaDeJornada,
   msLaborales,
+  turnoDeHoy,
 } from "@/lib/utils/horario-laboral"
 
 export const metadata: Metadata = { title: "Banco · Taller" }
@@ -158,6 +163,113 @@ async function Indicadores() {
   )
 }
 
+/** "2h 50m", compacto para la regla del turno. */
+function horasYMinutos(ms: number) {
+  const minutos = Math.round(ms / 60_000)
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`
+}
+
+/** Marcas de la regla: apertura, cada dos horas y cierre. */
+const MARCAS = Array.from(
+  { length: Math.floor((JORNADA.fin - JORNADA.inicio) / 120) + 1 },
+  (_, i) => JORNADA.inicio + i * 120
+)
+  .filter((minuto) => minuto < JORNADA.fin)
+  .concat(JORNADA.fin)
+
+/**
+ * El turno de hoy: cuánto de la jornada pasó y cuánto se cerró. Es la misma
+ * jornada que usa el tiempo de resolución, así que el fin de semana y los
+ * feriados aparecen como lo que son: horas que no cuentan.
+ */
+async function Turno() {
+  const user = await requireUser()
+  const turno = turnoDeHoy()
+  const cerradasHoy = await contarCerradasDesde(user.id, turno.inicioDelDia)
+  const fraccion = turno.transcurridoMs / MS_POR_JORNADA
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="flex items-baseline justify-between gap-2 text-xs font-bold tracking-wide text-muted-foreground uppercase [font-stretch:125%]">
+        Turno de hoy
+        {turno.tipo === "laboral" ? (
+          <span className="font-mono tracking-normal text-foreground normal-case [font-stretch:100%]">
+            {horasYMinutos(turno.transcurridoMs)} /{" "}
+            {horasYMinutos(MS_POR_JORNADA)}
+          </span>
+        ) : null}
+      </h2>
+      <div className="flex flex-col gap-3 rounded-md border bg-card p-4">
+        {turno.tipo === "laboral" ? (
+          <div>
+            <div className="relative h-7">
+              {/* Las marcas de la regla, una por cada dos horas. */}
+              {MARCAS.map((minuto) => (
+                <span
+                  key={minuto}
+                  aria-hidden="true"
+                  className="absolute top-0 bottom-0 w-px bg-border"
+                  style={{
+                    left: `${((minuto - JORNADA.inicio) / (JORNADA.fin - JORNADA.inicio)) * 100}%`,
+                  }}
+                />
+              ))}
+              <span
+                aria-hidden="true"
+                className="absolute top-2 left-0 h-3 bg-primary"
+                style={{ width: `${fraccion * 100}%` }}
+              />
+              {fraccion > 0 && fraccion < 1 ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 bottom-0 w-0.5 bg-foreground"
+                  style={{ left: `${fraccion * 100}%` }}
+                />
+              ) : null}
+            </div>
+            <div className="relative mt-1 h-4 font-mono text-[0.65rem] text-muted-foreground">
+              {MARCAS.map((minuto, i) => (
+                <span
+                  key={minuto}
+                  className="absolute"
+                  style={{
+                    left: `${((minuto - JORNADA.inicio) / (JORNADA.fin - JORNADA.inicio)) * 100}%`,
+                    transform:
+                      i === 0
+                        ? undefined
+                        : i === MARCAS.length - 1
+                          ? "translateX(-100%)"
+                          : "translateX(-50%)",
+                  }}
+                >
+                  {horaDeJornada(minuto)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <p className="text-sm text-muted-foreground">
+          {turno.tipo === "fin_de_semana"
+            ? "Fin de semana: lo que hagas hoy no suma al tiempo de resolución."
+            : turno.tipo === "feriado"
+              ? "Feriado: lo que hagas hoy no suma al tiempo de resolución."
+              : fraccion >= 1
+                ? "La jornada terminó: lo que pase hasta mañana no suma horas."
+                : fraccion === 0
+                  ? `La jornada arranca a las ${horaDeJornada(JORNADA.inicio)}.`
+                  : `Quedan ${horasYMinutos(MS_POR_JORNADA - turno.transcurridoMs)} de jornada.`}{" "}
+          {cerradasHoy > 0
+            ? `Hoy cerraste ${cerradasHoy} ${cerradasHoy === 1 ? "orden" : "órdenes"}.`
+            : "Todavía no cerraste nada hoy."}
+        </p>
+      </div>
+    </section>
+  )
+}
+
 const HORA = new Intl.DateTimeFormat("es-AR", {
   timeZone: ZONA,
   hour: "2-digit",
@@ -259,6 +371,9 @@ export default function BancoPage() {
         <aside className="flex flex-col gap-8">
           <Suspense fallback={<Skeleton className="h-48" />}>
             <Indicadores />
+          </Suspense>
+          <Suspense fallback={<Skeleton className="h-32" />}>
+            <Turno />
           </Suspense>
           <Suspense fallback={<Skeleton className="h-64" />}>
             <Actividad />

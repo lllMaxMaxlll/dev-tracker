@@ -27,6 +27,7 @@ import {
   type ProyectoOpcion,
 } from "@/components/issues/issue-form-dialog"
 import { NAV_ITEMS } from "@/components/layout/nav-items"
+import { LineaDeComandos } from "@/components/capture/linea-de-comandos"
 import {
   NaturalCaptureDialog,
   type ModoCaptura,
@@ -72,14 +73,16 @@ export function QuickCapture({
   const [formAbierto, setFormAbierto] = React.useState(false)
   const [naturalAbierto, setNaturalAbierto] = React.useState(false)
   const [modoCaptura, setModoCaptura] = React.useState<ModoCaptura>("texto")
+  const [textoCaptura, setTextoCaptura] = React.useState("")
   const [sugerencia, setSugerencia] = React.useState<{
     valores: Partial<IssueFormValues>
     proyectoNuevo: string | null
     similares: Similar[]
   } | null>(null)
 
-  function abrirCaptura(modo: ModoCaptura) {
+  function abrirCaptura(modo: ModoCaptura, texto = "") {
     setModoCaptura(modo)
+    setTextoCaptura(texto)
     setNaturalAbierto(true)
   }
 
@@ -165,6 +168,13 @@ export function QuickCapture({
 
   return (
     <>
+      <LineaDeComandos
+        proyectos={proyectos}
+        onRevisar={(texto) => abrirCaptura("texto", texto)}
+        onFormulario={abrirFormularioVacio}
+        onDictar={() => abrirCaptura("voz")}
+      />
+
       <ClientOnly>
         {/* Portal: el header tiene backdrop-blur, que convierte a `fixed` en
             relativo al header en vez de a la ventana. */}
@@ -224,6 +234,7 @@ export function QuickCapture({
         open={naturalAbierto}
         onOpenChange={setNaturalAbierto}
         modo={modoCaptura}
+        textoInicial={textoCaptura}
         onSugerencia={aplicarSugerencia}
       />
 
@@ -278,7 +289,8 @@ function BotonAnotar({
   return createPortal(
     <Button
       size="lg"
-      className="fixed right-6 bottom-6 z-40 touch-none rounded-full shadow-lg select-none"
+      // En escritorio sube para no tapar la línea de comandos.
+      className="fixed right-6 bottom-6 z-40 md:bottom-16 touch-none rounded-full shadow-lg select-none"
       title="Anotar (A) · mantené apretado o la tecla V para dictar"
       onPointerDown={() => {
         fuePulsacionLarga.current = false

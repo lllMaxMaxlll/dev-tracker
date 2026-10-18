@@ -143,3 +143,45 @@ export function duracionLaboralLegible(ms: number): string {
     redondeadas === 1 ? "jornada" : "jornadas"
   }`
 }
+
+export type Turno = {
+  /** Si hoy se trabaja, y si no, por qué. */
+  tipo: "laboral" | "fin_de_semana" | "feriado"
+  /** Cuánto de la jornada ya pasó. 0 antes de abrir, la jornada entera al cerrar. */
+  transcurridoMs: number
+  /** Medianoche local de hoy, como instante: para contar lo que pasó "hoy". */
+  inicioDelDia: Date
+}
+
+/** Dónde está parada la jornada de hoy, para el turno del Banco. */
+export function turnoDeHoy(ahora = new Date()): Turno {
+  const local = aRelojLocal(ahora)
+  const dia = Math.floor(local / MS_POR_DIA) * MS_POR_DIA
+  const inicioDelDia = new Date(ahora.getTime() - (local - dia))
+  const fecha = new Date(dia)
+  const diaDeSemana = fecha.getUTCDay()
+
+  if (diaDeSemana === 0 || diaDeSemana === 6) {
+    return { tipo: "fin_de_semana", transcurridoMs: 0, inicioDelDia }
+  }
+
+  if (esFeriado(fecha.toISOString().slice(0, 10))) {
+    return { tipo: "feriado", transcurridoMs: 0, inicioDelDia }
+  }
+
+  const abre = dia + JORNADA.inicio * 60_000
+
+  return {
+    tipo: "laboral",
+    transcurridoMs: Math.min(Math.max(local - abre, 0), MS_POR_JORNADA),
+    inicioDelDia,
+  }
+}
+
+/** "07:30", a partir de minutos desde la medianoche. */
+export function horaDeJornada(minutos: number): string {
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+}

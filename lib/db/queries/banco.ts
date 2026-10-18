@@ -106,3 +106,19 @@ export async function getActividadReciente(
     .orderBy(desc(issueStatusHistory.changedAt))
     .limit(limite)
 }
+
+/** Cuántas órdenes se cerraron desde `desde` (la medianoche local de hoy). */
+export async function contarCerradasDesde(userId: string, desde: Date) {
+  const [fila] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(issues)
+    .where(
+      and(
+        eq(issues.userId, userId),
+        eq(issues.status, "resuelto"),
+        gte(issues.resolvedAt, desde)
+      )
+    )
+
+  return fila?.total ?? 0
+}

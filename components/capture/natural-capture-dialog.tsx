@@ -47,11 +47,14 @@ export function NaturalCaptureDialog({
   open,
   onOpenChange,
   modo = "texto",
+  textoInicial = "",
   onSugerencia,
 }: {
   open: boolean
   onOpenChange: (abierto: boolean) => void
   modo?: ModoCaptura
+  /** Lo que ya se escribió en otro lado, por ejemplo en la línea de comandos. */
+  textoInicial?: string
   onSugerencia: (sugerencia: CapturaSugerida) => void
 }) {
   const [texto, setTexto] = React.useState("")
@@ -77,7 +80,7 @@ export function NaturalCaptureDialog({
     setAbiertoPrevio(open)
 
     if (open) {
-      setTexto("")
+      setTexto(textoInicial)
       setError(null)
     }
   }
@@ -158,7 +161,7 @@ export function NaturalCaptureDialog({
   React.useEffect(() => {
     if (!open) return
 
-    textoRef.current = ""
+    textoRef.current = textoInicial
     interpretarAlTerminarRef.current = false
 
     if (modo !== "voz") return
@@ -200,7 +203,7 @@ export function NaturalCaptureDialog({
       interpretarAlTerminarRef.current = false
       detener()
     }
-  }, [open, modo, iniciar, detener])
+  }, [open, modo, textoInicial, iniciar, detener])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
