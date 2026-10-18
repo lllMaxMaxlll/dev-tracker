@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fondo:#121211; --chapa:#1A1A18; --chapa-2:#22221F; --chapa-3:#2B2B27;
+  --linea:#2F2F2A; --linea-2:#3D3D37;
+  --texto:#ECEBE4; --tenue:#8D8C83; --muy-tenue:#5E5D56;
+  --naranja:#FF5F1F; --amarillo:#F2C230; --verde:#47C46E; --azul:#58A6FF; --rojo:#FF4040; --violeta:#B48CFF;
+  --display:"Archivo", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, monospace;
+}
+:root[data-theme="light"]{
+  --fondo:#E9E7E0; --chapa:#F3F1EA; --chapa-2:#E2DFD6; --chapa-3:#D6D2C7;
+  --linea:#CFCBBF; --linea-2:#B9B4A6; --texto:#191917; --tenue:#5F5D55; --muy-tenue:#8D8A80;
+  --naranja:#E2480A; --amarillo:#B98A00; --verde:#1F8A45; --azul:#1F64C4; --rojo:#D11E1E; --violeta:#6C45C9;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--texto);font-family:var(--display);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.mono{font-family:var(--mono)}
+.ancho{font-stretch:125%;text-transform:uppercase;letter-spacing:.02em}
+
+.marco{display:grid;grid-template-rows:48px 1fr 52px;grid-template-columns:76px 1fr;height:100vh}
+/* Barra superior */
+.top{grid-column:1/-1;display:flex;align-items:center;border-bottom:1px solid var(--linea);background:var(--chapa)}
+.logo{width:76px;height:100%;display:grid;place-items:center;border-right:1px solid var(--linea);background:var(--naranja);color:#111}
+.top .marca{padding:0 16px;font-weight:800;font-size:17px;border-right:1px solid var(--linea);height:100%;display:flex;align-items:center;gap:10px}
+.top .marca small{font:500 10px var(--mono);color:var(--tenue);letter-spacing:.1em}
+.miga{padding:0 16px;font:500 12px var(--mono);color:var(--tenue)}
+.miga b{color:var(--texto)}
+.medidas{margin-left:auto;display:flex;height:100%}
+.medidas div{padding:0 16px;border-left:1px solid var(--linea);display:flex;flex-direction:column;justify-content:center;font:10px var(--mono);color:var(--tenue);letter-spacing:.08em;text-transform:uppercase}
+.medidas b{font:700 15px var(--mono);color:var(--texto);letter-spacing:0;text-transform:none}
+.medidas b.n{color:var(--naranja)}
+
+/* Riel */
+.riel{border-right:1px solid var(--linea);background:var(--chapa);display:flex;flex-direction:column}
+.riel button{height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-bottom:1px solid var(--linea);font:600 9.5px var(--display);font-stretch:110%;text-transform:uppercase;letter-spacing:.06em;color:var(--tenue);position:relative}
+.riel button svg{width:20px;height:20px}
+.riel button[aria-current="page"]{color:var(--texto);background:var(--chapa-2)}
+.riel button[aria-current="page"]::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--naranja)}
+.riel button .badge{position:absolute;top:8px;right:12px;font:700 9px var(--mono);background:var(--naranja);color:#111;padding:1px 4px;border-radius:2px}
+.riel .esp{flex:1}
+.riel button:hover{color:var(--texto)}
+
+.area{overflow:auto;position:relative}
+.vista{display:none;min-height:100%}
+.vista.activa{display:block}
+.cab{display:flex;align-items:end;justify-content:space-between;gap:16px;padding:22px 24px 16px;border-bottom:1px solid var(--linea);flex-wrap:wrap}
+.cab h1{margin:0;font-size:30px;font-weight:800;line-height:1;font-stretch:125%;text-transform:uppercase}
+.cab p{margin:6px 0 0;color:var(--tenue);font-size:13px}
+.cod{font:500 11px var(--mono);color:var(--naranja);letter-spacing:.08em}
+.btn{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid var(--linea-2);background:var(--chapa-2);font-weight:600;font-size:12.5px;border-radius:3px}
+.btn:hover{border-color:var(--tenue)}
+.btn.pri{background:var(--naranja);color:#111;border-color:var(--naranja)}
+.k{font:600 10.5px var(--mono);border:1px solid var(--linea-2);border-bottom-width:2px;border-radius:3px;padding:0 5px;color:var(--tenue);background:var(--fondo);line-height:16px;display:inline-block}
+.btn.pri .k{background:rgba(0,0,0,.15);color:#111;border-color:rgba(0,0,0,.25)}
+
+/* Tipos */
+.tipo{font:700 10px var(--mono);padding:2px 5px;border-radius:2px;letter-spacing:.04em;display:inline-block;min-width:34px;text-align:center}
+.t-bug{background:color-mix(in oklab,var(--rojo) 22%,transparent);color:var(--rojo)}
+.t-feat{background:color-mix(in oklab,var(--azul) 22%,transparent);color:var(--azul)}
+.t-mej{background:color-mix(in oklab,var(--verde) 22%,transparent);color:var(--verde)}
+.t-idea{background:color-mix(in oklab,var(--amarillo) 22%,transparent);color:var(--amarillo)}
+.t-deuda{background:color-mix(in oklab,var(--violeta) 22%,transparent);color:var(--violeta)}
+.prio{display:inline-flex;gap:2px;align-items:end;height:12px}
+.prio i{width:3px;background:var(--linea-2)}
+.prio i:nth-child(1){height:4px}.prio i:nth-child(2){height:7px}.prio i:nth-child(3){height:10px}.prio i:nth-child(4){height:12px}
+.prio[data-p="1"] i:nth-child(-n+1),.prio[data-p="2"] i:nth-child(-n+2){background:var(--tenue)}
+.prio[data-p="3"] i:nth-child(-n+3){background:var(--amarillo)}
+.prio[data-p="4"] i{background:var(--rojo)}
+
+/* Banco */
+.grilla{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:calc(100vh - 100px - 82px)}
+.grilla > div{padding:20px 24px}
+.grilla > div + div{border-left:1px solid var(--linea)}
+.rot{font:600 11px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;color:var(--tenue);display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px}
+.slot{border:1px solid var(--linea-2);background:var(--chapa);padding:14px;min-height:170px;display:flex;flex-direction:column;gap:10px;position:relative;border-radius:3px}
+.slot .n{font:700 11px var(--mono);color:var(--tenue)}
+.slot h3{margin:0;font-size:17px;font-weight:700;line-height:1.25}
+.slot .pie{margin-top:auto;display:flex;justify-content:space-between;align-items:center;font:11px var(--mono);color:var(--tenue)}
+.slot .reloj{color:var(--naranja);font-weight:700}
+.slot.vacio{border-style:dashed;background:transparent;align-items:center;justify-content:center;text-align:center;color:var(--tenue)}
+.slot .franja{position:absolute;top:0;left:0;right:0;height:3px;background:repeating-linear-gradient(-45deg,var(--naranja) 0 8px,transparent 8px 16px)}
+.cola{border-top:1px solid var(--linea)}
+.fila{display:grid;grid-template-columns:28px 52px 52px minmax(0,1fr) 110px 40px;gap:10px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--linea);cursor:pointer}
+.fila:hover,.fila.sel{background:var(--chapa-2)}
+.fila.sel{box-shadow:inset 3px 0 0 var(--naranja)}
+.fila .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.fila .motivo{display:block;font-size:12px;color:var(--tenue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
+.fila .p{font:11px var(--mono);color:var(--tenue)}
+.big{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--linea);margin-bottom:22px}
+.big div{padding:14px;border-right:1px solid var(--linea);border-bottom:1px solid var(--linea)}
+.big div:nth-child(2n){border-right:0}
+.big div:nth-last-child(-n+2){border-bottom:0}
+.big b{display:block;font:700 34px/1 var(--mono);letter-spacing:-.03em}
+.big span{font:10.5px var(--mono);color:var(--tenue);text-transform:uppercase;letter-spacing:.06em}
+.turno{border:1px solid var(--linea);padding:14px;margin-bottom:22px}
+.regla{position:relative;height:28px;margin-top:10px;background:repeating-linear-gradient(90deg,var(--linea-2) 0 1px,transparent 1px 11.76%)}
+.regla .hecho{position:absolute;left:0;top:8px;height:12px;width:33%;background:var(--naranja)}
+.regla .ahora{position:absolute;left:33%;top:0;bottom:0;width:2px;background:var(--texto)}
+.regla-l{display:flex;justify-content:space-between;font:10px var(--mono);color:var(--tenue);margin-top:4px}
+.registro-act div{display:grid;grid-template-columns:44px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--linea);font-size:12.5px}
+.registro-act time{font:11px var(--mono);color:var(--tenue)}
+
+/* Bandeja */
+.bandeja{max-width:860px;margin:0 auto;padding:28px 24px}
+.progreso-b{display:flex;gap:4px;margin-bottom:18px}
+.progreso-b i{flex:1;height:4px;background:var(--linea-2)}
+.progreso-b i.ok{background:var(--verde)}.progreso-b i.act{background:var(--naranja)}
+.triage{border:1px solid var(--linea-2);background:var(--chapa);border-radius:3px}
+.triage .orig{padding:18px 20px;border-bottom:1px solid var(--linea);font:14px/1.6 var(--mono);color:var(--tenue)}
+.triage .orig b{color:var(--texto);font-weight:500}
+.triage .prop{padding:20px;display:grid;grid-template-columns:110px 1fr;gap:12px 16px;align-items:center}
+.triage .prop dt{font:600 10.5px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;color:var(--tenue)}
+.triage .prop dd{margin:0}
+.triage .prop dd.titulo{font-size:22px;font-weight:700}
+.alerta{margin:0 20px 20px;border:1px solid color-mix(in oklab,var(--amarillo) 50%,transparent);background:color-mix(in oklab,var(--amarillo) 8%,transparent);padding:12px 14px;font-size:13px;display:flex;gap:10px;align-items:center}
+.teclas{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--linea)}
+.teclas button{padding:14px 10px;border-right:1px solid var(--linea);display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:600;font-size:12.5px}
+.teclas button:last-child{border-right:0}
+.teclas button:hover{background:var(--chapa-2)}
+.teclas button.ok{color:var(--verde)}
+.teclas .k{font-size:13px;padding:2px 8px}
+
+/* Órdenes */
+.split{display:grid;grid-template-columns:minmax(0,1fr) 420px;height:calc(100vh - 100px - 82px)}
+.split .lista{overflow:auto}
+.split .insp{border-left:1px solid var(--linea);overflow:auto;background:var(--chapa)}
+.filtros{display:flex;gap:6px;padding:10px 16px;border-bottom:1px solid var(--linea);flex-wrap:wrap;align-items:center}
+.f{height:26px;padding:0 9px;border:1px solid var(--linea-2);font:500 11.5px var(--mono);display:inline-flex;align-items:center;gap:6px;border-radius:2px}
+.f[aria-pressed="true"]{border-color:var(--naranja);color:var(--naranja)}
+.grupo{padding:8px 16px;font:600 10.5px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;color:var(--tenue);background:var(--chapa);border-bottom:1px solid var(--linea);display:flex;gap:8px;position:sticky;top:0}
+.ord{display:grid;grid-template-columns:20px 52px 46px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--linea);cursor:pointer}
+.ord:hover{background:var(--chapa)}
+.ord.sel{background:var(--chapa-2);box-shadow:inset 3px 0 0 var(--naranja)}
+.ord .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ord .p{font:11px var(--mono);color:var(--tenue);display:flex;gap:10px}
+.chk{width:14px;height:14px;border:1px solid var(--linea-2);border-radius:2px}
+.insp-cab{padding:18px 20px;border-bottom:1px solid var(--linea)}
+.insp-cab h2{margin:6px 0 10px;font-size:20px;line-height:1.25}
+.props{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--linea)}
+.props div{padding:10px 20px;border-bottom:1px solid var(--linea);border-right:1px solid var(--linea);display:flex;justify-content:space-between;align-items:center;font-size:12.5px}
+.props div:nth-child(2n){border-right:0}
+.props span{font:10px var(--mono);color:var(--tenue);text-transform:uppercase}
+.insp-cuerpo{padding:18px 20px;font-size:13.5px;line-height:1.6}
+.insp-cuerpo code{font:12px var(--mono);background:var(--fondo);padding:1px 4px}
+.cronologia{border-left:1px solid var(--linea-2);margin:8px 0 0 4px;padding-left:14px}
+.cronologia div{position:relative;padding:5px 0;font-size:12px;color:var(--tenue)}
+.cronologia div::before{content:"";position:absolute;left:-18px;top:11px;width:7px;height:7px;background:var(--linea-2)}
+.cronologia div.h::before{background:var(--naranja)}
+.cronologia b{color:var(--texto);font-weight:500}
+
+/* Planta */
+.instrumentos{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--linea)}
+.inst{padding:20px;border-right:1px solid var(--linea);display:flex;flex-direction:column;align-items:center;gap:6px}
+.inst:last-child{border-right:0}
+.inst .val{font:700 22px var(--mono)}
+.inst .nom{font:600 10.5px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;color:var(--tenue)}
+.inst .det{font:11px var(--mono);color:var(--muy-tenue)}
+.dos-col{display:grid;grid-template-columns:1fr 1fr}
+.dos-col > div{padding:20px 24px}
+.dos-col > div + div{border-left:1px solid var(--linea)}
+.heat{display:grid;grid-template-columns:repeat(30,1fr);gap:2px}
+.heat i{aspect-ratio:1;background:var(--chapa-3)}
+.heat i.l1{background:color-mix(in oklab,var(--naranja) 30%,var(--chapa-3))}.heat i.l2{background:color-mix(in oklab,var(--naranja) 65%,var(--chapa-3))}.heat i.l3{background:var(--naranja)}
+.repo{display:grid;grid-template-columns:1fr auto auto;gap:14px;padding:10px 0;border-bottom:1px solid var(--linea);font-size:13px;align-items:center}
+.repo .mono{font-size:12px;color:var(--tenue)}
+.log div{font:12px var(--mono);padding:6px 0;border-bottom:1px dashed var(--linea);display:grid;grid-template-columns:120px 1fr;gap:10px;color:var(--tenue)}
+.log b{color:var(--texto);font-weight:500}
+.log .w{color:var(--amarillo)}
+
+/* Informes */
+.informe{max-width:900px;margin:0 auto;padding:28px 24px}
+.hoja{border:1px solid var(--linea-2);background:var(--chapa)}
+.hoja-cab{display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--linea-2)}
+.hoja-cab > div{padding:16px 20px}
+.hoja-cab > div + div{border-left:1px solid var(--linea-2);font:11px/1.8 var(--mono);color:var(--tenue)}
+.hoja-cab h2{margin:4px 0 0;font-size:24px;font-stretch:125%;text-transform:uppercase}
+.hoja-cuerpo{display:grid;grid-template-columns:1fr 260px}
+.hoja-cuerpo > div{padding:20px}
+.hoja-cuerpo > div + div{border-left:1px solid var(--linea-2)}
+.hoja-cuerpo p{margin:0 0 12px;font-size:14.5px;line-height:1.65}
+.barras div{display:grid;grid-template-columns:90px 1fr 24px;gap:8px;align-items:center;font:11.5px var(--mono);margin:6px 0}
+.barras i{height:8px;background:var(--naranja);display:block}
+
+/* Línea de comandos */
+.cmd{grid-column:1/-1;border-top:1px solid var(--linea);background:var(--chapa);display:flex;align-items:center;gap:12px;padding:0 16px;position:relative}
+.cmd .pr{font:700 15px var(--mono);color:var(--naranja)}
+.cmd input{flex:1;background:transparent;border:0;outline:none;font:14px var(--mono);color:var(--texto)}
+.cmd input::placeholder{color:var(--muy-tenue)}
+.cmd .ayuda{font:11px var(--mono);color:var(--muy-tenue);display:flex;gap:12px}
+.parse{position:absolute;bottom:58px;left:16px;right:16px;max-width:760px;background:var(--chapa-2);border:1px solid var(--linea-2);display:none;box-shadow:0 20px 50px -20px rgba(0,0,0,.6);border-radius:3px}
+.parse.ver{display:block}
+.parse header{padding:10px 14px;border-bottom:1px solid var(--linea);font:600 10.5px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;color:var(--tenue);display:flex;justify-content:space-between}
+.parse .chips{padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap}
+.parse .chip{font:12px var(--mono);border:1px solid var(--linea-2);padding:4px 8px;display:inline-flex;gap:6px;align-items:center}
+.parse .chip span{color:var(--tenue)}
+.parse .acc{padding:10px 14px;border-top:1px solid var(--linea);display:flex;gap:8px;justify-content:flex-end}
+.parse .comandos div{padding:8px 14px;display:flex;justify-content:space-between;font:12.5px var(--mono);border-top:1px solid var(--linea)}
+.parse .comandos div span{color:var(--tenue)}
+
+/* Propuesta */
+.fab{position:fixed;left:92px;bottom:64px;z-index:30;background:var(--texto);color:var(--fondo);padding:9px 14px;font:700 12px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.04em;border-radius:3px}
+.propuesta{position:fixed;inset:0 0 0 auto;width:min(540px,100%);background:var(--chapa);border-left:1px solid var(--linea-2);transform:translateX(100%);transition:transform .25s;z-index:50;overflow:auto;padding:24px}
+.propuesta.abierta{transform:none}
+.propuesta h2{font-size:42px;font-weight:800;font-stretch:125%;text-transform:uppercase;margin:6px 0 8px;line-height:1}
+.propuesta h3{font:600 11px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;color:var(--naranja);margin:24px 0 10px;padding-top:14px;border-top:1px solid var(--linea)}
+.propuesta p,.propuesta li{font-size:13.5px;line-height:1.6;color:var(--texto)}
+.propuesta ul{padding-left:18px;margin:0}
+.paleta{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.paleta div{font:10.5px var(--mono);color:var(--tenue)}
+.paleta i{display:block;height:46px;border:1px solid var(--linea-2);margin-bottom:4px}
+.reorg{width:100%;border-collapse:collapse;font-size:13px}
+.reorg td{padding:7px 4px;border-bottom:1px solid var(--linea);vertical-align:top}
+.reorg td:first-child{color:var(--tenue);width:38%;font-family:var(--mono);font-size:12px}
+
+
+/* Anotar: botón flotante + panel con dictado */
+.anotar{position:fixed;right:16px;bottom:68px;z-index:35;display:flex;align-items:center;gap:10px;height:52px;padding:0 8px 0 16px;background:var(--naranja);color:#111;border-radius:3px;font:800 13px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 14px 30px -10px rgba(255,95,31,.55)}
+.anotar svg{width:20px;height:20px}
+.anotar .k{background:rgba(0,0,0,.15);color:#111;border-color:rgba(0,0,0,.3);font-size:11px}
+.anotar .teclas-f{display:flex;gap:4px;align-items:center;font:600 10px var(--mono);text-transform:none;letter-spacing:0;padding-left:8px;border-left:1px solid rgba(0,0,0,.25)}
+.anotar.escuchando{background:var(--rojo);color:#fff;animation:late 1.2s ease-in-out infinite}
+@keyframes late{50%{box-shadow:0 0 0 10px color-mix(in oklab,var(--rojo) 25%,transparent)}}
+.velo-cap{position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center;padding:16px 16px 72px}
+.velo-cap.ver{display:flex}
+.cap{width:min(760px,100%);background:var(--chapa);border:1px solid var(--linea-2);border-top:3px solid var(--naranja);border-radius:3px;box-shadow:0 30px 80px -20px rgba(0,0,0,.7);animation:subeCap .18s ease-out}
+@keyframes subeCap{from{transform:translateY(12px);opacity:0}}
+.cap-cab{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--linea)}
+.cap-cab .ancho{font-weight:800;font-size:15px}
+.modo{font:700 10.5px var(--mono);padding:2px 6px;border:1px solid var(--linea-2);color:var(--tenue);letter-spacing:.06em}
+.modo.voz{border-color:var(--rojo);color:var(--rojo)}
+.cap-cab .btn{margin-left:auto;height:26px}
+.mic-zona{display:flex;align-items:center;gap:14px;padding:14px 16px;border-bottom:1px solid var(--linea)}
+.mic{width:44px;height:44px;border-radius:50%;border:1px solid var(--linea-2);display:grid;place-items:center;flex:none;background:var(--chapa-2)}
+.mic svg{width:20px;height:20px}
+.mic[aria-pressed="true"]{background:var(--rojo);border-color:var(--rojo);color:#fff}
+.vu{display:flex;align-items:center;gap:3px;height:30px;width:120px;flex:none}
+.vu i{flex:1;height:3px;background:var(--linea-2);transition:height .1s}
+.escuchando-cap .vu i{background:var(--rojo)}
+.mic-txt{font-size:12.5px;color:var(--tenue)}
+.mic-txt b{color:var(--texto)}
+.cap textarea{display:block;width:100%;min-height:96px;background:var(--fondo);border:0;border-bottom:1px solid var(--linea);padding:14px 16px;font:15px/1.55 var(--mono);color:var(--texto);resize:vertical;outline:none}
+.cap textarea::placeholder{color:var(--muy-tenue)}
+.cap-int{padding:14px 16px}
+.cap-props{display:grid;grid-template-columns:repeat(4,auto) 1fr;gap:8px;align-items:stretch;margin:0}
+.campo-c{border:1px solid var(--linea-2);padding:6px 10px;display:flex;flex-direction:column;gap:3px;min-width:0;background:var(--chapa-2);text-align:left}
+.campo-c:hover{border-color:var(--tenue)}
+.campo-c > span{font:600 9.5px var(--display);font-stretch:125%;text-transform:uppercase;letter-spacing:.08em;color:var(--tenue);display:flex;gap:6px;justify-content:space-between}
+.campo-c > span em{font:500 9.5px var(--mono);font-style:normal;text-transform:none;letter-spacing:0}
+.campo-c > span em.dudoso{color:var(--amarillo)}
+.campo-c b{font:500 13px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cap .alerta{margin:12px 0 0}
+.cap-pie{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--linea);flex-wrap:wrap}
+.cap-pie .ayuda{font:11px var(--mono);color:var(--muy-tenue);display:flex;gap:12px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:var(--texto);color:var(--fondo);padding:10px 16px;font:600 13px var(--display);border-radius:3px;z-index:80;display:none}
+.toast.ver{display:block;animation:subeCap .2s}
+
+@media (max-width:1000px){
+  .marco{grid-template-columns:1fr;grid-template-rows:48px auto 1fr 52px;height:auto;min-height:100vh}
+  .riel{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--linea)}
+  .riel button{height:56px;min-width:76px;border-bottom:0;border-right:1px solid var(--linea)}
+  .riel .esp{display:none}
+  .logo{width:48px}
+  .medidas div:nth-child(n+2),.miga{display:none}
+  .grilla,.split,.dos-col,.hoja-cuerpo{grid-template-columns:1fr;height:auto}
+  .grilla > div + div,.dos-col > div + div,.hoja-cuerpo > div + div{border-left:0;border-top:1px solid var(--linea)}
+  .split .insp{border-left:0;border-top:1px solid var(--linea)}
+  .slots{grid-template-columns:1fr}
+  .instrumentos{grid-template-columns:1fr 1fr}
+  .fila{grid-template-columns:24px minmax(0,1fr) 30px}
+  .fila .oc{display:none}
+  .cmd .ayuda{display:none}
+  .teclas{grid-template-columns:1fr 1fr}
+  .anotar .teclas-f{display:none}
+  .fab{left:16px}
+  .cap-props{grid-template-columns:1fr 1fr}
+  .velo-cap{padding:8px 8px 64px}
+}
+</style>
+</head>
+<body>
+<div class="marco">
+  <header class="top">
+    <div class="logo"><svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 26V12l6-4v6l6-4v6l6-4v14z" fill="#111"/><rect x="24" y="4" width="4" height="22" fill="#111"/><rect x="2" y="26" width="28" height="3" fill="#111"/></svg></div>
+    <div class="marca ancho">Taller <small>v2</small></div>
+    <div class="miga mono">taller / <b id="miga">banco</b></div>
+    <div class="medidas">
+      <div>Banco<b class="n">2/3</b></div>
+      <div>Abiertas<b>14</b></div>
+      <div>Bandeja<b>3</b></div>
+      <div>IA · oct<b>$1,84</b></div>
+    </div>
+  </header>
+
+  <nav class="riel" id="riel">
+    <button data-v="banco" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h18M5 10v10M19 10v10M8 4h8v6H8z"/></svg>Banco</button>
+    <button data-v="bandeja"><span class="badge">3</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/></svg>Bandeja</button>
+    <button data-v="ordenes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/></svg>Órdenes</button>
+    <button data-v="planta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-4M12 5V3"/></svg>Planta</button>
+    <button data-v="informes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7M9 8h3"/></svg>Informes</button>
+    <span class="esp"></span>
+    <button id="tema"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>Luz</button>
+  </nav>
+
+  <div class="area">
+    <!-- BANCO -->
+    <section class="vista activa" data-vista="banco">
+      <div class="cab"><div><div class="cod">OT · SÁB 18 OCT · 11:50</div><h1>Banco de trabajo</h1><p>Máximo tres cosas en progreso. Si querés empezar otra, terminá o soltá una.</p></div>
+        <div style="display:flex;gap:8px"><button class="btn">Soltar <span class="k">S</span></button><button class="btn pri">Terminar <span class="k">T</span></button></div></div>
+      <div class="grilla">
+        <div>
+          <div class="slots">
+            <div class="slot"><span class="franja"></span><span class="n">#142 · DEVTRACKER/PROBLEMAS</span><h3>El kanban pierde el orden al recargar</h3><span><span class="tipo t-bug">BUG</span> <span class="prio" data-p="3"><i></i><i></i><i></i><i></i></span></span><div class="pie"><span>commit a3f9e12 ✓</span><span class="reloj">03:12 h</span></div></div>
+            <div class="slot"><span class="n">#136 · RECETARIO/ADJUNTOS</span><h3>Las fotos se suben sin comprimir</h3><span><span class="tipo t-mej">MEJ</span> <span class="prio" data-p="3"><i></i><i></i><i></i><i></i></span></span><div class="pie"><span>sin commits</span><span class="reloj">06:40 h</span></div></div>
+            <div class="slot vacio"><div><b style="font-size:13px">Puesto libre</b><br><span style="font-size:12px">Tomá algo de la cola con <span class="k">1</span>–<span class="k">5</span></span></div></div>
+          </div>
+          <div class="rot">Cola · ordenada por la IA <span class="mono" style="letter-spacing:0;text-transform:none">recalculada 09:00 · <u>volver a ordenar</u></span></div>
+          <div class="cola" id="cola"></div>
+        </div>
+        <div>
+          <div class="rot">Indicadores</div>
+          <div class="big">
+            <div><b>14</b><span>Abiertas</span></div>
+            <div><b style="color:var(--verde)">6</b><span>Cerradas · semana</span></div>
+            <div><b>1j3h</b><span>Resolución · laboral</span></div>
+            <div><b style="color:var(--amarillo)">3</b><span>Quietas &gt;14 días</span></div>
+          </div>
+          <div class="turno">
+            <div class="rot" style="margin:0">Turno de hoy <span class="mono" style="color:var(--texto);letter-spacing:0">2h 50m / 8h 30m</span></div>
+            <div class="regla"><div class="hecho"></div><div class="ahora"></div></div>
+            <div class="regla-l"><span>09:00</span><span>11:00</span><span>13:00</span><span>15:00</span><span>17:30</span></div>
+            <p style="font-size:12px;color:var(--tenue);margin:10px 0 0">Sábado: no cuenta como horario laboral. Lo que hagas hoy no suma al tiempo de resolución.</p>
+          </div>
+          <div class="rot">Actividad</div>
+          <div class="registro-act">
+            <div><time>11:42</time><span>commit <span class="mono">a3f9e12</span> → <b>#142</b> (87 %)</span></div>
+            <div><time>10:15</time><span><b>#125</b> cerrada · 4h 20m</span></div>
+            <div><time>09:58</time><span><b>#141</b> entró por voz → bandeja</span></div>
+            <div><time>09:30</time><span><b>#142</b> al banco</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BANDEJA -->
+    <section class="vista" data-vista="bandeja">
+      <div class="cab"><div><div class="cod">ENTRADA · 3 SIN REVISAR</div><h1>Bandeja</h1><p>Lo que entró por voz, por Telegram o por la línea de comandos, y lo que la IA quiere vincular. Se revisa de a uno.</p></div></div>
+      <div class="bandeja">
+        <div class="progreso-b"><i class="act"></i><i></i><i></i></div>
+        <div class="triage">
+          <div class="orig">» <b>«en el recetario cuando subo fotos desde el celu tarda una eternidad y a veces falla»</b><br>entró por dictado · hoy 09:58</div>
+          <dl class="prop">
+            <dt>Título</dt><dd class="titulo">Subida de fotos lenta desde el celular</dd>
+            <dt>Tipo</dt><dd><span class="tipo t-bug">BUG</span></dd>
+            <dt>Prioridad</dt><dd><span class="prio" data-p="3"><i></i><i></i><i></i><i></i></span> <span class="mono" style="font-size:12px;margin-left:6px">alta</span></dd>
+            <dt>Dónde</dt><dd class="mono" style="font-size:13px">recetario / adjuntos</dd>
+          </dl>
+          <div class="alerta"><b style="color:var(--amarillo)">≈ 91 %</b> igual a <b>#136 Las fotos se suben sin comprimir</b>, que está en tu banco.</div>
+          <div class="teclas">
+            <button class="ok"><span class="k">↵</span>Crear</button>
+            <button><span class="k">M</span>Fusionar con #136</button>
+            <button><span class="k">E</span>Editar</button>
+            <button><span class="k">D</span>Descartar</button>
+          </div>
+        </div>
+        <div class="rot" style="margin-top:28px">Después</div>
+        <div class="cola">
+          <div class="fila"><span class="mono" style="color:var(--azul)">⎇</span><span class="mono oc" style="font-size:11px;color:var(--tenue)">COMMIT</span><span class="oc"></span><span class="t">a3f9e12 «fix: guardar el orden del kanban» <span class="motivo">¿Vincular a #142? 87 %</span></span><span class="p oc">devtracker</span><span></span></div>
+          <div class="fila"><span class="mono" style="color:var(--tenue)">✉</span><span class="mono oc" style="font-size:11px;color:var(--tenue)">TELEGRAM</span><span class="oc"></span><span class="t">«idea: que el bot me mande el resumen del viernes» <span class="motivo">Idea · DevTracker</span></span><span class="p oc">anoche</span><span></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ÓRDENES -->
+    <section class="vista" data-vista="ordenes">
+      <div class="split">
+        <div class="lista">
+          <div class="filtros">
+            <button class="f" aria-pressed="true">abiertas</button><button class="f">tipo:*</button><button class="f">proy:*</button><button class="f">área:*</button><button class="f">agrupar: estado</button>
+            <span style="margin-left:auto;font:11px var(--mono);color:var(--tenue)"><span class="k">J</span><span class="k">K</span> moverse · <span class="k">X</span> elegir · <span class="k">1</span>–<span class="k">4</span> prioridad</span>
+          </div>
+          <div id="ordenes"></div>
+        </div>
+        <aside class="insp" id="insp"></aside>
+      </div>
+    </section>
+
+    <!-- PLANTA -->
+    <section class="vista" data-vista="planta">
+      <div class="cab"><div><div class="cod">INSTRUMENTAL · RECOLECTADO 11:38</div><h1>Planta</h1><p>GitHub, Vercel, Supabase y OpenRouter en un mismo tablero. Los ajustes de modelos se abren desde acá o con <span class="k">⌘</span><span class="k">,</span></p></div><button class="btn">Recolectar ahora</button></div>
+      <div class="instrumentos" id="inst"></div>
+      <div class="dos-col">
+        <div>
+          <div class="rot">Repositorios <span class="mono" style="letter-spacing:0">rate limit 4812/5000</span></div>
+          <div class="heat" id="heat" style="margin-bottom:16px"></div>
+          <div class="repo"><b>devtracker</b><span class="mono">23 commits · 7d</span><span class="mono" style="color:var(--verde)">↔ DevTracker</span></div>
+          <div class="repo"><b>recetario</b><span class="mono">2 commits · 7d</span><span class="mono" style="color:var(--verde)">↔ Recetario</span></div>
+          <div class="repo"><b>portfolio</b><span class="mono">0 commits · 7d</span><span class="mono" style="color:var(--verde)">↔ Portfolio</span></div>
+          <div class="repo"><b>dotfiles</b><span class="mono">5 commits · 7d</span><button class="btn" style="height:24px">vincular</button></div>
+        </div>
+        <div>
+          <div class="rot">Bitácora de alertas · Telegram</div>
+          <div class="log">
+            <div><span>17 oct 03:00</span><span><b>storage supabase</b> 61 % — bajo umbral</span></div>
+            <div><span>12 oct 03:00</span><span class="w"><b>gasto IA diario</b> US$ 0,62 &gt; 0,50 — enviada</span></div>
+            <div><span>09 oct 03:00</span><span><b>monitor</b> recolección OK tras 2 fallos</span></div>
+            <div><span>08 oct 03:00</span><span class="w"><b>monitor</b> falta VERCEL_TOKEN — enviada</span></div>
+          </div>
+          <div class="rot" style="margin-top:22px">Modelos</div>
+          <div class="log">
+            <div><span>rápido</span><b>google/gemini-2.5-flash</b></div>
+            <div><span>razonamiento</span><b>anthropic/claude-sonnet-5.5</b></div>
+            <div><span>embeddings</span><b>openai/text-embedding-3-small</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INFORMES -->
+    <section class="vista" data-vista="informes">
+      <div class="informe">
+        <div class="hoja">
+          <div class="hoja-cab">
+            <div><div class="cod">INFORME SEMANAL · Nº 42</div><h2>Se estabilizó el monitor</h2></div>
+            <div>PERÍODO 13–17 OCT<br>GENERADO VIE 18:00 · CRON<br>MODELO claude-sonnet-5.5</div>
+          </div>
+          <div class="hoja-cuerpo">
+            <div>
+              <p><b>Avanzó.</b> Seis órdenes cerradas, cinco de DevTracker. Las alertas duplicadas eran el cron corriendo dos veces por la zona horaria; ya no se repiten.</p>
+              <p><b>Se trabó.</b> Recetario: #136 lleva dos días en el banco y no tiene ni un commit.</p>
+              <p><b>Conviene atacar.</b> #131, la OG image del portfolio. Es urgente, es pública y es chica.</p>
+              <div style="display:flex;gap:8px;margin-top:18px"><button class="btn">Exportar .md</button><button class="btn">Mandar a Telegram</button><button class="btn">Regenerar</button></div>
+            </div>
+            <div>
+              <div class="rot">Cerradas por proyecto</div>
+              <div class="barras"><div>DevTracker<i style="width:100%"></i>5</div><div>Recetario<i style="width:20%"></i>1</div><div>Portfolio<i style="width:0"></i>0</div></div>
+              <div class="rot" style="margin-top:20px">Por tipo</div>
+              <div class="barras"><div>bug<i style="width:60%;background:var(--rojo)"></i>3</div><div>mejora<i style="width:40%;background:var(--verde)"></i>2</div><div>feature<i style="width:20%;background:var(--azul)"></i>1</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="cola" style="margin-top:22px">
+          <div class="fila"><span class="mono" style="color:var(--tenue)">41</span><span class="mono oc" style="font-size:11px;color:var(--tenue)">06–10</span><span class="oc"></span><span class="t">Áreas y adjuntos <span class="motivo">5 cerradas · 9 nuevas</span></span><span class="p oc">cron</span><span></span></div>
+          <div class="fila"><span class="mono" style="color:var(--tenue)">40</span><span class="mono oc" style="font-size:11px;color:var(--tenue)">29–03</span><span class="oc"></span><span class="t">Salida de Cloudflare <span class="motivo">7 cerradas · 4 nuevas</span></span><span class="p oc">manual</span><span></span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="cmd">
+    <span class="pr">›</span>
+    <input id="cmd" placeholder="escribí un problema, o / para comandos   ej: bug urgente portfolio la og image sale rota" autocomplete="off">
+    <span class="ayuda"><span><span class="k">/</span> enfocar</span><span><span class="k">↵</span> crear</span><span><span class="k">⇧↵</span> revisar antes</span><span><span class="k">A</span> anotar</span><span>mantené <span class="k">V</span> dictar</span></span>
+    <div class="parse" id="parse">
+      <header><span>Interpretado mientras escribís</span><span class="mono" style="letter-spacing:0">local · sin IA hasta ↵</span></header>
+      <div class="chips" id="chips"></div>
+      <div class="comandos" id="comandos" style="display:none">
+        <div><b>/ir banco</b><span>G B</span></div><div><b>/ir órdenes</b><span>G O</span></div><div><b>/resumen</b><span>generar el de esta semana</span></div><div><b>/recolectar</b><span>consumo ahora</span></div><div><b>/ajustes</b><span>⌘ ,</span></div>
+      </div>
+      <div class="acc" id="accParse"><button class="btn">Revisar <span class="k">⇧↵</span></button><button class="btn pri">Crear <span class="k">↵</span></button></div>
+    </div>
+  </footer>
+</div>
+
+<button class="fab" id="fab">Propuesta 2/5</button>
+<button class="anotar" id="anotar" title="Anotar (A) · mantené V para dictar">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+  <span id="anotarTxt">Anotar</span>
+  <span class="teclas-f"><span class="k">A</span>escribir <span class="k">V</span>hablar</span>
+</button>
+<div class="velo-cap" id="veloCap">
+  <div class="cap" role="dialog" aria-label="Anotar un problema" id="cap">
+    <header class="cap-cab"><span class="ancho">Anotar</span><span class="modo" id="modo">ESCRIBIENDO</span><button class="btn" id="cerrarCap">Esc</button></header>
+    <div class="mic-zona">
+      <button class="mic" id="mic" aria-pressed="false" aria-label="Dictar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <div class="vu" id="vu"></div>
+      <div class="mic-txt" id="micTxt">Mantené <span class="k">V</span> fuera del texto, o <span class="k">⌃M</span> adentro, para dictar.</div>
+    </div>
+    <textarea id="capTexto" placeholder="Contalo como se lo dirías a alguien: «en el recetario las fotos desde el celu tardan una eternidad y a veces fallan»"></textarea>
+    <div class="cap-int">
+      <div class="rot">Clasificación <span class="mono" id="estadoInt" style="letter-spacing:0;text-transform:none">esperando texto</span></div>
+      <div class="cap-props" id="capProps"></div>
+      <div class="alerta" id="dup" hidden></div>
+    </div>
+    <footer class="cap-pie">
+      <span class="ayuda"><span><span class="k">↵</span> crear</span><span><span class="k">⇧↵</span> nueva línea</span><span>click en un campo para cambiarlo</span></span>
+      <span style="display:flex;gap:8px"><button class="btn" id="aBandeja">A la bandeja</button><button class="btn pri" id="crear">Crear <span class="k">↵</span></button></span>
+    </footer>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<aside class="propuesta" id="propuesta">
+  <button class="btn" data-cerrar style="float:right">Cerrar <span class="k">Esc</span></button>
+  <div class="cod">PROPUESTA 2 · INDUSTRIAL, TECLADO PRIMERO</div>
+  <h2>Taller</h2>
+  <p>Una app personal que usás diez veces por día merece ser una herramienta, no un sitio. Taller trata cada problema como una orden de trabajo: entra por la bandeja, espera en la cola, pasa al banco y se cierra. Todo se hace con el teclado y la captura vive en una línea de comandos fija, siempre visible.</p>
+  <h3>Marca</h3>
+  <div style="display:flex;gap:16px;align-items:center"><div style="background:var(--naranja);width:64px;height:64px;display:grid;place-items:center;flex:none"><svg width="40" height="40" viewBox="0 0 32 32"><path d="M4 26V12l6-4v6l6-4v6l6-4v14z" fill="#111"/><rect x="24" y="4" width="4" height="22" fill="#111"/><rect x="2" y="26" width="28" height="3" fill="#111"/></svg></div><p style="margin:0">Techo de diente de sierra: la silueta de un galpón. Naranja de seguridad, porque es el color de «acá se trabaja».</p></div>
+  <h3>Paleta</h3>
+  <div class="paleta">
+    <div><i style="background:#121211"></i>Fondo</div><div><i style="background:#1A1A18"></i>Chapa</div><div><i style="background:#FF5F1F"></i>Seguridad</div><div><i style="background:#ECEBE4"></i>Tiza</div>
+    <div><i style="background:#FF4040"></i>Bug</div><div><i style="background:#58A6FF"></i>Feature</div><div><i style="background:#47C46E"></i>Mejora</div><div><i style="background:#F2C230"></i>Idea / aviso</div>
+  </div>
+  <h3>Tipografía</h3>
+  <p><b style="font-stretch:125%;text-transform:uppercase;font-size:20px">Archivo Expanded</b> para títulos y rótulos, Archivo normal para el texto, <span class="mono">JetBrains Mono</span> para números, códigos y la línea de comandos.</p>
+  <h3>Reorganización</h3>
+  <table class="reorg">
+    <tr><td>Dashboard</td><td><b>Banco</b>: lo que está en progreso, con límite de 3, la cola priorizada por la IA, el turno del día y la actividad.</td></tr>
+    <tr><td>Captura (modal) + Telegram + vinculación de commits + duplicados</td><td><b>Bandeja</b>: una sola entrada para todo lo que todavía no revisaste, de a uno y con teclas.</td></tr>
+    <tr><td>Problemas + Proyectos</td><td><b>Órdenes</b>: lista con inspector al costado. Los proyectos y las áreas son filtros y agrupaciones, no una página aparte.</td></tr>
+    <tr><td>GitHub + Consumo + Ajustes</td><td><b>Planta</b>: instrumentos, repos, el registro de alertas y los modelos.</td></tr>
+    <tr><td>Resúmenes</td><td><b>Informes</b>: formato de planilla, con exportar a .md y mandar a Telegram.</td></tr>
+  </table>
+  <h3>Mejoras de componentes</h3>
+  <ul>
+    <li><b>Línea de comandos persistente</b>: interpreta tipo, prioridad y proyecto mientras escribís, sin llamar a la IA. <span class="k">↵</span> crea directo y <span class="k">⇧↵</span> abre la revisión.</li>
+    <li><b>Límite WIP</b>: el banco tiene tres puestos. Te obliga a cerrar antes de abrir otra cosa.</li>
+    <li><b>Reloj por orden</b> en horas laborales, que usa la lógica de jornada y feriados que ya existe.</li>
+    <li><b>Lista con inspector</b>: <span class="k">J</span>/<span class="k">K</span> para moverse, el detalle se actualiza al costado sin cambiar de página. Selección múltiple con <span class="k">X</span>.</li>
+    <li>La prioridad se muestra como <b>barras de señal</b>, que se leen de un vistazo y sin depender sólo del color.</li>
+    <li>Registro de <b>alertas enviadas</b> visible, para saber qué te llegó a Telegram y qué no.</li>
+    <li><b>Botón Anotar</b> siempre visible. <span class="k">A</span> abre el panel para escribir. Mantener <span class="k">V</span> desde cualquier pantalla dicta, y al soltar la tecla clasifica tipo, prioridad, proyecto y área, y busca duplicados.</li>
+  </ul>
+</aside>
+
+<script>
+const D=[
+ {n:131,t:"La OG image de /proyectos sale rota",ti:["t-bug","BUG"],p:4,pr:"portfolio",a:"seo",e:"pendiente",m:"urgente y público: el link se comparte roto"},
+ {n:141,t:"El dictado corta la última palabra en Safari",ti:["t-bug","BUG"],p:2,pr:"devtracker",a:"captura",e:"pendiente",m:"chico, y lo usás todos los días"},
+ {n:118,t:"Parser de CAE para facturas de AFIP",ti:["t-feat","FEAT"],p:2,pr:"facturar-cli",a:"—",e:"pendiente",m:"21 días quieto; o lo hacés o lo descartás"},
+ {n:133,t:"Modo offline para la lista de compras",ti:["t-idea","IDEA"],p:2,pr:"recetario",a:"lista",e:"pendiente",m:"depende de #136, esperá a cerrarlo"},
+ {n:139,t:"Exportar el resumen semanal a Markdown",ti:["t-feat","FEAT"],p:1,pr:"devtracker",a:"resúmenes",e:"pendiente",m:"una tarde, si sobra tiempo"},
+ {n:137,t:"Migrar fechas a Temporal cuando esté estable",ti:["t-deuda","DEUDA"],p:1,pr:"devtracker",a:"—",e:"pendiente",m:""},
+ {n:142,t:"El kanban pierde el orden al recargar",ti:["t-bug","BUG"],p:3,pr:"devtracker",a:"problemas",e:"en progreso",m:""},
+ {n:136,t:"Las fotos se suben sin comprimir",ti:["t-mej","MEJ"],p:3,pr:"recetario",a:"adjuntos",e:"en progreso",m:""},
+];
+const pr=p=>`<span class="prio" data-p="${p}"><i></i><i></i><i></i><i></i></span>`;
+document.getElementById("cola").innerHTML=D.filter(d=>d.e==="pendiente").slice(0,5).map((d,i)=>`<div class="fila"><span class="k">${i+1}</span><span class="mono oc" style="font-size:12px;color:var(--tenue)">#${d.n}</span><span class="oc"><span class="tipo ${d.ti[0]}">${d.ti[1]}</span></span><span class="t">${d.t}<span class="motivo">↳ ${d.m}</span></span><span class="p oc">${d.pr}</span>${pr(d.p)}</div>`).join("");
+
+const grupos=[["en progreso","En el banco"],["pendiente","En cola"]];
+let sel=0;const orden=[...D.filter(d=>d.e==="en progreso"),...D.filter(d=>d.e==="pendiente")];
+function pintarOrdenes(){
+  let i=0;document.getElementById("ordenes").innerHTML=grupos.map(([k,l])=>{const xs=D.filter(d=>d.e===k);return `<div class="grupo">${l}<span class="mono" style="letter-spacing:0">${xs.length}</span></div>`+xs.map(d=>{const idx=i++;return `<div class="ord ${idx===sel?"sel":""}" data-i="${idx}"><span class="chk"></span><span class="mono" style="font-size:12px;color:var(--tenue)">#${d.n}</span><span class="tipo ${d.ti[0]}">${d.ti[1]}</span><span class="t">${d.t}</span><span class="p">${pr(d.p)}<span>${d.pr}</span></span></div>`}).join("")}).join("");
+  const d=orden[sel];
+  document.getElementById("insp").innerHTML=`<div class="insp-cab"><div class="cod">#${d.n} · ${d.pr.toUpperCase()}/${d.a.toUpperCase()}</div><h2>${d.t}</h2><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn pri">${d.e==="en progreso"?"Terminar":"Al banco"} <span class="k">${d.e==="en progreso"?"T":"B"}</span></button><button class="btn">Editar <span class="k">E</span></button><button class="btn">Completar con IA <span class="k">I</span></button></div></div>
+  <div class="props"><div><span>Estado</span>${d.e}</div><div><span>Tipo</span><span class="tipo ${d.ti[0]}">${d.ti[1]}</span></div><div><span>Prioridad</span>${pr(d.p)}</div><div><span>Área</span>${d.a}</div></div>
+  <div class="insp-cuerpo">${d.n===142?`<p>Reordeno tarjetas dentro de <i>Pendiente</i>, recargo y vuelven al orden de creación. El nuevo orden sólo vive en el estado del cliente.</p><p>Sospecha: falta persistir <code>position</code> en el server action.</p>`:`<p style="color:var(--tenue)">Sin descripción. <span class="k">I</span> para que la IA proponga pasos y contexto.</p>`}
+  <div class="rot" style="margin-top:18px">Vínculos</div>${d.n===142?`<div class="mono" style="font-size:12px">⎇ a3f9e12 fix: guardar el orden del kanban <span style="color:var(--verde)">· vinculado</span></div><div class="mono" style="font-size:12px;color:var(--tenue);margin-top:4px">≈ #97 el orden de áreas no se guarda · 78 %</div>`:`<div class="mono" style="font-size:12px;color:var(--tenue)">ninguno · <u>buscar parecidos</u></div>`}
+  <div class="rot" style="margin-top:18px">Cronología</div><div class="cronologia"><div class="h"><b>en progreso</b> · hoy 09:30</div><div><b>creada</b> · 14 oct 18:02 · manual</div></div></div>`;
+}
+pintarOrdenes();
+document.getElementById("ordenes").addEventListener("click",e=>{const o=e.target.closest(".ord");if(o){sel=+o.dataset.i;pintarOrdenes()}});
+
+const inst=[["DB SUPABASE",.42,"212 MB","de 500 MB"],["STORAGE",.61,"0,6 GB","de 1 GB"],["DESPLIEGUES",.38,"38","en el mes"],["GASTO IA",.18,"US$ 1,84","octubre"]];
+document.getElementById("inst").innerHTML=inst.map(([n,v,val,det])=>{const a=Math.PI*(1-v),x=50+40*Math.cos(a),y=50-40*Math.sin(a);const c=v>.8?"var(--rojo)":v>.55?"var(--amarillo)":"var(--naranja)";return `<div class="inst"><svg width="130" height="74" viewBox="0 0 100 56"><path d="M10 50A40 40 0 0 1 90 50" fill="none" stroke="var(--chapa-3)" stroke-width="8"/><path d="M10 50A40 40 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${c}" stroke-width="8"/><line x1="50" y1="50" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--texto)" stroke-width="1.5"/></svg><span class="val">${val}</span><span class="nom">${n}</span><span class="det">${det} · ${Math.round(v*100)} %</span></div>`}).join("");
+document.getElementById("heat").innerHTML=Array.from({length:90},(_,j)=>{const r=Math.sin(j*.9)+Math.cos(j*.37)+(j>70?.8:0);return `<i class="${r>1.3?"l3":r>.6?"l2":r>0?"l1":""}"></i>`}).join("");
+
+const nombres={banco:"banco",bandeja:"bandeja",ordenes:"órdenes",planta:"planta",informes:"informes"};
+function ir(v){document.querySelectorAll(".vista").forEach(s=>s.classList.toggle("activa",s.dataset.vista===v));document.querySelectorAll("#riel [data-v]").forEach(b=>b.setAttribute("aria-current",b.dataset.v===v?"page":"false"));document.getElementById("miga").textContent=nombres[v]}
+document.querySelectorAll("#riel [data-v]").forEach(b=>b.onclick=()=>ir(b.dataset.v));
+
+const cmd=document.getElementById("cmd"),parse=document.getElementById("parse");
+function interpretar(t){
+  const s=t.toLowerCase();if(!s.trim()){parse.classList.remove("ver");return}
+  parse.classList.add("ver");
+  const esCmd=s.startsWith("/");document.getElementById("comandos").style.display=esCmd?"":"none";document.getElementById("chips").style.display=esCmd?"none":"";document.getElementById("accParse").style.display=esCmd?"none":"";
+  if(esCmd)return;
+  const tipo=/bug|rompe|roto|rota|falla|error/.test(s)?["t-bug","BUG"]:/idea|ocurre/.test(s)?["t-idea","IDEA"]:/mejor|lento|tarda/.test(s)?["t-mej","MEJ"]:/deuda|refactor|migrar/.test(s)?["t-deuda","DEUDA"]:["t-feat","FEAT"];
+  const p=/urgente|ya mismo/.test(s)?4:/alta|importante/.test(s)?3:/baja|algún día/.test(s)?1:2;
+  const proy=["devtracker","recetario","portfolio","facturar"].find(x=>s.includes(x))||"—";
+  const tit=t.replace(/^(bug|idea|mejora|feature|deuda)\s+/i,"").replace(/\b(urgente|alta|baja|media)\b\s*/i,"").replace(new RegExp(proy+"\\s*","i"),"").trim();
+  document.getElementById("chips").innerHTML=`<span class="chip"><span>tipo</span><span class="tipo ${tipo[0]}">${tipo[1]}</span></span><span class="chip"><span>prio</span>${pr(p)}</span><span class="chip"><span>proy</span>${proy}</span><span class="chip"><span>título</span>${tit||"…"}</span>`;
+}
+cmd.addEventListener("input",e=>interpretar(e.target.value));
+cmd.addEventListener("keydown",e=>{if(e.key==="Enter"){cmd.value="";interpretar("");ir("bandeja")}if(e.key==="Escape"){cmd.blur();cmd.value="";interpretar("")}});
+
+const prop=document.getElementById("propuesta");
+document.getElementById("fab").onclick=()=>prop.classList.toggle("abierta");
+prop.querySelector("[data-cerrar]").onclick=()=>prop.classList.remove("abierta");
+document.addEventListener("keydown",e=>{
+  if(["INPUT","TEXTAREA"].includes(e.target.tagName))return;
+  if(e.key==="/"){e.preventDefault();cmd.focus();cmd.value="";}
+  if(e.key==="Escape")prop.classList.remove("abierta");
+  if(document.querySelector('[data-vista="ordenes"]').classList.contains("activa")){
+    if(e.key==="j"){sel=Math.min(orden.length-1,sel+1);pintarOrdenes()}
+    if(e.key==="k"){sel=Math.max(0,sel-1);pintarOrdenes()}
+  }
+});
+const tema=document.getElementById("tema");
+tema.onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light"};
+
+/* ── Anotar: escribir o dictar ───────────────────────────── */
+const veloCap=document.getElementById("veloCap"),capTexto=document.getElementById("capTexto"),micBtn=document.getElementById("mic"),anotarBtn=document.getElementById("anotar");
+const vu=document.getElementById("vu");vu.innerHTML="<i></i>".repeat(16);
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,escuchando=false,base="",sim=null,vuT=null,forzado={};
+const TIPOS=[["t-bug","BUG"],["t-feat","FEAT"],["t-mej","MEJ"],["t-idea","IDEA"],["t-deuda","DEUDA"]];
+const PRIOS=["baja","media","alta","urgente"];
+const PROYECTOS={devtracker:/devtracker|dev tracker|tracker/,recetario:/recetario|receta/,portfolio:/portfolio|porfolio/,"facturar-cli":/factur/};
+const AREAS=[[/foto|imagen|adjunt|subo|sube|subir/,"recetario","adjuntos"],[/kanban|tarjeta|arrastr/,"devtracker","problemas"],[/dictad|voz|micr|captur/,"devtracker","captura"],[/\bog\b|seo|preview|compart/,"portfolio","seo"],[/consumo|alerta|telegram|cuota/,"devtracker","consumo"],[/resumen|viernes/,"devtracker","resúmenes"],[/lista|compras|offline/,"recetario","lista"],[/cae|afip/,"facturar-cli","—"]];
+const VACIAS=new Set("cuando desde donde tarda tardan todos sobre porque había hacer veces sale esta este estos para".split(" "));
+
+function clasificar(t){
+  const s=t.toLowerCase();
+  let ti=/rompe|roto|rota|falla|error|no anda|no funciona|se cuelga|crash|se cae|bug/.test(s)?0:/idea|se me ocurre|estaría bueno|podría/.test(s)?3:/deuda|refactor|migrar|limpiar|actualizar/.test(s)?4:/lento|tarda|mejorar|mejor/.test(s)?2:/agregar|que se pueda|quiero|feature|nuevo/.test(s)?1:-1;
+  let p=/urgente|ya mismo|producción|se cayó/.test(s)?3:/importante|bloquea|siempre|todos los días/.test(s)?2:/algún día|cuando pueda|no es urgente|baja/.test(s)?0:-1;
+  let proy=Object.keys(PROYECTOS).find(k=>PROYECTOS[k].test(s));
+  const area=AREAS.find(([re,pr])=>re.test(s)&&(!proy||pr===proy));
+  if(!proy&&area)proy=area[1];
+  let tit=t.trim().replace(/^(che|bueno|ojo|nota)[, ]+/i,"").replace(/\b(en )?(el |la )?(devtracker|recetario|portfolio)\b[, ]*/i,"").replace(/\b(es )?urgente\b[, ]*/i,"").trim().replace(/^cuando /i,"");
+  tit=tit.split(/[.;]| y a veces | pero /)[0];
+  if(tit.length>72)tit=tit.slice(0,72).replace(/\s\S*$/,"")+"…";
+  tit=tit.charAt(0).toUpperCase()+tit.slice(1);
+  const pal=s.match(/[a-záéíóúñ]{5,}/g)||[];
+  const raices=new Set(pal.filter(w=>!VACIAS.has(w)).map(w=>w.slice(0,4)));
+  let dup=null,mejor=0;
+  D.forEach(d=>{const n=(d.t.toLowerCase().match(/[a-záéíóúñ]{5,}/g)||[]).filter(w=>raices.has(w.slice(0,4))).length;if(n>mejor){mejor=n;dup=d}});
+  return {ti,p,proy,area:area?area[2]:null,tit,dup:mejor>=1?dup:null};
+}
+function pintarCap(){
+  const t=capTexto.value.trim();
+  document.getElementById("estadoInt").textContent=!t?"esperando texto":escuchando?"escuchando… se actualiza en vivo":"local · la IA lo confirma al crear";
+  const c=t?clasificar(t):{ti:-1,p:-1,proy:null,area:null,tit:"",dup:null};
+  const ti=forzado.ti??c.ti, p=forzado.p??c.p;
+  const tipo=TIPOS[ti<0?0:ti];
+  const campo=(id,lbl,val,dudoso)=>`<button class="campo-c" data-campo="${id}"><span>${lbl}<em class="${dudoso?"dudoso":""}">${!t?"":dudoso?"supuesto":"detectado"}</em></span><b>${val}</b></button>`;
+  document.getElementById("capProps").innerHTML=
+    campo("ti","Tipo",t?`<span class="tipo ${tipo[0]}">${tipo[1]}</span>`:"—",ti<0&&forzado.ti==null)+
+    campo("p","Prioridad",t?`${pr((p<0?1:p)+1)} ${PRIOS[p<0?1:p]}`:"—",p<0&&forzado.p==null)+
+    campo("proy","Proyecto",c.proy||"—",!c.proy)+
+    campo("area","Área",c.area||"—",!c.area)+
+    campo("tit","Título",c.tit||"—",false);
+  const dup=document.getElementById("dup");
+  if(c.dup){dup.hidden=false;dup.innerHTML=`<b style="color:var(--amarillo)">≈</b> Se parece a <b>#${c.dup.n} ${c.dup.t}</b> <button class="btn" style="margin-left:auto;height:26px">Sumar ahí <span class="k">M</span></button>`}else dup.hidden=true;
+}
+document.getElementById("capProps").addEventListener("click",e=>{
+  const b=e.target.closest("[data-campo]");if(!b||!capTexto.value.trim())return;
+  const c=clasificar(capTexto.value);
+  if(b.dataset.campo==="ti")forzado.ti=(((forzado.ti??Math.max(c.ti,0))+1)%TIPOS.length);
+  if(b.dataset.campo==="p")forzado.p=(((forzado.p??(c.p<0?1:c.p))+1)%4);
+  pintarCap();
+});
+function abrirCap(modo){
+  veloCap.classList.add("ver");
+  if(modo==="voz"){empezarVoz()}else{setTimeout(()=>capTexto.focus(),20)}
+  pintarCap();
+}
+function cerrarCap(){pararVoz();veloCap.classList.remove("ver");capTexto.value="";forzado={};pintarCap()}
+function ui(){
+  micBtn.setAttribute("aria-pressed",escuchando);anotarBtn.classList.toggle("escuchando",escuchando);
+  document.getElementById("cap").classList.toggle("escuchando-cap",escuchando);
+  const m=document.getElementById("modo");m.textContent=escuchando?"● ESCUCHANDO":"ESCRIBIENDO";m.classList.toggle("voz",escuchando);
+  document.getElementById("anotarTxt").textContent=escuchando?"Escuchando":"Anotar";
+  clearInterval(vuT);
+  if(escuchando)vuT=setInterval(()=>vu.querySelectorAll("i").forEach(i=>i.style.height=(3+Math.random()*26)+"px"),90);
+  else vu.querySelectorAll("i").forEach(i=>i.style.height="3px");
+}
+function avisoMic(txt){document.getElementById("micTxt").innerHTML=txt}
+function empezarVoz(){
+  if(escuchando)return;escuchando=true;base=capTexto.value?capTexto.value.trim()+" ":"";ui();pintarCap();
+  if(!SR){avisoMic("Este navegador no tiene Web Speech API (Firefox). Simulo un dictado de ejemplo.");simular();return}
+  avisoMic("<b>Hablá.</b> Soltá <span class='k'>V</span> o tocá el micrófono para terminar.");
+  rec=new SR();rec.lang="es-AR";rec.continuous=true;rec.interimResults=true;
+  rec.onresult=e=>{let par="";for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)base+=r[0].transcript.trim()+" ";else par+=r[0].transcript}capTexto.value=base+par;pintarCap()};
+  rec.onerror=ev=>{if(["not-allowed","service-not-allowed"].includes(ev.error)){avisoMic("Sin permiso de micrófono (en file:// algunos navegadores lo bloquean). Simulo un dictado de ejemplo.");rec=null;simular()}};
+  rec.onend=()=>{if(escuchando&&rec)pararVoz()};
+  try{rec.start()}catch(_){simular()}
+}
+function simular(){
+  const frase="en el recetario cuando subo fotos desde el celu tarda una eternidad y a veces falla, pasa sobre todo con las de la cámara".split(" ");
+  let i=0;clearInterval(sim);sim=setInterval(()=>{if(i>=frase.length){pararVoz();return}capTexto.value=base+frase.slice(0,++i).join(" ");pintarCap()},170);
+}
+function pararVoz(){if(!escuchando)return;escuchando=false;clearInterval(sim);const r=rec;rec=null;r&&r.stop();ui();pintarCap();avisoMic("Listo. Revisá la clasificación y <b>↵</b> para crear, o mantené <span class='k'>V</span> para seguir dictando.")}
+function toast(t){const el=document.getElementById("toast");el.textContent=t;el.classList.add("ver");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("ver"),2600)}
+function crear(){
+  if(!capTexto.value.trim())return;const c=clasificar(capTexto.value);const ti=TIPOS[Math.max(forzado.ti??c.ti,0)];
+  toast(`#143 creada · ${ti[1]} · ${c.proy||"sin proyecto"}${c.area?"/"+c.area:""}`);cerrarCap();
+}
+micBtn.onclick=()=>escuchando?pararVoz():empezarVoz();
+anotarBtn.onclick=()=>abrirCap("texto");
+document.getElementById("cerrarCap").onclick=cerrarCap;
+document.getElementById("crear").onclick=crear;
+document.getElementById("aBandeja").onclick=()=>{toast("Mandada a la bandeja para revisar después");cerrarCap();ir("bandeja")};
+veloCap.addEventListener("click",e=>{if(e.target===veloCap)cerrarCap()});
+capTexto.addEventListener("input",()=>{if(!escuchando)pintarCap()});
+capTexto.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();crear()}
+  if(e.key==="m"&&e.ctrlKey){e.preventDefault();escuchando?pararVoz():empezarVoz()}
+});
+let vApretada=false;
+document.addEventListener("keydown",e=>{
+  const enTexto=["INPUT","TEXTAREA"].includes(e.target.tagName);
+  if(e.key==="Escape"&&veloCap.classList.contains("ver")){cerrarCap();return}
+  if(enTexto||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.key.toLowerCase()==="a"&&!veloCap.classList.contains("ver")){e.preventDefault();abrirCap("texto")}
+  if(e.key.toLowerCase()==="v"&&!e.repeat&&!vApretada){e.preventDefault();vApretada=true;abrirCap("voz")}
+  if(e.key==="Enter"&&veloCap.classList.contains("ver")&&!escuchando){crear()}
+});
+document.addEventListener("keyup",e=>{if(e.key.toLowerCase()==="v"&&vApretada){vApretada=false;pararVoz()}});
+// En el celular: tocar el botón abre para escribir; mantenerlo apretado dicta.
+let presion=null;
+anotarBtn.addEventListener("touchstart",()=>{presion=setTimeout(()=>{presion="larga";abrirCap("voz")},350)},{passive:true});
+anotarBtn.addEventListener("touchend",e=>{if(presion==="larga"){e.preventDefault();pararVoz()}else clearTimeout(presion);presion=null});
+pintarCap();
+</script>
+</body>
+</html>

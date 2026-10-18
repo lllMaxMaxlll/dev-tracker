@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hilo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --blanco:#FAFAF8; --hoja:#FFFFFF; --g1:#F1F1EE; --g2:#E4E4E0; --g3:#C9C9C3; --g4:#8A8A84; --g5:#55554F; --negro:#111110;
+  --hilo:#E5362B; --hilo-claro:#FCE4E1;
+  --sans:"Geist", system-ui, sans-serif; --mono:"Geist Mono", ui-monospace, monospace;
+}
+:root[data-theme="dark"]{
+  --blanco:#0E0E0D; --hoja:#161615; --g1:#1C1C1A; --g2:#2A2A27; --g3:#3E3E3A; --g4:#86867F; --g5:#B5B5AE; --negro:#F4F4F0;
+  --hilo:#FF5546; --hilo-claro:#3A1714;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--blanco);color:var(--negro);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.mono{font-family:var(--mono)}
+.app{max-width:1360px;margin:0 auto;padding:0 clamp(16px,3vw,40px)}
+
+header{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;align-items:center;padding:20px 0;border-bottom:1px solid var(--negro)}
+.marca{grid-column:span 3;display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:-.03em}
+nav{grid-column:span 7;display:flex;gap:2px;flex-wrap:wrap}
+nav button{padding:6px 10px;font-size:13.5px;color:var(--g4);font-weight:500;border-radius:4px;display:flex;gap:6px;align-items:center}
+nav button[aria-current="page"]{color:var(--negro);background:var(--g1)}
+nav button .n{font:11px var(--mono);background:var(--hilo);color:#fff;padding:0 5px;border-radius:3px}
+.der{grid-column:span 2;display:flex;justify-content:flex-end;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid var(--g2);border-radius:5px;font-size:13px;font-weight:500;background:var(--hoja)}
+.btn:hover{border-color:var(--negro)}
+.btn.negro{background:var(--negro);color:var(--blanco);border-color:var(--negro)}
+.btn.rojo{background:var(--hilo);color:#fff;border-color:var(--hilo)}
+.k{font:11px var(--mono);color:var(--g4);border:1px solid var(--g2);border-radius:3px;padding:0 4px}
+
+.vista{display:none;padding:32px 0 100px}
+.vista.activa{display:block}
+.titular{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;margin-bottom:32px;align-items:end}
+.titular h1{grid-column:span 8;margin:0;font-size:clamp(40px,6vw,80px);font-weight:600;letter-spacing:-.05em;line-height:.92}
+.titular h1 span{color:var(--g3)}
+.titular p{grid-column:span 4;margin:0;color:var(--g5);font-size:14.5px;max-width:40ch}
+.etq{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--g4)}
+
+/* Glifos de tipo: forma, no color */
+.g{width:14px;height:14px;display:inline-block;flex:none;vertical-align:-2px}
+
+/* Trama */
+.trama-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:20px}
+.trama{grid-column:span 8}
+.lado{grid-column:span 4;display:flex;flex-direction:column;gap:20px}
+.dia{display:grid;grid-template-columns:110px 1fr;gap:0}
+.dia > .fecha{padding-top:18px;border-top:1px solid var(--negro)}
+.dia > .fecha b{display:block;font-size:30px;font-weight:600;letter-spacing:-.04em;line-height:1}
+.dia > .fecha span{font:11px var(--mono);color:var(--g4);text-transform:uppercase}
+.eventos{border-top:1px solid var(--g2);position:relative;padding:8px 0 20px}
+.eventos::before{content:"";position:absolute;left:11px;top:0;bottom:0;width:2px;background:var(--g2)}
+.ev{display:grid;grid-template-columns:24px 50px 1fr auto;gap:12px;align-items:start;padding:10px 0;position:relative}
+.ev .nodo{width:10px;height:10px;border-radius:50%;background:var(--hoja);border:2px solid var(--g4);margin:5px 0 0 7px;position:relative;z-index:1}
+.ev.unido .nodo{border-color:var(--hilo);background:var(--hilo)}
+.ev.unido::after{content:"";position:absolute;left:11px;top:20px;height:var(--h,58px);width:2px;background:var(--hilo);z-index:0}
+.ev time{font:12px var(--mono);color:var(--g4);padding-top:2px}
+.ev .que{font-size:14.5px}
+.ev .que small{display:block;color:var(--g4);font-size:12.5px;margin-top:2px}
+.ev .que code,.cod{font:12px var(--mono);background:var(--g1);padding:1px 5px;border-radius:3px}
+.ref{font:500 12px var(--mono);color:var(--negro);text-decoration:underline;text-decoration-color:var(--hilo);text-underline-offset:3px;text-decoration-thickness:2px}
+.caja{border:1px solid var(--g2);background:var(--hoja);border-radius:6px}
+.caja > header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--g2);grid-template-columns:none}
+.caja > header b{font-size:13px;font-weight:600}
+.caja .cuerpo{padding:14px 16px}
+.cifras{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--g2);border-radius:6px;background:var(--hoja)}
+.cifras div{padding:16px;border-right:1px solid var(--g2);border-bottom:1px solid var(--g2)}
+.cifras div:nth-child(2n){border-right:0}.cifras div:nth-last-child(-n+2){border-bottom:0}
+.cifras b{display:block;font-size:44px;font-weight:600;letter-spacing:-.05em;line-height:1}
+.cifras span{font-size:12px;color:var(--g4)}
+.hebra{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--g1);align-items:flex-start}
+.hebra:last-child{border-bottom:0}
+.hebra .acc{margin-left:auto;display:flex;gap:4px}
+.mini-btn{font:12px var(--mono);padding:3px 8px;border:1px solid var(--g2);border-radius:4px}
+.mini-btn.si{background:var(--negro);color:var(--blanco);border-color:var(--negro)}
+.hilo-svg{display:block;width:100%;height:auto}
+
+/* Problemas */
+.barra{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--negro);border-bottom:1px solid var(--g2)}
+.chip{height:28px;padding:0 10px;border:1px solid var(--g2);border-radius:5px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;background:var(--hoja)}
+.chip[aria-pressed="true"]{border-color:var(--negro);background:var(--negro);color:var(--blanco)}
+table.t{width:100%;border-collapse:collapse}
+.t th{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--g4);text-align:left;padding:10px 8px;border-bottom:1px solid var(--g2)}
+.t td{padding:12px 8px;border-bottom:1px solid var(--g1);vertical-align:middle}
+.t tbody tr{cursor:pointer}
+.t tbody tr:hover td{background:var(--g1)}
+.t .tit{font-size:14.5px;font-weight:500}
+.lazos{display:inline-flex;gap:8px;font:12px var(--mono);color:var(--g4)}
+.lazos b{color:var(--hilo);font-weight:500}
+.estado{font:12px var(--mono);display:inline-flex;align-items:center;gap:6px}
+.estado i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--g4)}
+.estado.prog i{border-color:var(--negro);background:linear-gradient(90deg,var(--negro) 50%,transparent 50%)}
+.estado.res i{background:var(--negro);border-color:var(--negro)}
+.prio{font:12px var(--mono)}
+.prio.urgente{color:var(--hilo);font-weight:500}
+.leyenda{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--g5);align-items:center}
+
+/* Detalle */
+.det-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:20px}
+.det-main{grid-column:span 7}
+.det-lado{grid-column:span 5;display:flex;flex-direction:column;gap:20px}
+.det-main h1{font-size:clamp(30px,4vw,46px);font-weight:600;letter-spacing:-.04em;line-height:1;margin:10px 0 18px}
+.props{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--negro);border-bottom:1px solid var(--g2);margin-bottom:24px}
+.props div{padding:10px 12px 10px 0}
+.props div b{display:block;font-weight:500;margin-top:2px}
+.prosa{font-size:16px;line-height:1.7;max-width:62ch;color:var(--g5)}
+.prosa p{margin:0 0 14px}
+.prosa b{color:var(--negro)}
+
+/* Enhebrar */
+.cola-sug{display:grid;grid-template-columns:repeat(12,1fr);gap:20px}
+.sug{grid-column:span 6;border:1px solid var(--g2);border-radius:6px;background:var(--hoja);display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;padding:20px;gap:8px}
+.sug .lado-a,.sug .lado-b{font-size:14px}
+.sug .lado-a small,.sug .lado-b small{display:block;font:11px var(--mono);color:var(--g4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.sug .centro{display:flex;flex-direction:column;align-items:center;gap:4px;font:12px var(--mono);color:var(--hilo)}
+.sug .centro svg{width:60px;height:14px}
+.sug footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--g1);padding-top:12px;margin-top:8px;font-size:12.5px;color:var(--g4)}
+
+/* Informe */
+.poster{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;border-top:4px solid var(--negro);padding-top:20px}
+.poster .gr{grid-column:span 5}
+.poster .gr b{font-size:clamp(120px,16vw,220px);font-weight:600;letter-spacing:-.08em;line-height:.8;display:block}
+.poster .gr span{font-size:16px;color:var(--g5)}
+.poster .tx{grid-column:span 7;font-size:19px;line-height:1.55;letter-spacing:-.01em}
+.poster .tx p{margin:0 0 16px}
+.poster .tx mark{background:var(--hilo-claro);color:inherit;padding:0 3px}
+.columnas{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:40px;border-top:1px solid var(--g2);padding-top:20px}
+.columnas b{display:block;font-size:34px;font-weight:600;letter-spacing:-.04em}
+.columnas span{font-size:12.5px;color:var(--g4)}
+.barras-s{display:flex;align-items:end;gap:4px;height:120px;margin-top:20px}
+.barras-s div{flex:1;display:flex;flex-direction:column-reverse;gap:2px}
+.barras-s i{display:block;background:var(--negro)}
+.barras-s i.r{background:var(--g3)}
+
+/* Sistema */
+.sistema{display:grid;grid-template-columns:repeat(12,1fr);gap:20px}
+.fuente{grid-column:span 4;border-top:1px solid var(--negro);padding-top:14px}
+.fuente h3{margin:0 0 14px;font-size:20px;font-weight:600;letter-spacing:-.03em;display:flex;justify-content:space-between;align-items:baseline}
+.medida{margin-bottom:14px}
+.medida .l{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+.medida .l span:last-child{font-family:var(--mono);color:var(--g5)}
+.medida .b{height:4px;background:var(--g2)}
+.medida .b i{display:block;height:100%;background:var(--negro)}
+.fuente p{font-size:12.5px;color:var(--g4);margin:10px 0 0}
+.ajustes{grid-column:1/-1;margin-top:20px}
+.fila-aj{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;padding:14px 0;border-top:1px solid var(--g2);align-items:center}
+.fila-aj > div:first-child{grid-column:span 5}
+.fila-aj > div:last-child{grid-column:span 7}
+.fila-aj b{font-weight:500}
+.fila-aj p{margin:0;font-size:12.5px;color:var(--g4)}
+.sel{width:100%;height:34px;border:1px solid var(--g2);border-radius:5px;background:var(--hoja);color:var(--negro);font:13px var(--mono);padding:0 10px}
+
+/* Paleta ⌘K */
+.velo{position:fixed;inset:0;background:rgba(17,17,16,.35);display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 16px;z-index:60}
+.velo.ver{display:flex}
+.paleta-k{width:min(640px,100%);background:var(--hoja);border-radius:10px;box-shadow:0 40px 80px -20px rgba(0,0,0,.45);overflow:hidden;border:1px solid var(--g2)}
+.paleta-k input{width:100%;height:56px;border:0;border-bottom:1px solid var(--g2);padding:0 18px;font:16px var(--sans);outline:none;background:var(--hoja);color:var(--negro)}
+.paleta-k .sec{padding:8px 18px 4px;font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--g4)}
+.paleta-k .op{display:flex;justify-content:space-between;align-items:center;padding:10px 18px;font-size:14px}
+.paleta-k .op.act{background:var(--g1);box-shadow:inset 2px 0 0 var(--hilo)}
+.paleta-k .vista-previa{margin:6px 18px 14px;border:1px dashed var(--hilo);border-radius:6px;padding:12px;font-size:13px}
+
+/* Propuesta */
+.fab{position:fixed;right:18px;bottom:18px;z-index:30;background:var(--negro);color:var(--blanco);border-radius:6px;padding:10px 14px;font-weight:600;font-size:13px;display:flex;gap:8px;align-items:center}
+.fab::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--hilo)}
+.propuesta{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--hoja);border-left:1px solid var(--negro);transform:translateX(100%);transition:transform .3s;z-index:70;overflow:auto;padding:28px}
+.propuesta.abierta{transform:none}
+.propuesta h2{font-size:84px;font-weight:600;letter-spacing:-.06em;line-height:.9;margin:10px 0 14px}
+.propuesta h3{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--hilo);margin:28px 0 10px;padding-top:12px;border-top:1px solid var(--g2)}
+.propuesta p,.propuesta li{font-size:14px;line-height:1.6;color:var(--g5)}
+.propuesta ul{padding-left:18px;margin:0}
+.propuesta b{color:var(--negro)}
+.pal{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--g2)}
+.pal div{font:11px var(--mono);color:var(--g4);padding:0 0 6px 6px}
+.pal i{display:block;height:64px;margin:0 0 6px -6px}
+.reorg{width:100%;border-collapse:collapse;font-size:13px}
+.reorg td{padding:8px 4px;border-bottom:1px solid var(--g1);vertical-align:top;color:var(--g5)}
+.reorg td:first-child{width:36%;font-family:var(--mono);font-size:12px;color:var(--g4)}
+
+@media (max-width:980px){
+  header{grid-template-columns:1fr auto;gap:12px}
+  .marca{grid-column:auto} nav{grid-column:1/-1;order:3;overflow-x:auto;flex-wrap:nowrap} .der{grid-column:auto}
+  .titular,.trama-grid,.det-grid,.cola-sug,.poster,.sistema{grid-template-columns:1fr}
+  .titular h1,.titular p,.trama,.lado,.det-main,.det-lado,.sug,.poster .gr,.poster .tx,.fuente{grid-column:auto}
+  .dia{grid-template-columns:70px 1fr}
+  .dia > .fecha b{font-size:22px}
+  .ev{grid-template-columns:24px 44px 1fr}
+  .ev .ultimo{display:none}
+  .props,.columnas{grid-template-columns:1fr 1fr}
+  .t .oc{display:none}
+  .sug{grid-template-columns:1fr;text-align:left}
+  .sug .centro{flex-direction:row;justify-content:flex-start}
+  .fila-aj{grid-template-columns:1fr}.fila-aj > div{grid-column:auto!important}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="g-bug" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="currentColor"/></symbol>
+  <symbol id="g-feature" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="g-mejora" viewBox="0 0 14 14"><path d="M7 1l6 12H1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="g-idea" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2.5 2"/></symbol>
+  <symbol id="g-deuda" viewBox="0 0 14 14"><path d="M1 4h12M1 10h12" stroke="currentColor" stroke-width="2"/></symbol>
+</svg>
+<div class="app">
+  <header>
+    <div class="marca"><svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><circle cx="7" cy="8" r="4" fill="currentColor"/><circle cx="25" cy="16" r="4" fill="currentColor"/><circle cx="9" cy="25" r="4" fill="currentColor"/><path d="M7 8C20 8 25 10 25 16S12 20 9 25" fill="none" stroke="#E5362B" stroke-width="2.5"/></svg>Hilo</div>
+    <nav id="nav">
+      <button data-v="trama" aria-current="page">Trama</button>
+      <button data-v="problemas">Problemas</button>
+      <button data-v="detalle">#142</button>
+      <button data-v="enhebrar">Enhebrar <span class="n">4</span></button>
+      <button data-v="informe">Informe</button>
+      <button data-v="sistema">Sistema</button>
+    </nav>
+    <div class="der"><button class="btn" id="tema" aria-label="Tema">◐</button><button class="btn negro" id="abrirK">Nuevo <span class="k" style="color:inherit;border-color:rgba(255,255,255,.3)">⌘K</span></button></div>
+  </header>
+
+  <!-- TRAMA -->
+  <section class="vista activa" data-vista="trama">
+    <div class="titular"><h1>Todo está<br>conectado<span>.</span></h1><p>Problemas, commits, PRs y resúmenes en una sola línea de tiempo. El hilo rojo une lo que tiene que ver entre sí.</p></div>
+    <div class="trama-grid">
+      <div class="trama">
+        <div class="dia">
+          <div class="fecha"><b>Hoy</b><span>sáb 18 oct</span></div>
+          <div class="eventos">
+            <div class="ev unido" style="--h:56px"><span class="nodo"></span><time>11:42</time><div class="que">Commit <code>a3f9e12</code> «fix: guardar el orden del kanban»<small>devtracker · main · vinculado a <span class="ref">#142</span> por la IA (87 %)</small></div><span class="etq ultimo">commit</span></div>
+            <div class="ev unido" style="--h:0"><span class="nodo"></span><time>09:30</time><div class="que"><svg class="g"><use href="#g-bug"/></svg> <span class="ref">#142</span> El kanban pierde el orden al recargar <small>pendiente → en progreso</small></div><span class="etq ultimo">estado</span></div>
+            <div class="ev"><span class="nodo"></span><time>10:15</time><div class="que"><svg class="g"><use href="#g-bug"/></svg> <span class="ref">#125</span> Alertas duplicadas en Telegram — resuelto<small>4 h 20 min de trabajo · 2 commits · 1 PR</small></div><span class="etq ultimo">cierre</span></div>
+            <div class="ev"><span class="nodo"></span><time>09:58</time><div class="que"><svg class="g"><use href="#g-bug"/></svg> <span class="ref">#141</span> El dictado corta la última palabra en Safari<small>capturado por voz · sin relaciones</small></div><span class="etq ultimo">alta</span></div>
+          </div>
+        </div>
+        <div class="dia">
+          <div class="fecha"><b>Vie</b><span>17 oct</span></div>
+          <div class="eventos">
+            <div class="ev unido" style="--h:56px"><span class="nodo"></span><time>18:00</time><div class="que">Informe de la semana 42 «Se estabilizó el monitor»<small>cita a <span class="ref">#125</span> <span class="ref">#131</span> <span class="ref">#136</span></small></div><span class="etq ultimo">informe</span></div>
+            <div class="ev unido" style="--h:0"><span class="nodo"></span><time>16:20</time><div class="que">PR <code>#38</code> «cron: una sola zona horaria» — mergeado<small>cierra <span class="ref">#125</span></small></div><span class="etq ultimo">pr</span></div>
+            <div class="ev"><span class="nodo"></span><time>11:05</time><div class="que"><svg class="g"><use href="#g-mejora"/></svg> <span class="ref">#136</span> Las fotos se suben sin comprimir<small>≈ duplicado posible de <span class="ref">#97</span> · sin confirmar</small></div><span class="etq ultimo">relación</span></div>
+          </div>
+        </div>
+      </div>
+      <aside class="lado">
+        <div class="cifras">
+          <div><b>14</b><span>abiertos</span></div>
+          <div><b>6</b><span>cerrados · semana</span></div>
+          <div><b>1j3h</b><span>resolución · laboral</span></div>
+          <div><b style="color:var(--hilo)">71%</b><span>cerrados con commit</span></div>
+        </div>
+        <div class="caja">
+          <header><b>Por enhebrar</b><span class="etq">4 sugerencias</span></header>
+          <div class="cuerpo">
+            <div class="hebra"><span class="mono" style="font-size:12px">⎇</span><div><code class="cod">a3f9e12</code> → <span class="ref">#142</span><br><span style="font-size:12px;color:var(--g4)">87 % · commit</span></div><div class="acc"><button class="mini-btn si">sí</button><button class="mini-btn">no</button></div></div>
+            <div class="hebra"><span class="mono" style="font-size:12px">≈</span><div><span class="ref">#136</span> ≈ <span class="ref">#97</span><br><span style="font-size:12px;color:var(--g4)">82 % · duplicado</span></div><div class="acc"><button class="mini-btn si">sí</button><button class="mini-btn">no</button></div></div>
+            <div class="hebra"><span class="mono" style="font-size:12px">→</span><div><span class="ref">#136</span> bloquea <span class="ref">#133</span><br><span style="font-size:12px;color:var(--g4)">la IA lo infirió del texto</span></div><div class="acc"><button class="mini-btn si">sí</button><button class="mini-btn">no</button></div></div>
+          </div>
+        </div>
+        <div class="caja">
+          <header><b>Hilos sueltos</b><span class="etq">sin vínculos · &gt;14 días</span></header>
+          <div class="cuerpo" style="font-size:13.5px;line-height:2">
+            <span class="ref">#118</span> Parser de CAE para AFIP · 21 d<br><span class="ref">#137</span> Migrar fechas a Temporal · 18 d<br><span class="ref">#133</span> Modo offline · 15 d
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- PROBLEMAS -->
+  <section class="vista" data-vista="problemas">
+    <div class="titular"><h1>Problemas<span>.</span></h1><p>Una tabla seria. La columna Lazos dice cuántos commits, PRs y relaciones tiene cada uno: lo que no está enhebrado se nota.</p></div>
+    <div class="barra"><button class="chip" aria-pressed="true">Abiertos 14</button><button class="chip">Todos</button><button class="chip">Proyecto</button><button class="chip">Área</button><button class="chip">Tipo</button><button class="chip">Sin lazos</button><span style="margin-left:auto" class="etq">agrupar · ninguno</span></div>
+    <table class="t"><thead><tr><th style="width:20px"></th><th style="width:60px">Nº</th><th>Título</th><th class="oc">Proyecto / área</th><th>Estado</th><th class="oc">Prior.</th><th class="oc">Lazos</th></tr></thead><tbody id="filas"></tbody></table>
+    <div class="leyenda"><span><svg class="g"><use href="#g-bug"/></svg> bug</span><span><svg class="g"><use href="#g-feature"/></svg> feature</span><span><svg class="g"><use href="#g-mejora"/></svg> mejora</span><span><svg class="g"><use href="#g-idea"/></svg> idea</span><span><svg class="g"><use href="#g-deuda"/></svg> deuda técnica</span><span class="etq" style="margin-left:auto">⎇ commits · ↗ PRs · ≈ relaciones</span></div>
+  </section>
+
+  <!-- DETALLE -->
+  <section class="vista" data-vista="detalle">
+    <div class="det-grid">
+      <div class="det-main">
+        <button class="etq" data-ir="problemas">← problemas</button>
+        <h1><svg class="g" style="width:26px;height:26px;vertical-align:2px"><use href="#g-bug"/></svg> El kanban pierde el orden al recargar la página</h1>
+        <div class="props">
+          <div><span class="etq">Estado</span><b class="estado prog"><i></i>en progreso</b></div>
+          <div><span class="etq">Prioridad</span><b>alta</b></div>
+          <div><span class="etq">Proyecto</span><b>DevTracker</b></div>
+          <div><span class="etq">Área</span><b>Problemas</b></div>
+        </div>
+        <div class="prosa">
+          <p>Reordeno tarjetas dentro de <b>Pendiente</b>, recargo y vuelven al orden de creación. Pasa también en el celular. El drag funciona, pero el nuevo orden sólo vive en el estado del cliente.</p>
+          <p><b>Pasos.</b> Abrir <span class="cod">/problemas</span> en kanban, mover #139 arriba de #137, recargar.</p>
+          <p><b>Sospecha.</b> Falta persistir <span class="cod">position</span> en el server action.</p>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap"><button class="btn negro">Marcar resuelto</button><button class="btn">Editar</button><button class="btn">Completar con IA</button><button class="btn">Fotos (2)</button></div>
+      </div>
+      <aside class="det-lado">
+        <div class="caja">
+          <header><b>Lazos</b><span class="etq">grafo de #142</span></header>
+          <div class="cuerpo">
+            <svg class="hilo-svg" viewBox="0 0 420 300" role="img" aria-label="Relaciones del problema 142">
+              <g stroke="var(--g3)" stroke-width="1.5" fill="none"><path d="M210 150 C150 150 120 70 70 60"/><path d="M210 150 C270 150 300 250 350 240" stroke-dasharray="4 4"/><path d="M210 150 C150 150 120 240 70 240" stroke-dasharray="4 4"/></g>
+              <path d="M210 150 C270 150 300 60 350 60" stroke="var(--hilo)" stroke-width="2.5" fill="none"/>
+              <path d="M350 60 C380 60 390 120 380 150" stroke="var(--hilo)" stroke-width="2.5" fill="none"/>
+              <circle cx="210" cy="150" r="30" fill="var(--negro)"/><text x="210" y="155" text-anchor="middle" fill="var(--blanco)" font-family="Geist Mono" font-size="13">#142</text>
+              <g font-family="Geist" font-size="12" fill="var(--negro)">
+                <rect x="300" y="45" width="100" height="30" rx="4" fill="var(--hoja)" stroke="var(--hilo)" stroke-width="1.5"/><text x="350" y="64" text-anchor="middle" font-family="Geist Mono">⎇ a3f9e12</text>
+                <rect x="330" y="150" width="80" height="26" rx="4" fill="var(--hilo-claro)" stroke="var(--hilo)"/><text x="370" y="167" text-anchor="middle" font-family="Geist Mono" font-size="11">PR #41 · draft</text>
+                <rect x="20" y="45" width="100" height="30" rx="4" fill="var(--hoja)" stroke="var(--g3)"/><text x="70" y="64" text-anchor="middle">≈ #97 cerrado</text>
+                <rect x="290" y="226" width="120" height="30" rx="4" fill="var(--hoja)" stroke="var(--g3)" stroke-dasharray="4 3"/><text x="350" y="245" text-anchor="middle">#139 relacionado?</text>
+                <rect x="20" y="226" width="100" height="30" rx="4" fill="var(--hoja)" stroke="var(--g3)" stroke-dasharray="4 3"/><text x="70" y="245" text-anchor="middle">bloquea #133?</text>
+              </g>
+            </svg>
+            <div class="leyenda" style="margin-top:6px"><span><span style="display:inline-block;width:18px;height:2px;background:var(--hilo);vertical-align:3px"></span> confirmado</span><span><span style="display:inline-block;width:18px;border-top:1.5px dashed var(--g3);vertical-align:3px"></span> sugerido</span></div>
+          </div>
+        </div>
+        <div class="caja">
+          <header><b>Historia</b><span class="etq">3 eventos</span></header>
+          <div class="cuerpo mono" style="font-size:12px;line-height:2.1;color:var(--g5)">
+            18 oct 11:42 · vinculado a a3f9e12<br>18 oct 09:30 · pendiente → en progreso<br>14 oct 18:02 · creado a mano
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ENHEBRAR -->
+  <section class="vista" data-vista="enhebrar">
+    <div class="titular"><h1>Enhebrar<span>.</span></h1><p>Todo lo que la IA cree que está conectado y espera tu sí o tu no: commits, duplicados y bloqueos. Una bandeja en vez de avisos repartidos por la app.</p></div>
+    <div class="cola-sug">
+      <article class="sug"><div class="lado-a"><small>commit · devtracker</small><code class="cod">a3f9e12</code> fix: guardar el orden del kanban</div><div class="centro"><svg viewBox="0 0 60 14"><path d="M0 7 C20 0 40 14 60 7" stroke="currentColor" stroke-width="2" fill="none"/></svg>87 %</div><div class="lado-b"><small>problema</small><svg class="g"><use href="#g-bug"/></svg> #142 El kanban pierde el orden</div><footer><span>Coinciden: «orden», «kanban», el archivo issue-kanban.tsx</span><span style="display:flex;gap:6px"><button class="btn negro">Vincular <span class="k" style="color:inherit">Y</span></button><button class="btn">No <span class="k">N</span></button></span></footer></article>
+      <article class="sug"><div class="lado-a"><small>problema · recetario</small><svg class="g"><use href="#g-mejora"/></svg> #136 Las fotos se suben sin comprimir</div><div class="centro"><svg viewBox="0 0 60 14"><path d="M0 7 C20 0 40 14 60 7" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="3 3"/></svg>82 %</div><div class="lado-b"><small>problema · cerrado</small><svg class="g"><use href="#g-bug"/></svg> #97 Fotos pesadas en la galería</div><footer><span>Posible duplicado · embeddings</span><span style="display:flex;gap:6px"><button class="btn negro">Es duplicado</button><button class="btn">Relacionado</button><button class="btn">No</button></span></footer></article>
+      <article class="sug"><div class="lado-a"><small>problema</small><svg class="g"><use href="#g-mejora"/></svg> #136 Las fotos se suben sin comprimir</div><div class="centro">bloquea →</div><div class="lado-b"><small>problema</small><svg class="g"><use href="#g-idea"/></svg> #133 Modo offline para la lista</div><footer><span>Inferido de la descripción de #133</span><span style="display:flex;gap:6px"><button class="btn negro">Sí</button><button class="btn">No</button></span></footer></article>
+      <article class="sug"><div class="lado-a"><small>commit · portfolio</small><code class="cod">7c01b4d</code> chore: bump next</div><div class="centro"><svg viewBox="0 0 60 14"><path d="M0 7 C20 0 40 14 60 7" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="3 3"/></svg>41 %</div><div class="lado-b"><small>problema</small><svg class="g"><use href="#g-bug"/></svg> #131 La OG image sale rota</div><footer><span>Confianza baja: lo muestro por si acaso</span><span style="display:flex;gap:6px"><button class="btn">Vincular</button><button class="btn negro">No</button></span></footer></article>
+    </div>
+  </section>
+
+  <!-- INFORME -->
+  <section class="vista" data-vista="informe">
+    <div class="titular"><h1>Semana 42<span>.</span></h1><p>13 al 17 de octubre. Se escribe solo el viernes a las 18:00 y queda enhebrado con lo que menciona.</p></div>
+    <div class="poster">
+      <div class="gr"><b>6</b><span>cerrados · 5 de DevTracker, 1 de Recetario</span>
+        <div class="barras-s" id="barras"></div><div class="etq" style="margin-top:6px">12 semanas · negro cerrados · gris anotados</div></div>
+      <div class="tx">
+        <p>Fue la semana de <mark>dejar firme el monitor</mark>. Las alertas que llegaban dos veces a Telegram eran el cron corriendo en dos zonas horarias (<span class="ref">#125</span>, cerrado con el PR #38).</p>
+        <p>Recetario no se movió: <span class="ref">#136</span> está en progreso desde el miércoles y no tiene commits.</p>
+        <p>Para el lunes: <span class="ref">#131</span>. Es urgente, es público y es chico.</p>
+        <div style="display:flex;gap:8px;margin-top:22px"><button class="btn">Copiar Markdown</button><button class="btn">Mandar a Telegram</button><button class="btn">← Semana 41</button></div>
+      </div>
+    </div>
+    <div class="columnas">
+      <div><b>4</b><span>anotados</span></div><div><b>1j 3h</b><span>resolución promedio, en horas de trabajo</span></div><div><b>71 %</b><span>cerrados con un commit vinculado</span></div><div><b>US$ 0,41</b><span>de IA esta semana</span></div>
+    </div>
+  </section>
+
+  <!-- SISTEMA -->
+  <section class="vista" data-vista="sistema">
+    <div class="titular"><h1>Sistema<span>.</span></h1><p>Consumo, GitHub y ajustes en una sola página. Está al final de la navegación porque se mira poco.</p></div>
+    <div class="sistema">
+      <div class="fuente"><h3>Supabase <span class="etq">ok · 12 min</span></h3><div class="medida"><div class="l"><span>Base de datos</span><span>212/500 MB</span></div><div class="b"><i style="width:42%"></i></div></div><div class="medida"><div class="l"><span>Storage</span><span>0,6/1 GB</span></div><div class="b"><i style="width:61%"></i></div></div><p>El egress no tiene endpoint público.</p></div>
+      <div class="fuente"><h3>Vercel <span class="etq">ok · 12 min</span></h3><div class="medida"><div class="l"><span>Despliegues · mes</span><span>38</span></div><div class="b"><i style="width:38%"></i></div></div><p>Hobby no factura por API: se cuenta actividad.</p></div>
+      <div class="fuente"><h3>OpenRouter <span class="etq">ok · 12 min</span></h3><div class="medida"><div class="l"><span>Octubre</span><span>US$ 1,84</span></div><div class="b"><i style="width:18%;background:var(--hilo)"></i></div></div><div class="medida"><div class="l"><span>GitHub · rate limit</span><span>4812/5000</span></div><div class="b"><i style="width:96%"></i></div></div></div>
+      <div class="ajustes">
+        <div class="fila-aj"><div><b>Modelo rápido</b><p>Captura y vínculos de commits</p></div><div><select class="sel"><option>google/gemini-2.5-flash</option></select></div></div>
+        <div class="fila-aj"><div><b>Modelo de razonamiento</b><p>Informes, prioridades, enriquecer</p></div><div><select class="sel"><option>anthropic/claude-sonnet-5.5</option></select></div></div>
+        <div class="fila-aj"><div><b>Umbral de sugerencia</b><p>Por debajo de esto, Enhebrar no muestra el vínculo</p></div><div><select class="sel"><option>40 % · mostrar casi todo</option><option>70 %</option></select></div></div>
+        <div class="fila-aj"><div><b>Alertas por Telegram</b><p>3 reglas activas · última enviada el 12 oct</p></div><div><button class="btn">Editar reglas</button></div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="velo" id="velo">
+  <div class="paleta-k">
+    <input id="kInput" value="bug portfolio: la og image de /proyectos sale rota" aria-label="Comando">
+    <div class="vista-previa"><div class="etq" style="color:var(--hilo);margin-bottom:6px">Nuevo problema · vista previa</div><svg class="g"><use href="#g-bug"/></svg> <b>La OG image de /proyectos sale rota</b> · Portfolio · prioridad a definir<br><span style="color:var(--g4);font-size:12px">≈ ningún parecido · ↵ crear · ⇧↵ completar con IA antes</span></div>
+    <div class="sec">Ir a</div>
+    <div class="op act"><span>Trama</span><span class="k">G T</span></div>
+    <div class="op"><span>Enhebrar · 4 pendientes</span><span class="k">G E</span></div>
+    <div class="sec">Buscar</div>
+    <div class="op"><span><span class="ref">#131</span> La OG image de /proyectos sale rota</span><span class="etq">ya existe</span></div>
+  </div>
+</div>
+
+<button class="fab" id="fab">Propuesta 4/5</button>
+<aside class="propuesta" id="propuesta">
+  <button class="btn" data-cerrar-prop style="float:right">Cerrar</button>
+  <div class="etq">Propuesta 4 · Suiza, conectada</div>
+  <h2>Hilo</h2>
+  <p>DevTracker ya hace mucho trabajo invisible: vincula commits, detecta duplicados, relaciona problemas. Hoy eso aparece repartido en botones y secciones. <b>Hilo</b> lo pone en el centro: la app es una trama, cada cosa sabe con qué está conectada y lo que está suelto se ve.</p>
+  <h3>Marca</h3>
+  <div style="display:flex;gap:16px;align-items:center"><svg width="80" height="80" viewBox="0 0 32 32" style="flex:none"><circle cx="7" cy="8" r="4" fill="currentColor"/><circle cx="25" cy="16" r="4" fill="currentColor"/><circle cx="9" cy="25" r="4" fill="currentColor"/><path d="M7 8C20 8 25 10 25 16S12 20 9 25" fill="none" stroke="#E5362B" stroke-width="2.5"/></svg><p style="margin:0">Tres nodos y un hilo rojo que los recorre: un problema, un commit, un cierre. El rojo es el único color de la interfaz y sólo marca vínculos y urgencia.</p></div>
+  <h3>Paleta</h3>
+  <div class="pal"><div><i style="background:#FAFAF8"></i>Blanco</div><div><i style="background:#E4E4E0"></i>Gris 2</div><div><i style="background:#111110"></i>Negro</div><div><i style="background:#E5362B"></i>Hilo</div></div>
+  <h3>Tipografía</h3>
+  <p><b style="font-size:22px;letter-spacing:-.04em">Geist</b> en todos los pesos, con tracking negativo en los titulares. <span class="mono">Geist Mono</span> para referencias, hashes y horas. Grilla de 12 columnas.</p>
+  <h3>Tipos por forma, no por color</h3>
+  <p><svg class="g"><use href="#g-bug"/></svg> bug &nbsp; <svg class="g"><use href="#g-feature"/></svg> feature &nbsp; <svg class="g"><use href="#g-mejora"/></svg> mejora &nbsp; <svg class="g"><use href="#g-idea"/></svg> idea &nbsp; <svg class="g"><use href="#g-deuda"/></svg> deuda</p>
+  <h3>Reorganización</h3>
+  <table class="reorg">
+    <tr><td>Dashboard + GitHub (actividad)</td><td><b>Trama</b>: línea de tiempo con problemas, commits, PRs e informes. Al costado, las cifras y los hilos sueltos.</td></tr>
+    <tr><td>Problemas + Proyectos</td><td><b>Problemas</b>: tabla con la columna Lazos. Proyecto y área son filtros.</td></tr>
+    <tr><td>Sugerencias repartidas (commits, duplicados, relacionados)</td><td><b>Enhebrar</b>: una bandeja nueva de sí/no, con teclas.</td></tr>
+    <tr><td>Resúmenes</td><td><b>Informe</b>: formato póster, con referencias que se pueden clickear.</td></tr>
+    <tr><td>Consumo + Ajustes + repos</td><td><b>Sistema</b>.</td></tr>
+  </table>
+  <h3>Mejoras de componentes</h3>
+  <ul>
+    <li><b>Grafo de lazos</b> en el detalle: relaciones confirmadas en rojo, sugeridas en punteado y gris.</li>
+    <li>Métrica nueva: <b>% de cerrados con commit</b>, que mide si el registro refleja el trabajo de verdad.</li>
+    <li><b>Hilos sueltos</b>: problemas viejos sin ningún vínculo. Son los mejores candidatos a descartar.</li>
+    <li><b>⌘K unificado</b>: navegar, buscar y crear desde el mismo campo, con vista previa y aviso de duplicados mientras escribís.</li>
+    <li>Las referencias <span class="ref">#123</span> se ven igual en todos lados, siempre subrayadas en rojo y siempre clickeables.</li>
+    <li>Umbral de confianza configurable para las sugerencias.</li>
+  </ul>
+</aside>
+
+<script>
+const G={bug:"bug",feature:"feature",mejora:"mejora",idea:"idea",deuda:"deuda"};
+const P=[
+ [142,"bug","El kanban pierde el orden al recargar","DevTracker · Problemas","prog","alta",[1,0,1]],
+ [141,"bug","El dictado corta la última palabra en Safari","DevTracker · Captura","","media",[0,0,0]],
+ [139,"feature","Exportar el resumen semanal a Markdown","DevTracker · Resúmenes","","baja",[0,0,1]],
+ [137,"deuda","Migrar fechas a Temporal cuando esté estable","DevTracker","","baja",[0,0,0]],
+ [136,"mejora","Las fotos se suben sin comprimir","Recetario · Adjuntos","prog","alta",[0,0,2]],
+ [133,"idea","Modo offline para la lista de compras","Recetario · Lista","","media",[0,0,1]],
+ [131,"bug","La OG image de /proyectos sale rota","Portfolio · SEO","","urgente",[0,0,0]],
+ [118,"feature","Parser de CAE para facturas de AFIP","facturar-cli","","media",[0,0,0]],
+ [125,"bug","Alertas de consumo duplicadas en Telegram","DevTracker · Consumo","res","alta",[2,1,0]],
+];
+const est={prog:"en progreso","":"pendiente",res:"resuelto"};
+document.getElementById("filas").innerHTML=P.map(([n,g,t,p,e,pr,l])=>`<tr data-ir="detalle"><td><svg class="g"><use href="#g-${g}"/></svg></td><td class="mono" style="color:var(--g4);font-size:12.5px">#${n}</td><td class="tit">${t}</td><td class="oc" style="color:var(--g5);font-size:13px">${p}</td><td><span class="estado ${e}"><i></i>${est[e]}</span></td><td class="oc"><span class="prio ${pr}">${pr}</span></td><td class="oc"><span class="lazos">${l[0]?`<b>⎇${l[0]}</b>`:"⎇0"} ${l[1]?`<b>↗${l[1]}</b>`:"↗0"} ${l[2]?`<b>≈${l[2]}</b>`:"≈0"}</span></td></tr>`).join("");
+document.getElementById("barras").innerHTML=[[3,5],[4,4],[2,6],[5,3],[4,5],[6,4],[3,7],[5,4],[7,9],[5,9],[6,4],[6,4]].map(([c,a])=>`<div><i style="height:${c*8}px"></i><i class="r" style="height:${a*4}px"></i></div>`).join("");
+function ir(v){document.querySelectorAll(".vista").forEach(s=>s.classList.toggle("activa",s.dataset.vista===v));document.querySelectorAll("#nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===v?"page":"false"));scrollTo({top:0})}
+document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>ir(b.dataset.v));
+document.addEventListener("click",e=>{const d=e.target.closest("[data-ir]");if(d)ir(d.dataset.ir);const r=e.target.closest(".ref");if(r&&r.textContent.trim()==="#142")ir("detalle")});
+const velo=document.getElementById("velo");
+document.getElementById("abrirK").onclick=()=>{velo.classList.add("ver");document.getElementById("kInput").focus()};
+velo.onclick=e=>{if(e.target===velo)velo.classList.remove("ver")};
+const prop=document.getElementById("propuesta");
+document.getElementById("fab").onclick=()=>prop.classList.toggle("abierta");
+prop.querySelector("[data-cerrar-prop]").onclick=()=>prop.classList.remove("abierta");
+document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();velo.classList.add("ver");document.getElementById("kInput").focus()}if(e.key==="Escape"){velo.classList.remove("ver");prop.classList.remove("abierta")}});
+document.getElementById("tema").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="dark"?"light":"dark"};
+if(matchMedia("(prefers-color-scheme: dark)").matches)document.documentElement.dataset.theme="dark";
+</script>
+</body>
+</html>

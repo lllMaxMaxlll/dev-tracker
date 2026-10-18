@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marea</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fondo:#F3F1EC; --espuma:#FBFAF7; --arena:#EAE2D2; --arena-2:#DDD2BD;
+  --hondo:#0F2C35; --hondo-2:#1F4A55; --gris:#6B7A7C; --linea:#E2DDD2;
+  --agua:#2A8C86; --agua-claro:#CFE7E2; --coral:#E06A52; --coral-claro:#F7DCD3; --sol:#E3A72F; --lila:#8B7DB8;
+  --serif:"Instrument Serif", Georgia, serif; --sans:"Instrument Sans", system-ui, sans-serif;
+  --r:22px; --sombra:0 1px 2px rgba(15,44,53,.05), 0 20px 40px -24px rgba(15,44,53,.25);
+}
+:root[data-theme="dark"]{
+  --fondo:#0B1E24; --espuma:#11292F; --arena:#18353C; --arena-2:#22444C;
+  --hondo:#E8EFEC; --hondo-2:#BFD2CF; --gris:#86A0A2; --linea:#1E3A41;
+  --agua:#5CC2B9; --agua-claro:#163F42; --coral:#F08A72; --coral-claro:#3A2622; --sol:#F0C062; --lila:#AFA3DA;
+  --sombra:0 1px 2px rgba(0,0,0,.2), 0 20px 40px -20px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--hondo);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.serif{font-family:var(--serif);font-weight:400}
+
+header.barra{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:16px clamp(16px,4vw,40px);background:color-mix(in oklab,var(--fondo) 85%,transparent);backdrop-filter:blur(12px)}
+.marca{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:28px;letter-spacing:-.01em}
+.dock{display:flex;gap:4px;background:var(--espuma);border:1px solid var(--linea);padding:5px;border-radius:999px;box-shadow:var(--sombra)}
+.dock button{padding:8px 16px;border-radius:999px;font-size:14px;font-weight:500;color:var(--gris);display:flex;align-items:center;gap:7px}
+.dock button svg{width:17px;height:17px}
+.dock button[aria-current="page"]{background:var(--hondo);color:var(--fondo)}
+.dock button:not([aria-current="page"]):hover{color:var(--hondo)}
+.lado{display:flex;gap:10px;align-items:center}
+.redondo{width:40px;height:40px;border-radius:50%;border:1px solid var(--linea);display:grid;place-items:center;background:var(--espuma)}
+.avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--agua),var(--hondo-2));color:#fff;display:grid;place-items:center;font-weight:600;font-size:14px}
+
+main{padding:12px clamp(16px,4vw,40px) 120px;max-width:1200px;margin:0 auto}
+.vista{display:none}.vista.activa{display:block;animation:sube .4s cubic-bezier(.2,.8,.2,1)}
+@keyframes sube{from{opacity:0;transform:translateY(10px)}to{opacity:1}}
+.saludo{text-align:center;margin:28px 0 30px}
+.saludo small{font-size:13px;color:var(--gris);letter-spacing:.04em}
+.saludo h1{font-family:var(--serif);font-weight:400;font-size:clamp(40px,6vw,64px);line-height:1;margin:8px 0 0;letter-spacing:-.02em}
+.saludo h1 em{color:var(--agua)}
+
+/* Ahora */
+.ahora{max-width:760px;margin:0 auto;background:var(--espuma);border-radius:calc(var(--r) + 8px);box-shadow:var(--sombra);overflow:hidden;border:1px solid var(--linea)}
+.ahora .ola{height:84px;background:linear-gradient(180deg,var(--agua-claro),transparent);position:relative}
+.ahora .ola svg{position:absolute;bottom:0;left:0;width:100%;height:60px}
+.ahora .dentro{padding:0 36px 32px;margin-top:-30px;position:relative}
+.pastilla{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:500;background:var(--arena);color:var(--hondo-2)}
+.pastilla i{width:7px;height:7px;border-radius:50%}
+.p-bug{background:var(--coral-claro);color:var(--coral)}
+.p-agua{background:var(--agua-claro);color:var(--agua)}
+.ahora h2{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4vw,42px);line-height:1.1;margin:14px 0 12px;letter-spacing:-.01em}
+.porque{display:flex;gap:12px;padding:14px 16px;background:var(--fondo);border-radius:16px;font-size:14.5px;color:var(--hondo-2);margin:18px 0 24px}
+.porque svg{flex:none;color:var(--agua);margin-top:2px}
+.acciones{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:999px;font-weight:600;font-size:14.5px;border:1px solid var(--linea);background:var(--espuma)}
+.btn:hover{border-color:var(--gris)}
+.btn.lleno{background:var(--hondo);color:var(--fondo);border-color:var(--hondo)}
+.btn.agua{background:var(--agua);color:#fff;border-color:var(--agua)}
+.btn.chico{padding:7px 14px;font-size:13px}
+.foco{display:none;align-items:center;gap:18px;padding:18px;border-radius:18px;background:var(--hondo);color:var(--fondo);margin-top:4px}
+.foco.ver{display:flex}
+.foco .t{font-family:var(--serif);font-size:42px;line-height:1;font-variant-numeric:tabular-nums}
+.foco small{opacity:.7;font-size:13px}
+.despues{max-width:760px;margin:30px auto 0}
+.despues h3,.titulo-sec{font-size:13px;font-weight:600;color:var(--gris);letter-spacing:.06em;text-transform:uppercase;margin:0 0 12px}
+.despues .tres{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.mini{background:var(--espuma);border:1px solid var(--linea);border-radius:var(--r);padding:16px;cursor:pointer;transition:transform .2s}
+.mini:hover{transform:translateY(-2px)}
+.mini b{display:block;font-weight:500;font-size:15px;margin:8px 0 4px;line-height:1.35}
+.mini span{font-size:12.5px;color:var(--gris)}
+.oleaje{max-width:760px;margin:36px auto 0;background:var(--espuma);border:1px solid var(--linea);border-radius:var(--r);padding:22px 24px}
+.oleaje .cab{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+.oleaje .cab b{font-family:var(--serif);font-size:26px;font-weight:400}
+.datos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.datos div{padding:10px 0}
+.datos strong{display:block;font-family:var(--serif);font-weight:400;font-size:34px;line-height:1}
+.datos span{font-size:12.5px;color:var(--gris)}
+
+/* Corriente */
+.corriente-cab{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin:18px 0 22px}
+.corriente-cab h1,.h1{font-family:var(--serif);font-weight:400;font-size:clamp(36px,5vw,52px);line-height:1;margin:0;letter-spacing:-.02em}
+.corriente-cab p{color:var(--gris);margin:6px 0 0}
+.filtro{display:flex;gap:6px;flex-wrap:wrap}
+.filtro button{padding:7px 14px;border-radius:999px;border:1px solid var(--linea);font-size:13.5px;background:var(--espuma)}
+.filtro button[aria-pressed="true"]{background:var(--hondo);color:var(--fondo);border-color:var(--hondo)}
+.carriles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.carril{background:var(--arena);border-radius:calc(var(--r) + 4px);padding:14px;min-height:420px}
+.carril h3{margin:4px 6px 12px;display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600}
+.carril h3 span{font-weight:500;color:var(--gris);font-size:13px}
+.tarjeta{background:var(--espuma);border-radius:16px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 2px rgba(15,44,53,.06);cursor:grab;border:1px solid transparent}
+.tarjeta:hover{border-color:var(--linea)}
+.tarjeta .arriba{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--gris)}
+.tarjeta b{display:block;font-weight:500;margin:8px 0 10px;line-height:1.35}
+.tarjeta .abajo{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.punto{width:8px;height:8px;border-radius:50%;display:inline-block}
+.urg{display:inline-flex;gap:2px}
+.urg i{width:5px;height:5px;border-radius:50%;background:var(--arena-2)}
+.urg[data-p="2"] i:nth-child(-n+2),.urg[data-p="1"] i:nth-child(1){background:var(--gris)}
+.urg[data-p="3"] i:nth-child(-n+3){background:var(--sol)}
+.urg[data-p="4"] i{background:var(--coral)}
+.resueltos-plegado{margin-top:16px;padding:14px 18px;border-radius:var(--r);border:1px dashed var(--arena-2);color:var(--gris);font-size:14px;display:flex;justify-content:space-between}
+
+/* Costas (proyectos + github) */
+.costas{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:22px}
+.costa{background:var(--espuma);border:1px solid var(--linea);border-radius:calc(var(--r) + 4px);padding:24px;display:flex;flex-direction:column;gap:14px}
+.costa .top{display:flex;justify-content:space-between;align-items:start}
+.costa h3{font-family:var(--serif);font-weight:400;font-size:32px;margin:0;line-height:1}
+.costa .repo{font-size:13px;color:var(--gris);display:flex;align-items:center;gap:6px;margin-top:6px}
+.costa .nums{display:flex;gap:22px}
+.costa .nums div strong{font-family:var(--serif);font-weight:400;font-size:30px;display:block;line-height:1}
+.costa .nums div span{font-size:12px;color:var(--gris)}
+.areas{display:flex;gap:6px;flex-wrap:wrap}
+.area{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--fondo);display:inline-flex;gap:6px;align-items:center}
+.area b{font-weight:600}
+.commits{display:flex;align-items:end;gap:3px;height:44px}
+.commits i{flex:1;border-radius:3px 3px 0 0;background:var(--agua);opacity:.85;min-height:2px}
+.sug{background:var(--agua-claro);border-radius:14px;padding:12px 14px;font-size:13.5px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+
+/* Mareas (métricas + resumen) */
+.carta{max-width:720px;margin:26px auto 0;background:var(--espuma);border:1px solid var(--linea);border-radius:calc(var(--r) + 8px);padding:clamp(24px,5vw,48px);box-shadow:var(--sombra)}
+.carta .fecha{font-size:13px;color:var(--gris)}
+.carta h2{font-family:var(--serif);font-weight:400;font-size:44px;line-height:1.05;margin:8px 0 18px;letter-spacing:-.02em}
+.carta p{font-size:17px;line-height:1.7;margin:0 0 16px;color:var(--hondo-2)}
+.carta p b{color:var(--hondo)}
+.carta .firma{font-family:var(--serif);font-style:italic;font-size:20px;color:var(--gris)}
+.semanas-ant{max-width:720px;margin:20px auto 0;display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+.semanas-ant button{flex:none;padding:14px 18px;border-radius:18px;border:1px solid var(--linea);background:var(--espuma);text-align:left;min-width:180px}
+.semanas-ant b{font-family:var(--serif);font-weight:400;font-size:20px;display:block}
+.semanas-ant span{font-size:12.5px;color:var(--gris)}
+
+/* Faro */
+.faro-estado{display:flex;gap:24px;align-items:center;background:var(--hondo);color:var(--fondo);border-radius:calc(var(--r) + 8px);padding:28px 32px;margin-top:22px;overflow:hidden;position:relative}
+.faro-estado h2{font-family:var(--serif);font-weight:400;font-size:38px;margin:0;line-height:1.05}
+.faro-estado p{margin:6px 0 0;opacity:.75}
+.haz{position:absolute;right:-60px;top:-40px;width:340px;height:220px;background:conic-gradient(from 200deg at 80% 30%,transparent 0deg,rgba(255,226,150,.25) 20deg,transparent 40deg);animation:gira 6s linear infinite;transform-origin:80% 30%}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.haz{animation:none}}
+.fuentes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+.fuente{background:var(--espuma);border:1px solid var(--linea);border-radius:var(--r);padding:20px}
+.fuente h4{margin:0 0 14px;display:flex;justify-content:space-between;align-items:center;font-size:16px;font-weight:600}
+.anillo{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.anillo div b{display:block;font-weight:500}
+.anillo div span{font-size:12.5px;color:var(--gris)}
+.nota{font-size:12.5px;color:var(--gris);border-top:1px solid var(--linea);padding-top:10px;margin-top:6px}
+.reglas{margin-top:16px;background:var(--espuma);border:1px solid var(--linea);border-radius:var(--r);padding:8px 20px}
+.regla{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--linea);gap:12px}
+.regla:last-child{border-bottom:0}
+.regla span{font-size:13px;color:var(--gris)}
+.sw{width:42px;height:24px;border-radius:999px;background:var(--agua);position:relative;flex:none}
+.sw::after{content:"";position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff}
+.sw.off{background:var(--arena-2)}.sw.off::after{right:auto;left:3px}
+
+/* Captura */
+.captura{position:fixed;inset:0;z-index:60;background:color-mix(in oklab,var(--fondo) 92%,transparent);backdrop-filter:blur(18px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.captura.ver{display:flex;animation:sube .3s}
+.captura textarea{width:min(780px,100%);min-height:160px;background:transparent;border:0;outline:none;resize:none;font-family:var(--serif);font-size:clamp(28px,4vw,42px);line-height:1.25;color:var(--hondo);text-align:center}
+.captura textarea::placeholder{color:var(--gris);opacity:.6}
+.onda{display:flex;gap:4px;align-items:center;height:46px;margin:12px 0 24px}
+.onda i{width:4px;border-radius:2px;background:var(--agua);animation:onda 1.1s ease-in-out infinite}
+@keyframes onda{0%,100%{height:8px}50%{height:40px}}
+.entiendo{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px}
+.captura .ayuda{font-size:13px;color:var(--gris);margin-top:18px}
+.cerrar-cap{position:absolute;top:22px;right:22px}
+
+/* Propuesta */
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:30;display:flex;gap:8px;background:var(--hondo);padding:6px;border-radius:999px;box-shadow:0 20px 40px -14px rgba(15,44,53,.5)}
+.fab button{white-space:nowrap;color:var(--fondo);padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px}
+.fab button.cap{background:var(--agua);color:#fff;display:flex;gap:8px;align-items:center}
+.propuesta{position:fixed;inset:12px 12px 12px auto;width:min(520px,calc(100% - 24px));background:var(--espuma);border-radius:28px;border:1px solid var(--linea);box-shadow:var(--sombra);transform:translateX(110%);transition:transform .35s cubic-bezier(.2,.8,.2,1);z-index:70;overflow:auto;padding:28px}
+.propuesta.abierta{transform:none}
+.propuesta h2{font-family:var(--serif);font-weight:400;font-size:56px;margin:4px 0 8px;line-height:1}
+.propuesta h3{font-size:12.5px;font-weight:600;color:var(--agua);letter-spacing:.06em;text-transform:uppercase;margin:26px 0 10px}
+.propuesta p,.propuesta li{font-size:14.5px;line-height:1.6;color:var(--hondo-2)}
+.propuesta ul{padding-left:18px;margin:0}
+.paleta{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.paleta div{font-size:12px;color:var(--gris)}
+.paleta i{display:block;height:54px;border-radius:14px;margin-bottom:5px;border:1px solid var(--linea)}
+.reorg{width:100%;border-collapse:collapse;font-size:13.5px}
+.reorg td{padding:9px 4px;border-bottom:1px solid var(--linea);vertical-align:top}
+.reorg td:first-child{color:var(--gris);width:36%}
+
+@media (max-width:900px){
+  header.barra{backdrop-filter:none;background:var(--fondo)}
+  .dock{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:25}
+  .dock button span{display:none}
+  .dock button{padding:10px 14px}
+  .despues .tres,.carriles,.costas,.fuentes{grid-template-columns:1fr}
+  .datos{grid-template-columns:repeat(2,1fr)}
+  .ahora .dentro{padding:0 20px 24px}
+  .carril{min-height:auto}
+  main{padding-bottom:180px}
+}
+</style>
+</head>
+<body>
+<header class="barra">
+  <div class="marca"><svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="var(--hondo)"/><path d="M4 22c4-4 8-4 12 0s8 4 12 0 6-3 8-1v8a17 17 0 0 1-32 0z" fill="var(--agua)"/><path d="M6 27c3.5-3 7-3 10.5 0s7 3 10.5 0 5-2.5 7-1" fill="none" stroke="var(--fondo)" stroke-width="1.6" stroke-linecap="round"/></svg>Marea</div>
+  <nav class="dock" id="dock">
+    <button data-v="ahora" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg><span>Ahora</span></button>
+    <button data-v="corriente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7c3-2 6-2 9 0s6 2 9 0M3 12c3-2 6-2 9 0s6 2 9 0M3 17c3-2 6-2 9 0s6 2 9 0"/></svg><span>Corriente</span></button>
+    <button data-v="costas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18M5 20l4-9 3 5 3-7 4 11"/></svg><span>Proyectos</span></button>
+    <button data-v="mareas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg><span>Carta</span></button>
+    <button data-v="faro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 21l1-12h2l1 12M9 9h6M10 5h4v4h-4zM12 2v3M17 6l3-1M7 6L4 5"/></svg><span>Faro</span></button>
+  </nav>
+  <div class="lado"><button class="redondo" id="tema" aria-label="Cambiar tema"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button><span class="avatar" title="Ajustes">MH</span></div>
+</header>
+
+<main>
+  <!-- AHORA -->
+  <section class="vista activa" data-vista="ahora">
+    <div class="saludo"><small>SÁBADO 18 DE OCTUBRE · MAREA BAJANDO</small><h1>Una cosa <em>a la vez</em>.</h1></div>
+    <article class="ahora">
+      <div class="ola"><svg viewBox="0 0 800 60" preserveAspectRatio="none"><path d="M0 30 C100 10 200 50 300 30 S500 10 600 30 S750 50 800 30 V60 H0Z" fill="var(--espuma)"/></svg></div>
+      <div class="dentro">
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pastilla p-bug"><i style="background:var(--coral)"></i>Bug · urgente</span><span class="pastilla"><i style="background:#C2410C"></i>Portfolio · SEO</span><span class="pastilla">#131</span></div>
+        <h2>La OG image de /proyectos sale rota cuando compartís el link</h2>
+        <div class="porque"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></svg><span><b>Por qué ahora:</b> es urgente, es lo único público de la lista y lleva cuatro días así. Calculo que es menos de una hora: la ruta no exporta <code>generateImageMetadata</code>.</span></div>
+        <div class="acciones">
+          <button class="btn agua" id="empezar"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>Empezar · 50 min de foco</button>
+          <button class="btn">Ver detalle</button>
+          <button class="btn" style="border:0;color:var(--gris)">Otra cosa →</button>
+        </div>
+        <div class="foco" id="foco"><span class="t" id="reloj">50:00</span><div style="flex:1"><b>En foco con #131</b><br><small>Los commits de esta sesión se vinculan solos. Las notificaciones esperan.</small></div><button class="btn chico" id="parar" style="background:transparent;color:var(--fondo);border-color:rgba(255,255,255,.3)">Terminar</button></div>
+      </div>
+    </article>
+
+    <div class="despues">
+      <h3>Después, si querés</h3>
+      <div class="tres">
+        <div class="mini"><span class="pastilla p-agua">En progreso</span><b>El kanban pierde el orden al recargar</b><span>DevTracker · ya tiene commit, falta cerrarlo</span></div>
+        <div class="mini"><span class="pastilla p-bug">Bug</span><b>El dictado corta la última palabra en Safari</b><span>DevTracker · chico</span></div>
+        <div class="mini"><span class="pastilla">Feature</span><b>Parser de CAE para AFIP</b><span>facturar-cli · 21 días quieto</span></div>
+      </div>
+    </div>
+
+    <div class="oleaje">
+      <div class="cab"><b>El oleaje de 12 semanas</b><span style="font-size:13px;color:var(--gris)"><span class="punto" style="background:var(--coral)"></span> lo que entra &nbsp;<span class="punto" style="background:var(--agua)"></span> lo que sale</span></div>
+      <svg viewBox="0 0 700 150" width="100%" height="150" preserveAspectRatio="none" style="margin-top:14px">
+        <defs><linearGradient id="gA" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--agua)" stop-opacity=".45"/><stop offset="1" stop-color="var(--agua)" stop-opacity="0"/></linearGradient><linearGradient id="gC" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--coral)" stop-opacity=".3"/><stop offset="1" stop-color="var(--coral)" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0 90 C60 80 100 100 160 70 S260 60 320 80 S420 40 480 55 S600 70 700 50 V150 H0Z" fill="url(#gC)"/>
+        <path d="M0 90 C60 80 100 100 160 70 S260 60 320 80 S420 40 480 55 S600 70 700 50" fill="none" stroke="var(--coral)" stroke-width="2"/>
+        <path d="M0 120 C60 115 100 105 160 100 S260 90 320 85 S420 80 480 70 S600 72 700 45 V150 H0Z" fill="url(#gA)"/>
+        <path d="M0 120 C60 115 100 105 160 100 S260 90 320 85 S420 80 480 70 S600 72 700 45" fill="none" stroke="var(--agua)" stroke-width="2.5"/>
+      </svg>
+      <div class="datos">
+        <div><strong>14</strong><span>abiertos</span></div>
+        <div><strong>6</strong><span>cerrados esta semana</span></div>
+        <div><strong>1j 3h</strong><span>en cerrar, en horas de trabajo</span></div>
+        <div><strong>3</strong><span>varados hace más de 14 días</span></div>
+      </div>
+      <p style="margin:12px 0 0;font-size:14px;color:var(--hondo-2)">Por primera vez en un mes, sale más de lo que entra. Los bugs de Recetario tardan el doble que el resto: casi todos tocan las fotos.</p>
+    </div>
+  </section>
+
+  <!-- CORRIENTE -->
+  <section class="vista" data-vista="corriente">
+    <div class="corriente-cab"><div><h1>Corriente</h1><p>Todo lo que está en el agua. Arrastrá para mover.</p></div>
+      <div class="filtro"><button aria-pressed="true">Todo</button><button>DevTracker</button><button>Recetario</button><button>Portfolio</button><button>Sólo bugs</button></div></div>
+    <div class="carriles" id="carriles"></div>
+    <div class="resueltos-plegado"><span>✓ 6 cerrados esta semana · 2 descartados</span><span>ver →</span></div>
+  </section>
+
+  <!-- COSTAS -->
+  <section class="vista" data-vista="costas">
+    <div class="corriente-cab"><div><h1>Proyectos</h1><p>Cada proyecto con su repositorio adentro. GitHub ya no es una página aparte.</p></div><button class="btn lleno">+ Proyecto</button></div>
+    <div class="costas">
+      <article class="costa">
+        <div class="top"><div><h3>DevTracker</h3><div class="repo">⎇ lllmaxmaxlll/devtracker · main · hace 8 min</div></div><span class="punto" style="background:#2A6F97;width:14px;height:14px"></span></div>
+        <div class="nums"><div><strong>8</strong><span>abiertos</span></div><div><strong>5</strong><span>cerrados · 7d</span></div><div><strong>23</strong><span>commits · 7d</span></div></div>
+        <div class="commits" data-c="5"></div>
+        <div class="areas"><span class="area"><b>Problemas</b> 3</span><span class="area"><b>Captura</b> 2</span><span class="area"><b>Consumo</b> 1</span><span class="area"><b>Resúmenes</b> 2</span></div>
+        <div class="sug"><span>⎇ <b>a3f9e12</b> «fix: guardar el orden del kanban» parece de <b>#142</b></span><span style="display:flex;gap:6px"><button class="btn chico agua">Vincular</button><button class="btn chico">No</button></span></div>
+      </article>
+      <article class="costa">
+        <div class="top"><div><h3>Recetario</h3><div class="repo">⎇ lllmaxmaxlll/recetario · main · hace 3 días</div></div><span class="punto" style="background:var(--agua);width:14px;height:14px"></span></div>
+        <div class="nums"><div><strong>3</strong><span>abiertos</span></div><div><strong>1</strong><span>cerrados · 7d</span></div><div><strong>2</strong><span>commits · 7d</span></div></div>
+        <div class="commits" data-c="1"></div>
+        <div class="areas"><span class="area"><b>Adjuntos</b> 2</span><span class="area"><b>Lista</b> 1</span></div>
+      </article>
+      <article class="costa">
+        <div class="top"><div><h3>Portfolio</h3><div class="repo">⎇ lllmaxmaxlll/portfolio · sin actividad en 12 días</div></div><span class="punto" style="background:#C2410C;width:14px;height:14px"></span></div>
+        <div class="nums"><div><strong>2</strong><span>abiertos</span></div><div><strong>0</strong><span>cerrados · 7d</span></div><div><strong>0</strong><span>commits · 7d</span></div></div>
+        <div class="commits" data-c="0"></div>
+      </article>
+      <article class="costa" style="border-style:dashed;background:transparent;justify-content:center;align-items:center;text-align:center;color:var(--gris)">
+        <h3 style="font-size:24px">dotfiles, scripts-varios…</h3><p style="margin:0">4 repos de GitHub sin proyecto. ¿Querés seguir alguno?</p><button class="btn chico">Elegir repos</button>
+      </article>
+    </div>
+  </section>
+
+  <!-- MAREAS / CARTA -->
+  <section class="vista" data-vista="mareas">
+    <div class="corriente-cab" style="justify-content:center;text-align:center"><div><h1>La carta del viernes</h1><p>Cada semana, una carta corta sobre cómo vino. La escribe la IA a partir de lo que anotaste.</p></div></div>
+    <article class="carta">
+      <div class="fecha">Viernes 17 de octubre · semana 42</div>
+      <h2>Una semana para dejar firme el monitor.</h2>
+      <p>Cerraste <b>seis cosas</b>, cinco de DevTracker. Las alertas que llegaban dos veces a Telegram eran el cron corriendo en dos zonas horarias. Eso ya no pasa, y el monitor lleva cinco días sin fallar.</p>
+      <p>Lo que no se movió fue <b>Recetario</b>: #136 está en progreso desde el miércoles sin un solo commit. Si las fotos te traban, partilo en dos: comprimir y subir.</p>
+      <p>Para arrancar el lunes: <b>#131</b>, la OG image del portfolio. Es lo único público de la lista.</p>
+      <div class="firma">— con 6 cerrados, 4 nuevos y 1 día y 3 horas de promedio</div>
+      <div class="acciones" style="margin-top:22px"><button class="btn chico">Copiar como Markdown</button><button class="btn chico">Escribir la de esta semana</button></div>
+    </article>
+    <div class="semanas-ant">
+      <button><b>Áreas y adjuntos</b><span>Semana 41 · 5 cerrados</span></button>
+      <button><b>Adiós, Cloudflare</b><span>Semana 40 · 7 cerrados</span></button>
+      <button><b>La capa de IA</b><span>Semana 39 · 4 cerrados</span></button>
+      <button><b>Primeros pasos</b><span>Semana 38 · 9 cerrados</span></button>
+    </div>
+  </section>
+
+  <!-- FARO -->
+  <section class="vista" data-vista="faro">
+    <div class="faro-estado"><div class="haz"></div><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex:none;position:relative"><path d="M10 21l1-12h2l1 12M9 9h6M10 5h4v4h-4zM12 2v3M17 6l3-1M7 6L4 5M6 21h12"/></svg>
+      <div style="position:relative"><h2>Mar en calma.</h2><p>Las tres fuentes respondieron hace 12 minutos. Nada cerca de su límite. Te aviso por Telegram si cambia.</p></div></div>
+    <div class="fuentes" id="fuentes"></div>
+    <div class="reglas">
+      <div class="regla"><div><b>Storage de Supabase arriba del 80 %</b><br><span>porcentaje de la cuota · ventana mensual</span></div><span class="sw"></span></div>
+      <div class="regla"><div><b>Más de US$ 0,50 de IA en un día</b><br><span>absoluto · ventana diaria · última vez: 12 oct</span></div><span class="sw"></span></div>
+      <div class="regla"><div><b>Hace más de 6 h que no se recolecta</b><br><span>el monitor vigilándose a sí mismo</span></div><span class="sw"></span></div>
+      <div class="regla"><div><b>Más de 80 despliegues en el mes</b><br><span>absoluto · ventana mensual</span></div><span class="sw off"></span></div>
+    </div>
+  </section>
+</main>
+
+<div class="captura" id="captura">
+  <button class="redondo cerrar-cap" data-cerrar aria-label="Cerrar">✕</button>
+  <textarea id="texto" placeholder="Contá qué pasó…">en el recetario cuando subo fotos desde el celu tarda una eternidad</textarea>
+  <div class="onda" aria-hidden="true"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.4s"></i><i style="animation-delay:.5s"></i><i style="animation-delay:.6s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.1s"></i></div>
+  <div class="entiendo"><span class="pastilla p-bug">Bug</span><span class="pastilla">Recetario · Adjuntos</span><span class="pastilla">Alta</span><span class="pastilla p-agua">≈ #136, ¿es lo mismo?</span></div>
+  <div class="acciones"><button class="btn" data-cerrar>Sumar a #136</button><button class="btn lleno" data-cerrar>Guardar como nuevo</button></div>
+  <div class="ayuda">Escuchando · soltá la barra espaciadora para terminar · Esc para cerrar</div>
+</div>
+
+<div class="fab"><button class="cap" id="abrirCap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Anotar</button><button id="fab">Propuesta 3/5</button></div>
+
+<aside class="propuesta" id="propuesta">
+  <button class="btn chico" data-cerrar-prop style="float:right">Cerrar</button>
+  <div style="font-size:13px;color:var(--gris)">Propuesta 3 · Calma y foco</div>
+  <h2>Marea</h2>
+  <p>El problema de un tracker personal no es que falten datos: es abrirlo y ver catorce cosas pidiendo atención. Marea responde una sola pregunta, «¿qué hago ahora?», y esconde el resto hasta que lo pidas. Los problemas entran y salen como la marea: si sube, avisa; si baja, deja tranquilo.</p>
+  <h3>Marca</h3>
+  <div style="display:flex;gap:16px;align-items:center"><svg width="72" height="72" viewBox="0 0 40 40" style="flex:none"><circle cx="20" cy="20" r="19" fill="var(--hondo)"/><path d="M4 22c4-4 8-4 12 0s8 4 12 0 6-3 8-1v8a17 17 0 0 1-32 0z" fill="var(--agua)"/><path d="M6 27c3.5-3 7-3 10.5 0s7 3 10.5 0 5-2.5 7-1" fill="none" stroke="var(--fondo)" stroke-width="1.6" stroke-linecap="round"/></svg><p style="margin:0">Un círculo con el nivel del agua por la mitad: el mismo gesto que una barra de progreso, pero en calma.</p></div>
+  <h3>Paleta</h3>
+  <div class="paleta">
+    <div><i style="background:#F3F1EC"></i>Espuma</div><div><i style="background:#EAE2D2"></i>Arena</div><div><i style="background:#0F2C35"></i>Hondo</div><div><i style="background:#2A8C86"></i>Agua</div>
+    <div><i style="background:#E06A52"></i>Coral (bugs)</div><div><i style="background:#E3A72F"></i>Sol (alta)</div><div><i style="background:#8B7DB8"></i>Lila (ideas)</div><div><i style="background:#0B1E24"></i>Noche</div>
+  </div>
+  <h3>Tipografía</h3>
+  <p><span style="font-family:var(--serif);font-size:30px">Instrument Serif</span> para títulos grandes y cifras. <b>Instrument Sans</b> para todo lo demás. Son de la misma familia, así que conviven sin pelearse.</p>
+  <h3>Reorganización</h3>
+  <table class="reorg">
+    <tr><td>Dashboard</td><td><b>Ahora</b>: la recomendación de la IA en grande, un modo foco, tres alternativas y el «oleaje» con las métricas.</td></tr>
+    <tr><td>Problemas</td><td><b>Corriente</b>: tres carriles: pendiente, en progreso y «algún día» (lo de prioridad baja, separado para que no haga ruido). Los cerrados se pliegan.</td></tr>
+    <tr><td>Proyectos + GitHub</td><td><b>Proyectos</b>: cada uno muestra su repo, sus commits, sus áreas y las sugerencias de vínculo.</td></tr>
+    <tr><td>Resúmenes</td><td><b>Carta</b>: una carta semanal en modo lectura.</td></tr>
+    <tr><td>Consumo</td><td><b>Faro</b>: un estado general en una frase, después el detalle.</td></tr>
+    <tr><td>Ajustes</td><td>En el avatar. No merece un lugar en la navegación.</td></tr>
+  </table>
+  <h3>Mejoras de componentes</h3>
+  <ul>
+    <li><b>Tarjeta «Ahora»</b>: usa la priorización que ya existe, pero muestra un solo problema con su motivo y un cálculo de cuánto lleva.</li>
+    <li><b>Modo foco</b> de 50 minutos: los commits que hagas en ese rato se vinculan solos a ese problema.</li>
+    <li><b>Captura a pantalla completa</b>, con dictado manteniendo la barra espaciadora y una onda que muestra que te está escuchando.</li>
+    <li><b>Estado del faro</b>: «mar en calma» o «hay oleaje», en vez de tres tarjetas que tenés que leer y sumar vos.</li>
+    <li>Navegación en forma de <b>dock</b>, que en el celular baja al pulgar.</li>
+    <li>La prioridad se marca con <b>cuatro puntos</b> y deja el color fuerte sólo para lo urgente.</li>
+  </ul>
+</aside>
+
+<script>
+const I=[
+ {n:141,t:"El dictado corta la última palabra en Safari",ti:"Bug",cls:"p-bug",pr:"DevTracker",c:"#2A6F97",p:2,e:0},
+ {n:131,t:"La OG image de /proyectos sale rota",ti:"Bug",cls:"p-bug",pr:"Portfolio",c:"#C2410C",p:4,e:0},
+ {n:139,t:"Exportar el resumen semanal a Markdown",ti:"Feature",cls:"",pr:"DevTracker",c:"#2A6F97",p:1,e:2},
+ {n:133,t:"Modo offline para la lista de compras",ti:"Idea",cls:"",pr:"Recetario",c:"#2A8C86",p:2,e:0},
+ {n:118,t:"Parser de CAE para facturas de AFIP",ti:"Feature",cls:"",pr:"facturar-cli",c:"#8B7DB8",p:2,e:0},
+ {n:142,t:"El kanban pierde el orden al recargar",ti:"Bug",cls:"p-bug",pr:"DevTracker",c:"#2A6F97",p:3,e:1},
+ {n:136,t:"Las fotos se suben sin comprimir",ti:"Mejora",cls:"p-agua",pr:"Recetario",c:"#2A8C86",p:3,e:1},
+ {n:137,t:"Migrar fechas a Temporal cuando esté estable",ti:"Deuda",cls:"",pr:"DevTracker",c:"#2A6F97",p:1,e:2},
+];
+const car=[["Pendiente","listo para empezar"],["En progreso","entre manos"],["Algún día","prioridad baja: fuera de la vista hasta que la subas"]];
+document.getElementById("carriles").innerHTML=car.map(([l,d],k)=>{const xs=I.filter(i=>i.e===k);return `<div class="carril"><h3>${l}<span>${xs.length}</span></h3>${xs.map(i=>`<div class="tarjeta"><div class="arriba"><span>#${i.n}</span><span class="urg" data-p="${i.p}"><i></i><i></i><i></i><i></i></span></div><b>${i.t}</b><div class="abajo"><span class="pastilla ${i.cls}">${i.ti}</span><span class="pastilla"><i style="background:${i.c}"></i>${i.pr}</span></div></div>`).join("")}<div style="font-size:12.5px;color:var(--gris);padding:4px 6px">${d}</div></div>`}).join("");
+document.querySelectorAll(".commits").forEach(c=>{const f=+c.dataset.c;c.innerHTML=Array.from({length:28},(_,j)=>`<i style="height:${Math.max(4,Math.abs(Math.sin(j*.8+f))*f*8+(j%5)*f)}px;${f===0?"background:var(--arena-2)":""}"></i>`).join("")});
+const F=[["Supabase",[["Base de datos","212 de 500 MB",.42],["Storage","0,6 de 1 GB",.61]],"El egress no tiene endpoint público."],["Vercel",[["Despliegues","38 este mes",.38]],"Hobby no factura por API: esto mide actividad."],["OpenRouter",[["Gasto de octubre","US$ 1,84",.18]],"62 % se fue en captura, 21 % en cartas."]];
+const anillo=v=>{const r=20,c=2*Math.PI*r;return `<svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--arena)" stroke-width="6"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${v>.55?"var(--sol)":"var(--agua)"}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${c*v} ${c}" transform="rotate(-90 26 26)"/><text x="26" y="30" text-anchor="middle" font-size="11" font-weight="600" fill="var(--hondo)" font-family="Instrument Sans">${Math.round(v*100)}%</text></svg>`};
+document.getElementById("fuentes").innerHTML=F.map(([n,ms,nota])=>`<div class="fuente"><h4>${n}<span class="pastilla p-agua">en calma</span></h4>${ms.map(([a,b,v])=>`<div class="anillo">${anillo(v)}<div><b>${a}</b><span>${b}</span></div></div>`).join("")}<div class="nota">${nota}</div></div>`).join("");
+
+function ir(v){document.querySelectorAll(".vista").forEach(s=>s.classList.toggle("activa",s.dataset.vista===v));document.querySelectorAll("#dock button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===v?"page":"false"));scrollTo({top:0})}
+document.querySelectorAll("#dock button").forEach(b=>b.onclick=()=>ir(b.dataset.v));
+const cap=document.getElementById("captura");
+document.getElementById("abrirCap").onclick=()=>{cap.classList.add("ver");setTimeout(()=>document.getElementById("texto").focus(),50)};
+cap.querySelectorAll("[data-cerrar]").forEach(b=>b.onclick=()=>cap.classList.remove("ver"));
+const prop=document.getElementById("propuesta");
+document.getElementById("fab").onclick=()=>prop.classList.toggle("abierta");
+prop.querySelector("[data-cerrar-prop]").onclick=()=>prop.classList.remove("abierta");
+let t=null,seg=3000;
+document.getElementById("empezar").onclick=()=>{document.getElementById("foco").classList.add("ver");clearInterval(t);seg=3000;t=setInterval(()=>{seg--;document.getElementById("reloj").textContent=`${String(Math.floor(seg/60)).padStart(2,"0")}:${String(seg%60).padStart(2,"0")}`},1000)};
+document.getElementById("parar").onclick=()=>{clearInterval(t);document.getElementById("foco").classList.remove("ver")};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){cap.classList.remove("ver");prop.classList.remove("abierta")}if(!["INPUT","TEXTAREA"].includes(e.target.tagName)&&e.key.toLowerCase()==="a"){e.preventDefault();document.getElementById("abrirCap").click()}});
+document.getElementById("tema").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="dark"?"light":"dark"};
+if(matchMedia("(prefers-color-scheme: dark)").matches)document.documentElement.dataset.theme="dark";
+</script>
+</body>
+</html>
