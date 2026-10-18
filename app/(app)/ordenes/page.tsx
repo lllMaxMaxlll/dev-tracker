@@ -132,7 +132,7 @@ async function Tabla({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
       {tabla}
       <aside className="hidden self-start rounded-md border bg-card lg:sticky lg:top-18 lg:block">
         <Suspense

@@ -35,19 +35,23 @@ async function Commits() {
  */
 export default function BandejaPage() {
   return (
-    <div className="flex max-w-4xl flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Bandeja"
-        description="Lo que entró por la captura rápida y lo que la IA quiere vincular. Se revisa de a uno: ↵ acepta, E edita, P busca parecidas, X descarta."
+        description="Lo que entró por la captura rápida y lo que la IA quiere vincular. Nada de esto cambia hasta que lo confirmes."
       />
 
-      <Suspense fallback={<Skeleton className="h-72" />}>
-        <SinRevisar />
-      </Suspense>
+      {/* Revisión a la izquierda, commits a la derecha: son dos colas
+          independientes y así se ven las dos sin scrollear. */}
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <Suspense fallback={<Skeleton className="h-72" />}>
+          <SinRevisar />
+        </Suspense>
 
-      <Suspense fallback={<Skeleton className="h-40" />}>
-        <Commits />
-      </Suspense>
+        <Suspense fallback={<Skeleton className="h-40" />}>
+          <Commits />
+        </Suspense>
+      </div>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
+  ArrowRightIcon,
   CheckIcon,
   GitCommitHorizontalIcon,
   SparklesIcon,
@@ -113,63 +114,79 @@ export function CommitsPorVincular({
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase [font-stretch:125%]">
-          Commits por vincular · {sugerencias.length}
+          Commits por vincular
+          {sugerencias.length > 0 ? (
+            <span className="font-mono tracking-normal [font-stretch:100%]">
+              {" "}
+              · {sugerencias.length}
+            </span>
+          ) : null}
         </h2>
-        <Button size="sm" variant="outline" onClick={buscar} disabled={buscando}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={buscar}
+          disabled={buscando}
+          title="Revisa los commits recientes de los repos vinculados"
+        >
           {buscando ? (
             <Spinner data-icon="inline-start" />
           ) : (
             <SparklesIcon data-icon="inline-start" />
           )}
-          Buscar en los commits recientes
+          Buscar
         </Button>
       </div>
 
       {sugerencias.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Nada pendiente. «Buscar» revisa los commits recientes de los repos
-          vinculados contra las órdenes abiertas.
+          Nada pendiente. «Buscar» compara los commits recientes de los repos
+          vinculados con las órdenes abiertas.
         </p>
       ) : (
-        <ul className="divide-y rounded-md border">
+        <ul className="flex flex-col gap-3">
           {sugerencias.map((sugerencia) => (
             <li
               key={sugerencia.id}
-              className="flex flex-col gap-2 p-3 md:flex-row md:items-center md:gap-4"
+              className="flex flex-col gap-3 rounded-md border bg-card p-4"
             >
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex flex-col gap-1.5 text-sm">
                 <a
                   href={sugerencia.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex min-w-0 items-start gap-1.5 text-sm underline-offset-4 hover:underline"
+                  className="flex items-start gap-2 underline-offset-4 hover:underline"
                 >
                   <GitCommitHorizontalIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0">
-                    <code className="font-mono text-xs">
+                    <code className="font-mono text-xs text-muted-foreground">
                       {sugerencia.sha.slice(0, 7)}
                     </code>{" "}
                     {sugerencia.mensaje}
                   </span>
                 </a>
-                <span className="text-xs text-muted-foreground">
-                  →{" "}
-                  <Link
-                    href={`/ordenes/${sugerencia.numero}`}
-                    className="font-semibold text-foreground underline-offset-4 hover:underline"
-                  >
-                    #{sugerencia.numero} {sugerencia.titulo}
-                  </Link>{" "}
-                  ·{" "}
-                  <span className="font-mono">
-                    {Math.round(sugerencia.confianza * 100)} %
+                <Link
+                  href={`/ordenes/${sugerencia.numero}`}
+                  className="flex items-start gap-2 font-semibold underline-offset-4 hover:underline"
+                >
+                  <ArrowRightIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span className="min-w-0">
+                    <span className="font-mono text-xs text-muted-foreground">
+                      #{sugerencia.numero}
+                    </span>{" "}
+                    {sugerencia.titulo}
+                  </span>
+                </Link>
+                <p className="pl-6 text-xs text-muted-foreground">
+                  <span className="font-mono text-amber-600 dark:text-amber-400">
+                    {Math.round(sugerencia.confianza * 100)}%
                   </span>
                   {sugerencia.justificacion
                     ? ` · ${sugerencia.justificacion}`
                     : ""}
-                </span>
+                </p>
               </div>
-              <div className="flex shrink-0 flex-wrap gap-1">
+              <div className="flex flex-wrap gap-2 pl-6">
                 <Button
                   size="sm"
                   onClick={() => aceptar(sugerencia.id, false)}
@@ -192,8 +209,8 @@ export function CommitsPorVincular({
                   onClick={() => rechazar(sugerencia.id)}
                   disabled={procesando === sugerencia.id}
                 >
-                  <XIcon />
-                  <span className="sr-only">No es</span>
+                  <XIcon data-icon="inline-start" />
+                  No es
                 </Button>
               </div>
             </li>

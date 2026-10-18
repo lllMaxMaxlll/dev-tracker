@@ -213,15 +213,25 @@ export function Revision({
   })
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Una barra por orden: la naranja es la que estás revisando. */}
-      <div className="flex gap-1" aria-hidden="true">
-        {ordenes.slice(0, 12).map((orden, i) => (
-          <span
-            key={orden.id}
-            className={i === 0 ? "h-1 flex-1 bg-primary" : "h-1 flex-1 bg-border"}
-          />
-        ))}
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        <h2 className="flex items-baseline justify-between gap-2 text-xs font-bold tracking-wide text-muted-foreground uppercase [font-stretch:125%]">
+          Sin revisar
+          <span className="font-mono tracking-normal normal-case [font-stretch:100%]">
+            {ordenes.length === 1 ? "queda 1" : `quedan ${ordenes.length}`}
+          </span>
+        </h2>
+        {/* Una barra por orden: la naranja es la que estás revisando. */}
+        <div className="flex gap-1" aria-hidden="true">
+          {ordenes.slice(0, 12).map((orden, i) => (
+            <span
+              key={orden.id}
+              className={
+                i === 0 ? "h-1 flex-1 bg-primary" : "h-1 flex-1 bg-border"
+              }
+            />
+          ))}
+        </div>
       </div>
 
       <article className="overflow-hidden rounded-md border bg-card">
@@ -325,7 +335,9 @@ export function Revision({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 border-t sm:grid-cols-4">
+        {/* gap-px sobre el fondo de borde: las divisiones quedan bien tanto
+            en una fila de cuatro como en dos filas de dos. */}
+        <div className="grid grid-cols-2 gap-px border-t bg-border sm:grid-cols-4">
           <BotonDeTecla
             tecla="↵"
             onClick={() => aceptar(actual)}
@@ -363,7 +375,7 @@ export function Revision({
       </article>
 
       {siguientes.length > 0 ? (
-        <section className="flex flex-col gap-2">
+        <section className="mt-3 flex flex-col gap-2">
           <h3 className="text-xs font-bold tracking-wide text-muted-foreground uppercase [font-stretch:125%]">
             Después · {siguientes.length}
           </h3>
@@ -405,7 +417,7 @@ export function Revision({
           if (editando) aceptar(editando)
         }}
       />
-    </div>
+    </section>
   )
 }
 
@@ -420,8 +432,8 @@ function BotonDeTecla({
       type="button"
       className={
         destacado
-          ? "flex items-center justify-center gap-2 border-r py-3 text-sm font-semibold text-emerald-700 transition-colors last:border-r-0 hover:bg-muted disabled:opacity-50 dark:text-emerald-400 [&_svg]:size-4"
-          : "flex items-center justify-center gap-2 border-r py-3 text-sm font-semibold transition-colors last:border-r-0 hover:bg-muted disabled:opacity-50 [&_svg]:size-4"
+          ? "flex items-center justify-center gap-2 bg-card py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-muted disabled:opacity-50 dark:text-emerald-400 [&_svg]:size-4"
+          : "flex items-center justify-center gap-2 bg-card py-3 text-sm font-semibold transition-colors hover:bg-muted disabled:opacity-50 [&_svg]:size-4"
       }
       {...props}
     >
