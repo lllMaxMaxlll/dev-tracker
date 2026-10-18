@@ -134,6 +134,7 @@ export async function buscarVinculosDeCommits(): Promise<
     }
 
     revalidatePath("/ordenes")
+    revalidatePath("/bandeja")
 
     return actionOk({ nuevas, sinRepos: false })
   } catch (error) {
@@ -240,6 +241,7 @@ export async function aceptarSugerencia(
     }
 
     revalidatePath("/ordenes")
+    revalidatePath("/bandeja")
 
     return actionOk()
   } catch (error) {
@@ -266,6 +268,7 @@ export async function rechazarSugerencia(
       )
 
     revalidatePath("/ordenes")
+    revalidatePath("/bandeja")
 
     return actionOk()
   } catch (error) {

@@ -1,0 +1,1 @@
+ALTER TABLE "issues" ADD COLUMN "reviewed_at" timestamp with time zone DEFAULT now();

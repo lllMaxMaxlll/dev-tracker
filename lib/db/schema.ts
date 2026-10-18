@@ -275,6 +275,11 @@ export const issues = pgTable(
     // Archivado a mano desde el kanban. Sólo esconde la tarjeta del tablero:
     // la tabla y las métricas la siguen contando.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // Cuándo se revisó. Null = está en la Bandeja: entró por voz o por la
+    // captura rápida y nadie confirmó todavía tipo, prioridad y proyecto.
+    // El default llena las filas existentes al migrar: todo lo anterior a la
+    // Bandeja se da por revisado.
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }).defaultNow(),
     ...timestamps,
   },
   (t) => [

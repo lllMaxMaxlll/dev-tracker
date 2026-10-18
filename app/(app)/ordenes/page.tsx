@@ -23,6 +23,7 @@ import {
 } from "@/lib/schemas/issue"
 import { conParametros } from "@/lib/utils/search-params"
 import { NewIssueButton } from "@/components/issues/new-issue-button"
+import { Inspector } from "@/components/issues/inspector"
 
 export const metadata: Metadata = { title: "Órdenes · Taller" }
 
@@ -98,10 +99,53 @@ async function Tabla({
     )
   }
 
-  return (
-    <div className="flex flex-col gap-3">
-      <IssueTable issues={issues} proyectos={proyectos} areas={areas} />
+  const tabla = (
+    <div className="flex min-w-0 flex-col gap-3">
+      <IssueTable
+        issues={issues}
+        proyectos={proyectos}
+        areas={areas}
+        seleccionado={filtros.sel}
+      />
       <IssuePagination pagina={filtros.pagina} total={total} />
+    </div>
+  )
+
+  if (filtros.sel === undefined) {
+    return (
+      <div className="flex flex-col gap-2">
+        {tabla}
+        <p className="hidden font-mono text-xs text-muted-foreground lg:block">
+          Click en una fila o J/K para abrir el inspector · ↵ abre la orden
+          completa
+        </p>
+      </div>
+    )
+  }
+
+  const sinSeleccion = new URLSearchParams()
+
+  for (const [clave, valor] of Object.entries(crudos)) {
+    if (typeof valor === "string" && clave !== "sel") {
+      sinSeleccion.set(clave, valor)
+    }
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      {tabla}
+      <aside className="hidden self-start rounded-md border bg-card lg:sticky lg:top-18 lg:block">
+        <Suspense
+          key={filtros.sel}
+          fallback={<Skeleton className="m-4 h-64" />}
+        >
+          <Inspector
+            userId={userId}
+            numero={filtros.sel}
+            cerrarHref={`/ordenes${conParametros(sinSeleccion, {})}`}
+          />
+        </Suspense>
+      </aside>
     </div>
   )
 }
@@ -114,7 +158,7 @@ async function Contenido({ searchParams }: { searchParams: SearchParams }) {
   // entrada. Un valor inválido cae al default en vez de romper la página.
   const filtros = issueFiltersSchema
     .catch({
-      vista: "kanban",
+      vista: "tabla",
       orden: "actualizado",
       dir: "desc",
       pagina: 1,

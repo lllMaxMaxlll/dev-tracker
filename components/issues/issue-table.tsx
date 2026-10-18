@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   ArrowDownIcon,
@@ -94,16 +95,97 @@ function CabeceraOrdenable({
   )
 }
 
+function editandoTexto(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+  )
+}
+
+/** Desde este ancho el inspector va al costado; más angosto no entra. */
+const ANCHO_INSPECTOR = 1024
+
 export function IssueTable({
   issues,
   proyectos,
   areas,
+  seleccionado,
 }: {
   issues: IssueListItem[]
   proyectos: ProyectoOpcion[]
   areas: AreaOpcion[]
+  /** Número de la orden abierta en el inspector. */
+  seleccionado?: number
 }) {
   const edicion = useEdicionRapida({ proyectos, areas })
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  /**
+   * Abre una orden en el inspector, con la URL como única fuente de verdad:
+   * así el back del navegador y un link compartido muestran lo mismo. En
+   * pantallas angostas no hay lugar para el inspector y va a la página.
+   */
+  const seleccionar = React.useCallback(
+    (numero: number | null) => {
+      if (numero !== null && window.innerWidth < ANCHO_INSPECTOR) {
+        router.push(`/ordenes/${numero}`)
+
+        return
+      }
+
+      router.replace(
+        `${pathname}${conParametros(searchParams, {
+          sel: numero === null ? null : String(numero),
+        })}`,
+        { scroll: false }
+      )
+    },
+    [pathname, router, searchParams]
+  )
+
+  // J/K recorren la lista, ↵ abre la página completa y Esc cierra el
+  // inspector. Los números se leen desde un ref para no re-registrar el
+  // listener con cada página.
+  const numerosRef = React.useRef<number[]>([])
+
+  React.useEffect(() => {
+    numerosRef.current = issues.map((issue) => issue.number)
+  }, [issues])
+
+  React.useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.defaultPrevented || editandoTexto(event.target)) return
+      if (document.querySelector("[role=dialog]")) return
+
+      const numeros = numerosRef.current
+      const indice =
+        seleccionado === undefined ? -1 : numeros.indexOf(seleccionado)
+      const tecla = event.key.toLowerCase()
+
+      if (tecla === "j" || tecla === "k") {
+        event.preventDefault()
+        const siguiente =
+          tecla === "j"
+            ? Math.min(numeros.length - 1, indice + 1)
+            : Math.max(0, indice - 1)
+
+        if (numeros[siguiente] !== undefined) seleccionar(numeros[siguiente])
+      } else if (tecla === "enter" && seleccionado !== undefined) {
+        event.preventDefault()
+        router.push(`/ordenes/${seleccionado}`)
+      } else if (tecla === "escape" && seleccionado !== undefined) {
+        seleccionar(null)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [router, seleccionado, seleccionar])
 
   if (issues.length === 0) {
     return (
@@ -146,7 +228,17 @@ export function IssueTable({
         </TableHeader>
         <TableBody>
           {issues.map((issue) => (
-            <TableRow key={issue.id} className="group/fila">
+            <TableRow
+              key={issue.id}
+              data-state={issue.number === seleccionado ? "selected" : undefined}
+              className="group/fila cursor-pointer data-[state=selected]:shadow-[inset_3px_0_0_var(--primary)]"
+              onClick={(event) => {
+                // Los links y botones de la fila hacen lo suyo.
+                if ((event.target as HTMLElement).closest("a, button")) return
+
+                seleccionar(issue.number)
+              }}
+            >
               <TableCell className="text-muted-foreground tabular-nums">
                 {issue.number}
               </TableCell>

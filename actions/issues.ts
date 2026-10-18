@@ -10,7 +10,6 @@ import {
   issueStatusHistory,
   issues,
   profiles,
-  userCounters,
   type IssueStatus,
 } from "@/lib/db/schema"
 import { requireUser } from "@/lib/auth/require-user"
@@ -25,6 +24,7 @@ import {
 import { areaValidaParaProyecto } from "@/lib/db/queries/projects"
 import { borrarObjetos } from "@/lib/storage/adjuntos"
 import { guardarEmbedding } from "@/lib/ai/embeddings"
+import { crearIssue } from "@/lib/issues/crear"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 
 function revalidarVistas(numero?: number) {
@@ -51,67 +51,8 @@ export async function createIssue(
     )
   }
 
-  const datos = parsed.data
-  const areaId = await areaValidaParaProyecto(
-    user.id,
-    datos.projectId || null,
-    datos.areaId || null
-  )
-
   try {
-    const creado = await db.transaction(async (tx) => {
-      // El número correlativo sale de un contador por usuario que se
-      // incrementa acá adentro. Un `max(number) + 1` tendría una condición de
-      // carrera entre dos altas simultáneas.
-      const [contador] = await tx
-        .insert(userCounters)
-        .values({ userId: user.id, nextIssueNumber: 2 })
-        .onConflictDoUpdate({
-          target: userCounters.userId,
-          set: { nextIssueNumber: sql`${userCounters.nextIssueNumber} + 1` },
-        })
-        .returning({ siguiente: userCounters.nextIssueNumber })
-
-      const numero = contador.siguiente - 1
-      const ahora = new Date()
-
-      const [issue] = await tx
-        .insert(issues)
-        .values({
-          userId: user.id,
-          number: numero,
-          title: datos.title,
-          description: datos.description || null,
-          projectId: datos.projectId || null,
-          areaId,
-          type: datos.type,
-          priority: datos.priority,
-          status: datos.status,
-          // Los nuevos van arriba de su columna en el kanban.
-          kanbanOrder: -ahora.getTime(),
-          resolvedAt: datos.status === "resuelto" ? ahora : null,
-          firstInProgressAt: datos.status === "en_progreso" ? ahora : null,
-        })
-        .returning({ id: issues.id, number: issues.number })
-
-      // El alta también queda registrada en el historial: sin esto, el primer
-      // estado de un problema no tendría fecha y los tiempos de resolución
-      // saldrían mal.
-      await tx.insert(issueStatusHistory).values({
-        userId: user.id,
-        issueId: issue.id,
-        fromStatus: null,
-        toStatus: datos.status,
-        source: "manual",
-      })
-
-      return issue
-    })
-
-    // El embedding se genera después de la transacción y sin await bloqueante
-    // del resultado: si Workers AI falla, el problema ya quedó guardado. La
-    // detección de duplicados es una ayuda, no un requisito para dar de alta.
-    await guardarEmbedding(user.id, creado.id, datos.title, datos.description)
+    const creado = await crearIssue(user.id, parsed.data)
 
     revalidarVistas(creado.number)
 

@@ -27,6 +27,7 @@ export function ViewSwitcher({ vista }: { vista: "tabla" | "kanban" }) {
             // arrastrarlo a la otra.
             pagina: null,
             archivadas: null,
+            sel: null,
           })}`
         )
       }}

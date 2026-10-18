@@ -15,8 +15,9 @@ import { listAreas, listProjectOptions } from "@/lib/db/queries/projects"
 import { esErrorIA } from "@/lib/ai/errors"
 import { buscarPosiblesDuplicados } from "@/actions/duplicates"
 import type { Similar } from "@/lib/ai/embeddings"
+import { crearIssue } from "@/lib/issues/crear"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
-import type { IssueFormValues } from "@/lib/schemas/issue"
+import { createIssueSchema, type IssueFormValues } from "@/lib/schemas/issue"
 
 export type CapturaSugerida = {
   valores: IssueFormValues
@@ -28,6 +29,96 @@ export type CapturaSugerida = {
 }
 
 /**
+ * Interpreta la nota con el modelo. Compartida por la captura con formulario y
+ * por la que manda directo a la Bandeja; las dos validan antes de llamarla.
+ */
+async function interpretarNota(
+  userId: string,
+  nota: string,
+  { buscarParecidos }: { buscarParecidos: boolean }
+): Promise<CapturaSugerida> {
+  const [proyectos, areas] = await Promise.all([
+    listProjectOptions(userId),
+    listAreas(userId),
+  ])
+
+  const slugDeProyecto = new Map(proyectos.map((p) => [p.id, p.slug]))
+
+  // Los parecidos se buscan en paralelo con la interpretación: el modelo ya
+  // tarda unos segundos, así que el aviso de duplicado no suma espera. Si la
+  // búsqueda falla devuelve lista vacía; nunca bloquea la captura.
+  const [resultado, similares] = await Promise.all([
+    capturarProblema({
+      userId,
+      texto: nota,
+      proyectos: proyectos.map((p) => ({ slug: p.slug, name: p.name })),
+      areas: areas.flatMap((a) => {
+        const proyectoSlug = slugDeProyecto.get(a.projectId)
+
+        return proyectoSlug ? [{ slug: a.slug, name: a.name, proyectoSlug }] : []
+      }),
+    }),
+    buscarParecidos ? buscarPosiblesDuplicados(nota) : Promise.resolve([]),
+  ])
+
+  const proyecto = resultado.proyectoSlug
+    ? proyectos.find((p) => p.slug === resultado.proyectoSlug)
+    : undefined
+
+  // Un área sólo vale si es del proyecto elegido: los slugs se repiten.
+  const area =
+    proyecto && resultado.areaSlug
+      ? areas.find(
+          (a) => a.projectId === proyecto.id && a.slug === resultado.areaSlug
+        )
+      : undefined
+
+  return {
+    valores: {
+      title: resultado.titulo,
+      description: resultado.descripcion || "",
+      projectId: proyecto?.id ?? "",
+      areaId: area?.id ?? "",
+      type: resultado.tipo,
+      priority: resultado.prioridad,
+      status: resultado.estado,
+    },
+    // Si el modelo dijo un slug que no existe, se trata como proyecto nuevo.
+    proyectoNuevo:
+      resultado.proyectoNuevo ??
+      (resultado.proyectoSlug && !proyecto ? resultado.proyectoSlug : null),
+    confianza: resultado.confianza,
+    similares,
+  }
+}
+
+function validarNota(texto: string): { nota: string } | { error: string } {
+  const nota = texto.trim()
+
+  if (nota.length < 5) {
+    return { error: "Escribí un poco más para que pueda interpretarlo" }
+  }
+
+  if (nota.length > 4000) {
+    return { error: "La nota es demasiado larga (máximo 4000 caracteres)" }
+  }
+
+  return { nota }
+}
+
+function errorDeCaptura(error: unknown, donde: string) {
+  if (esErrorIA(error)) {
+    return actionError(
+      error.detalle ? `${error.message} ${error.detalle}` : error.message
+    )
+  }
+
+  console.error(`[${donde}]`, error)
+
+  return actionError("No se pudo interpretar la nota. Probá de nuevo.")
+}
+
+/**
  * Manda la nota al modelo y devuelve el problema estructurado.
  *
  * NO guarda nada: el resultado precarga el formulario y el usuario confirma.
@@ -36,80 +127,53 @@ export async function capturarDesdeTexto(
   texto: string
 ): Promise<ActionResult<CapturaSugerida>> {
   const user = await requireUser()
-  const limpio = texto.trim()
+  const validada = validarNota(texto)
 
-  if (limpio.length < 5) {
-    return actionError("Escribí un poco más para que pueda interpretarlo")
-  }
-
-  if (limpio.length > 4000) {
-    return actionError("La nota es demasiado larga (máximo 4000 caracteres)")
-  }
+  if ("error" in validada) return actionError(validada.error)
 
   try {
-    const [proyectos, areas] = await Promise.all([
-      listProjectOptions(user.id),
-      listAreas(user.id),
-    ])
-
-    const slugDeProyecto = new Map(proyectos.map((p) => [p.id, p.slug]))
-
-    // Los parecidos se buscan en paralelo con la interpretación: el modelo ya
-    // tarda unos segundos, así que el aviso de duplicado no suma espera. Si la
-    // búsqueda falla devuelve lista vacía; nunca bloquea la captura.
-    const [resultado, similares] = await Promise.all([
-      capturarProblema({
-        userId: user.id,
-        texto: limpio,
-        proyectos: proyectos.map((p) => ({ slug: p.slug, name: p.name })),
-        areas: areas.flatMap((a) => {
-          const proyectoSlug = slugDeProyecto.get(a.projectId)
-
-          return proyectoSlug ? [{ slug: a.slug, name: a.name, proyectoSlug }] : []
-        }),
-      }),
-      buscarPosiblesDuplicados(limpio),
-    ])
-
-    const proyecto = resultado.proyectoSlug
-      ? proyectos.find((p) => p.slug === resultado.proyectoSlug)
-      : undefined
-
-    // Un área sólo vale si es del proyecto elegido: los slugs se repiten.
-    const area =
-      proyecto && resultado.areaSlug
-        ? areas.find(
-            (a) => a.projectId === proyecto.id && a.slug === resultado.areaSlug
-          )
-        : undefined
-
-    return actionOk({
-      valores: {
-        title: resultado.titulo,
-        description: resultado.descripcion || "",
-        projectId: proyecto?.id ?? "",
-        areaId: area?.id ?? "",
-        type: resultado.tipo,
-        priority: resultado.prioridad,
-        status: resultado.estado,
-      },
-      // Si el modelo dijo un slug que no existe, se trata como proyecto nuevo.
-      proyectoNuevo:
-        resultado.proyectoNuevo ??
-        (resultado.proyectoSlug && !proyecto ? resultado.proyectoSlug : null),
-      confianza: resultado.confianza,
-      similares,
-    })
+    return actionOk(
+      await interpretarNota(user.id, validada.nota, { buscarParecidos: true })
+    )
   } catch (error) {
-    if (esErrorIA(error)) {
-      return actionError(
-        error.detalle ? `${error.message} ${error.detalle}` : error.message
-      )
-    }
+    return errorDeCaptura(error, "capturarDesdeTexto")
+  }
+}
 
-    console.error("[capturarDesdeTexto]", error)
+/**
+ * Interpreta la nota y la guarda directo en la Bandeja, sin pasar por el
+ * formulario. Es la captura rápida: queda sin revisar hasta que la confirmes
+ * allá, así que la regla de "la IA propone, vos aceptás" se sigue cumpliendo.
+ *
+ * No busca parecidos: el embedding se guarda igual al crearla, y la Bandeja
+ * los busca a pedido.
+ */
+export async function anotarEnBandeja(
+  texto: string
+): Promise<ActionResult<{ number: number }>> {
+  const user = await requireUser()
+  const validada = validarNota(texto)
 
-    return actionError("No se pudo interpretar la nota. Probá de nuevo.")
+  if ("error" in validada) return actionError(validada.error)
+
+  try {
+    const { valores } = await interpretarNota(user.id, validada.nota, {
+      buscarParecidos: false,
+    })
+
+    // Lo que propone el modelo pasa por la misma validación que el formulario.
+    const creado = await crearIssue(user.id, createIssueSchema.parse(valores), {
+      sinRevisar: true,
+      via: "ai_capture",
+    })
+
+    revalidatePath("/bandeja")
+    revalidatePath("/ordenes")
+    revalidatePath("/")
+
+    return actionOk({ number: creado.number })
+  } catch (error) {
+    return errorDeCaptura(error, "anotarEnBandeja")
   }
 }
 

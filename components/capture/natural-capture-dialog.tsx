@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { MicIcon, SparklesIcon, SquareIcon } from "lucide-react"
+import { InboxIcon, MicIcon, SparklesIcon, SquareIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +18,11 @@ import { Kbd } from "@/components/ui/kbd"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "@/components/ui/toast"
 import { useDictado } from "@/hooks/use-dictado"
-import { capturarDesdeTexto, type CapturaSugerida } from "@/actions/ai"
+import {
+  anotarEnBandeja,
+  capturarDesdeTexto,
+  type CapturaSugerida,
+} from "@/actions/ai"
 
 const EJEMPLO =
   "el login se rompe cuando el mail tiene mayúsculas, es urgente, es del proyecto fischer"
@@ -102,6 +106,33 @@ export function NaturalCaptureDialog({
 
     onOpenChange(false)
     onSugerencia(resultado.data)
+  }
+
+  /**
+   * Guarda la nota sin pasar por el formulario: la IA la clasifica y queda en
+   * la Bandeja hasta que la revises. Para anotar al paso sin cortar lo que
+   * estás haciendo.
+   */
+  async function mandarABandeja(nota: string) {
+    setProcesando(true)
+    setError(null)
+
+    const resultado = await anotarEnBandeja(nota)
+
+    setProcesando(false)
+
+    if (!resultado.ok) {
+      setError(resultado.error)
+
+      return
+    }
+
+    toast.add({
+      title: `#${resultado.data.number} en la bandeja`,
+      description: "Revisala cuando puedas, desde Bandeja.",
+      type: "success",
+    })
+    onOpenChange(false)
   }
 
   const dictado = useDictado({
@@ -270,6 +301,15 @@ export function NaturalCaptureDialog({
             disabled={procesando}
           >
             Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => mandarABandeja(texto)}
+            disabled={procesando || !texto.trim()}
+            title="Guardar sin revisar: queda en la Bandeja"
+          >
+            <InboxIcon data-icon="inline-start" />A la bandeja
           </Button>
           <Button
             onClick={() => interpretar(texto)}

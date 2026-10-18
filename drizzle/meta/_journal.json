@@ -78,6 +78,13 @@
       "when": 1790168426701,
       "tag": "0010_areas_y_adjuntos",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792339675454,
+      "tag": "0011_bandeja",
+      "breakpoints": true
     }
   ]
 }

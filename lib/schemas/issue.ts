@@ -55,9 +55,9 @@ export type IssueFormValues = z.infer<typeof issueFormSchema>
 export const ORDENES = ["actualizado", "creado", "prioridad", "numero"] as const
 
 export const issueFiltersSchema = z.object({
-  // El kanban es la vista por defecto: entrar a la sección es casi siempre
-  // querer ver en qué anda cada cosa, no leer una tabla ordenada.
-  vista: z.enum(["tabla", "kanban"]).default("kanban"),
+  // La tabla es la vista por defecto desde Taller: lo que está en curso ya se
+  // ve en el Banco, y Órdenes es para recorrer la lista con el inspector.
+  vista: z.enum(["tabla", "kanban"]).default("tabla"),
   proyecto: z.string().optional(),
   tipo: z.enum(TIPOS).optional(),
   // `abiertos` no es un estado de la base: agrupa los tres que no están
@@ -76,6 +76,8 @@ export const issueFiltersSchema = z.object({
   pagina: z.coerce.number().int().min(1).catch(1).default(1),
   // Sólo la usa el kanban: muestra las tarjetas archivadas en vez del tablero.
   archivadas: z.literal("1").optional(),
+  // Sólo la usa la tabla: el número de la orden abierta en el inspector.
+  sel: z.coerce.number().int().min(1).optional().catch(undefined),
 })
 
 /** Filas por página de la vista de tabla. */
