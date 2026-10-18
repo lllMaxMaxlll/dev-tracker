@@ -154,11 +154,11 @@ export function SelectorFotos({
           <ImagePlusIcon data-icon="inline-start" />
           Adjuntar fotos
         </Button>
-        <span className="text-xs text-muted-foreground">
-          {lugarLibre > 0
-            ? "Se comprimen en tu navegador antes de subirse."
-            : "Llegaste al máximo de fotos."}
-        </span>
+        {lugarLibre <= 0 ? (
+          <span className="text-xs text-muted-foreground">
+            Llegaste al máximo de fotos.
+          </span>
+        ) : null}
       </div>
     </div>
   )

@@ -25,6 +25,7 @@ export function EnumSelect({
   id,
   className,
   ariaInvalid,
+  disabled,
 }: {
   value: string | null
   onValueChange: (valor: string | null) => void
@@ -34,6 +35,7 @@ export function EnumSelect({
   id?: string
   className?: string
   ariaInvalid?: boolean
+  disabled?: boolean
 }) {
   const items: OpcionSelect[] = [
     { label: placeholder, value: null },
@@ -46,6 +48,7 @@ export function EnumSelect({
       value={value}
       onValueChange={(nuevo) => onValueChange(nuevo as string | null)}
       name={name}
+      disabled={disabled}
     >
       <SelectTrigger id={id} className={className} aria-invalid={ariaInvalid}>
         <SelectValue />

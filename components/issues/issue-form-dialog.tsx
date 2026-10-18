@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog"
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -59,6 +58,10 @@ export type AreaOpcion = {
   name: string
   color: string | null
 }
+
+/** Etiqueta de campo: la misma que la franja de propiedades del detalle. */
+const ETIQUETA =
+  "font-mono text-[0.7rem] font-normal tracking-wide text-muted-foreground uppercase"
 
 const OPCIONES_TIPO = TIPOS.map((t) => ({ label: ETIQUETAS_TIPO[t], value: t }))
 const OPCIONES_PRIORIDAD = PRIORIDADES.map((p) => ({
@@ -325,11 +328,11 @@ export function IssueFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-extrabold tracking-tight uppercase [font-stretch:125%]">
             {editando ? "Editar orden" : "Nueva orden"}
           </DialogTitle>
           <DialogDescription>
-            Anotalo como lo harías en el cuaderno. Podés completarlo después.
+            Lo mínimo es el título: el resto se completa después.
           </DialogDescription>
         </DialogHeader>
 
@@ -367,10 +370,15 @@ export function IssueFormDialog({
           />
         ) : null}
 
-        <form onSubmit={onSubmit} className="flex flex-col gap-6">
-          <FieldGroup>
-            <Field data-invalid={errores.title ? true : undefined}>
-              <FieldLabel htmlFor="title">Título</FieldLabel>
+        <form onSubmit={onSubmit} className="flex flex-col gap-5">
+          <FieldGroup className="gap-4">
+            <Field
+              className="gap-1.5"
+              data-invalid={errores.title ? true : undefined}
+            >
+              <FieldLabel htmlFor="title" className={ETIQUETA}>
+                Título
+              </FieldLabel>
               <Input
                 id="title"
                 value={valores.title}
@@ -379,64 +387,31 @@ export function IssueFormDialog({
                 autoFocus
                 required
                 aria-invalid={errores.title ? true : undefined}
+                className="h-10 text-base"
               />
               {errores.title ? (
                 <FieldError>{errores.title[0]}</FieldError>
               ) : null}
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="description">Descripción</FieldLabel>
+            <Field className="gap-1.5">
+              <FieldLabel htmlFor="description" className={ETIQUETA}>
+                Descripción
+              </FieldLabel>
               <Textarea
                 id="description"
-                rows={5}
+                rows={4}
                 value={valores.description ?? ""}
                 onChange={(e) => set("description", e.target.value)}
-                placeholder="Pasos para reproducirlo, entorno, lo que se te ocurra."
+                placeholder="Pasos para reproducirlo, entorno, lo que se te ocurra. Acepta markdown."
               />
-              <FieldDescription>Acepta markdown simple.</FieldDescription>
             </Field>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="projectId">Proyecto</FieldLabel>
-                <EnumSelect
-                  id="projectId"
-                  className="w-full"
-                  placeholder="Sin proyecto"
-                  value={valores.projectId || null}
-                  onValueChange={(valor) => elegirProyecto(valor ?? "")}
-                  opciones={proyectosLocales.map((p) => ({
-                    label: p.name,
-                    value: p.id,
-                  }))}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="areaId">Área</FieldLabel>
-                <EnumSelect
-                  id="areaId"
-                  className="w-full"
-                  placeholder="Sin área"
-                  value={valores.areaId || null}
-                  onValueChange={(valor) => set("areaId", valor ?? "")}
-                  opciones={areasDelProyecto.map((a) => ({
-                    label: a.name,
-                    value: a.id,
-                  }))}
-                />
-                <FieldDescription>
-                  {!valores.projectId
-                    ? "Elegí un proyecto para ver sus áreas."
-                    : areasDelProyecto.length === 0
-                      ? "Este proyecto todavía no tiene áreas. Se crean en Proyectos."
-                      : "El módulo o parte del proyecto."}
-                </FieldDescription>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="type">Tipo</FieldLabel>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor="type" className={ETIQUETA}>
+                  Tipo
+                </FieldLabel>
                 <EnumSelect
                   id="type"
                   className="w-full"
@@ -449,8 +424,10 @@ export function IssueFormDialog({
                 />
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="priority">Prioridad</FieldLabel>
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor="priority" className={ETIQUETA}>
+                  Prioridad
+                </FieldLabel>
                 <EnumSelect
                   id="priority"
                   className="w-full"
@@ -466,8 +443,10 @@ export function IssueFormDialog({
                 />
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="status">Estado</FieldLabel>
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor="status" className={ETIQUETA}>
+                  Estado
+                </FieldLabel>
                 <EnumSelect
                   id="status"
                   className="w-full"
@@ -483,36 +462,73 @@ export function IssueFormDialog({
                 />
               </Field>
             </div>
-            <Field>
-              <FieldLabel>Fotos</FieldLabel>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor="projectId" className={ETIQUETA}>
+                  Proyecto
+                </FieldLabel>
+                <EnumSelect
+                  id="projectId"
+                  className="w-full"
+                  placeholder="Sin proyecto"
+                  value={valores.projectId || null}
+                  onValueChange={(valor) => elegirProyecto(valor ?? "")}
+                  opciones={proyectosLocales.map((p) => ({
+                    label: p.name,
+                    value: p.id,
+                  }))}
+                />
+              </Field>
+
+              <Field className="gap-1.5">
+                <FieldLabel htmlFor="areaId" className={ETIQUETA}>
+                  Área
+                </FieldLabel>
+                {/* Lo que antes explicaba un texto abajo del campo ahora lo
+                    dice el placeholder, y el selector se apaga cuando no hay
+                    nada para elegir. */}
+                <EnumSelect
+                  id="areaId"
+                  className="w-full"
+                  placeholder={
+                    !valores.projectId
+                      ? "Elegí el proyecto"
+                      : areasDelProyecto.length === 0
+                        ? "Sin áreas"
+                        : "Sin área"
+                  }
+                  value={valores.areaId || null}
+                  onValueChange={(valor) => set("areaId", valor ?? "")}
+                  disabled={areasDelProyecto.length === 0}
+                  opciones={areasDelProyecto.map((a) => ({
+                    label: a.name,
+                    value: a.id,
+                  }))}
+                />
+              </Field>
+            </div>
+
+            <Field className="gap-1.5">
+              <FieldLabel className={ETIQUETA}>Fotos</FieldLabel>
               <SelectorFotos
                 fotos={fotos}
                 onChange={setFotos}
                 disponibles={MAX_FOTOS - fotosExistentes}
                 disabled={guardando}
               />
-              <FieldDescription>
-                Capturas de pantalla, la pizarra, el error en el celular. Se
-                suben cuando guardes.
-              </FieldDescription>
             </Field>
           </FieldGroup>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={guardando}
-            >
-              Cancelar
-            </Button>
-
-            {/* Sólo al dar de alta: en una edición el problema ya existe. */}
+          <DialogFooter className="sm:items-center">
+            {/* Sólo al dar de alta: en una edición la orden ya existe. Va a
+                la izquierda, separado de cancelar y crear: es una consulta,
+                no un cierre del formulario. */}
             {!editando ? (
               <Button
                 type="button"
                 variant="ghost"
+                className="sm:mr-auto"
                 onClick={buscarParecidos}
                 disabled={
                   guardando ||
@@ -526,9 +542,18 @@ export function IssueFormDialog({
                 ) : (
                   <SearchIcon data-icon="inline-start" />
                 )}
-                {buscandoDuplicados ? "Buscando…" : "Buscar parecidos"}
+                {buscandoDuplicados ? "Buscando…" : "Buscar parecidas"}
               </Button>
             ) : null}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={guardando}
+            >
+              Cancelar
+            </Button>
 
             <Button
               type="submit"
@@ -543,7 +568,7 @@ export function IssueFormDialog({
                   ? "Guardar"
                   : duplicados.length > 0
                     ? "Crear igual"
-                    : "Crear problema"}
+                    : "Crear orden"}
             </Button>
           </DialogFooter>
         </form>
