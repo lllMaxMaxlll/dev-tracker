@@ -227,7 +227,7 @@ export function ProjectsView({
 
                 <div className="flex flex-wrap items-center gap-3 text-sm">
                   <Link
-                    href={`/problemas?proyecto=${proyecto.slug}`}
+                    href={`/ordenes?proyecto=${proyecto.slug}`}
                     className="text-primary underline-offset-4 hover:underline"
                   >
                     Ver problemas

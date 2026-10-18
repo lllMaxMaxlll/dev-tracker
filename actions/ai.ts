@@ -117,8 +117,14 @@ export async function capturarDesdeTexto(
 // Priorización, enriquecimiento y resumen manual
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type OrdenPriorizable = { id: string; title: string; status: string }
+
 export async function queHagoHoy(): Promise<
-  ActionResult<{ orden: ItemPriorizado[]; titulos: Record<number, string> }>
+  ActionResult<{
+    orden: ItemPriorizado[]
+    /** Por número: lo que hace falta para mostrar y mover cada sugerida. */
+    ordenes: Record<number, OrdenPriorizable>
+  }>
 > {
   const user = await requireUser()
 
@@ -126,17 +132,21 @@ export async function queHagoHoy(): Promise<
     const abiertos = await getAbiertosParaPriorizar(user.id)
 
     if (abiertos.length === 0) {
-      return actionError("No tenés problemas abiertos")
+      return actionError("No tenés órdenes abiertas")
     }
 
     const orden = await priorizar({ userId: user.id, problemas: abiertos })
 
-    const titulos: Record<number, string> = {}
+    const ordenes: Record<number, OrdenPriorizable> = {}
     for (const problema of abiertos) {
-      titulos[problema.number] = problema.title
+      ordenes[problema.number] = {
+        id: problema.id,
+        title: problema.title,
+        status: problema.status,
+      }
     }
 
-    return actionOk({ orden, titulos })
+    return actionOk({ orden, ordenes })
   } catch (error) {
     if (esErrorIA(error)) {
       return actionError(error.message)
@@ -203,7 +213,7 @@ export async function generarResumenAhora(): Promise<
       forzar: true,
     })
 
-    revalidatePath("/resumenes")
+    revalidatePath("/informes")
     revalidatePath("/")
 
     return actionOk(resultado)

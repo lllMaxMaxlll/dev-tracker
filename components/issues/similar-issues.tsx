@@ -24,7 +24,7 @@ function Fila({
         #{similar.number}
       </span>
       <Link
-        href={`/problemas/${similar.number}`}
+        href={`/ordenes/${similar.number}`}
         className="min-w-0 flex-1 truncate font-medium underline-offset-4 hover:underline"
       >
         {similar.title}

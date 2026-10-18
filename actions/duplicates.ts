@@ -124,7 +124,7 @@ export async function vincularProblemas(params: {
       })
       .onConflictDoNothing()
 
-    revalidatePath("/problemas")
+    revalidatePath("/ordenes")
 
     return actionOk()
   } catch (error) {
@@ -149,7 +149,7 @@ export async function desvincularProblemas(
         )
       )
 
-    revalidatePath("/problemas")
+    revalidatePath("/ordenes")
 
     return actionOk()
   } catch (error) {
@@ -193,7 +193,7 @@ export async function regenerarEmbeddings(): Promise<
       if (!ok) fallidos++
     }
 
-    revalidatePath("/ajustes")
+    revalidatePath("/planta/ajustes")
 
     return actionOk({ procesados: todos.length, fallidos })
   } catch (error) {

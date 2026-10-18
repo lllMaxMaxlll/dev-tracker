@@ -63,7 +63,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
-          <DropdownMenuItem render={<Link href="/ajustes" />}>
+          <DropdownMenuItem render={<Link href="/planta/ajustes" />}>
             <SettingsIcon />
             Ajustes
           </DropdownMenuItem>

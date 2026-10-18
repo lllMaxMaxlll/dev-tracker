@@ -180,7 +180,7 @@ export default function RepoPage({ params }: { params: Params }) {
           variant="ghost"
           size="sm"
           nativeButton={false}
-          render={<Link href="/github" />}
+          render={<Link href="/planta/repos" />}
         >
           <ArrowLeftIcon data-icon="inline-start" />
           Volver a repositorios

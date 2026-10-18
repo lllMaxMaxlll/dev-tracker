@@ -59,7 +59,7 @@ export async function guardarAjustesIA(
       })
       .where(eq(userAiSettings.userId, user.id))
 
-    revalidatePath("/ajustes")
+    revalidatePath("/planta/ajustes")
 
     return actionOk({ avisoDimensiones })
   } catch (error) {

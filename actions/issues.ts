@@ -28,12 +28,13 @@ import { guardarEmbedding } from "@/lib/ai/embeddings"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 
 function revalidarVistas(numero?: number) {
-  revalidatePath("/problemas")
-  revalidatePath("/proyectos")
+  revalidatePath("/ordenes")
+  revalidatePath("/planta/proyectos")
   revalidatePath("/")
+  revalidatePath("/bandeja")
 
   if (numero !== undefined) {
-    revalidatePath(`/problemas/${numero}`)
+    revalidatePath(`/ordenes/${numero}`)
   }
 }
 
@@ -444,7 +445,7 @@ export async function setAutoArchivoKanban(
       .set({ kanbanAutoArchiveDays: parsed.data })
       .where(eq(profiles.id, user.id))
 
-    revalidatePath("/problemas")
+    revalidatePath("/ordenes")
 
     return actionOk()
   } catch (error) {

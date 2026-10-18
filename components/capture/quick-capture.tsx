@@ -42,6 +42,7 @@ import type { Similar } from "@/lib/ai/embeddings"
  * - `V` mantenida dicta la nota y, al soltarla, la interpreta.
  * - `C` abre el formulario de alta manual.
  * - `Cmd/Ctrl + K` abre la paleta de comandos.
+ * - `G` y después la letra de un módulo (B, I, O, P, R) navega a ese módulo.
  *
  * Los atajos se ignoran mientras se está escribiendo en un campo: si no, no se
  * podría tipear la letra C en ningún lado.
@@ -96,6 +97,10 @@ export function QuickCapture({
     setFormAbierto(true)
   }
 
+  // Momento en que se apretó G, para el atajo de dos teclas. Un ref y no un
+  // estado: no cambia nada en pantalla.
+  const gApretadaRef = React.useRef(0)
+
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) return
@@ -111,6 +116,25 @@ export function QuickCapture({
 
       if (event.metaKey || event.ctrlKey || event.altKey) return
       if (editandoTexto(event.target)) return
+
+      // G y la letra del módulo, con un segundo de margen entre las dos.
+      if (Date.now() - gApretadaRef.current < 1000) {
+        gApretadaRef.current = 0
+        const destino = NAV_ITEMS.find((item) => item.tecla === tecla)
+
+        if (destino) {
+          event.preventDefault()
+          router.push(destino.href)
+
+          return
+        }
+      }
+
+      if (tecla === "g") {
+        gApretadaRef.current = Date.now()
+
+        return
+      }
 
       if (tecla === "a") {
         event.preventDefault()
@@ -132,7 +156,7 @@ export function QuickCapture({
     window.addEventListener("keydown", onKeyDown)
 
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
+  }, [router])
 
   function irA(href: string) {
     setPaletaAbierta(false)
@@ -173,7 +197,7 @@ export function QuickCapture({
                 <ListTodoIcon />
                 Nuevo problema (formulario)
               </CommandItem>
-              <CommandItem onSelect={() => irA("/proyectos")}>
+              <CommandItem onSelect={() => irA("/planta/proyectos")}>
                 <FolderPlusIcon />
                 Nuevo proyecto
               </CommandItem>
@@ -188,6 +212,7 @@ export function QuickCapture({
                 >
                   <item.icon />
                   {item.label}
+                  <Kbd className="ml-auto">G {item.tecla.toUpperCase()}</Kbd>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -220,7 +245,7 @@ export function QuickCapture({
         }
         onGuardado={(creado) => {
           if (creado) {
-            router.push(`/problemas/${creado.number}`)
+            router.push(`/ordenes/${creado.number}`)
           }
         }}
       />

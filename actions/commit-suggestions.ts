@@ -133,7 +133,7 @@ export async function buscarVinculosDeCommits(): Promise<
       nuevas += insertadas.length
     }
 
-    revalidatePath("/problemas")
+    revalidatePath("/ordenes")
 
     return actionOk({ nuevas, sinRepos: false })
   } catch (error) {
@@ -239,7 +239,7 @@ export async function aceptarSugerencia(
       })
     }
 
-    revalidatePath("/problemas")
+    revalidatePath("/ordenes")
 
     return actionOk()
   } catch (error) {
@@ -265,7 +265,7 @@ export async function rechazarSugerencia(
         )
       )
 
-    revalidatePath("/problemas")
+    revalidatePath("/ordenes")
 
     return actionOk()
   } catch (error) {

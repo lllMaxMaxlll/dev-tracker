@@ -65,7 +65,7 @@ export function RepoList({
                 <CardContent className="flex flex-col gap-2 py-4">
                   <div className="flex items-start justify-between gap-2">
                     <Link
-                      href={`/github/${repo.owner}/${repo.name}`}
+                      href={`/planta/repos/${repo.owner}/${repo.name}`}
                       className="min-w-0 font-medium underline-offset-4 hover:underline"
                     >
                       <span className="text-muted-foreground">

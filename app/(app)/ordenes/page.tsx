@@ -24,7 +24,7 @@ import {
 import { conParametros } from "@/lib/utils/search-params"
 import { NewIssueButton } from "@/components/issues/new-issue-button"
 
-export const metadata: Metadata = { title: "Problemas · Taller" }
+export const metadata: Metadata = { title: "Órdenes · Taller" }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -94,7 +94,7 @@ async function Tabla({
     }
 
     redirect(
-      `/problemas${conParametros(params, { pagina: paginas > 1 ? String(paginas) : null })}`
+      `/ordenes${conParametros(params, { pagina: paginas > 1 ? String(paginas) : null })}`
     )
   }
 
@@ -174,8 +174,8 @@ export default function ProblemasPage({
   return (
     <>
       <PageHeader
-        title="Problemas"
-        description="Todo lo que anotarías en el cuaderno, en un solo lugar."
+        title="Órdenes"
+        description="Todas las órdenes de trabajo: bugs, features, mejoras, ideas y deuda."
       >
         <Suspense fallback={<Skeleton className="h-9 w-40" />}>
           <BotonNuevo />

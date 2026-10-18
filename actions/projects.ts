@@ -75,8 +75,8 @@ export async function createProject(
       })
       .returning({ id: projects.id, slug: projects.slug })
 
-    revalidatePath("/proyectos")
-    revalidatePath("/problemas")
+    revalidatePath("/planta/proyectos")
+    revalidatePath("/ordenes")
 
     return actionOk(proyecto)
   } catch (error) {
@@ -118,8 +118,8 @@ export async function updateProject(valores: unknown): Promise<ActionResult> {
       return actionError("No se encontró el proyecto")
     }
 
-    revalidatePath("/proyectos")
-    revalidatePath("/problemas")
+    revalidatePath("/planta/proyectos")
+    revalidatePath("/ordenes")
 
     return actionOk()
   } catch (error) {
@@ -144,8 +144,8 @@ export async function deleteProject(id: string): Promise<ActionResult> {
       return actionError("No se encontró el proyecto")
     }
 
-    revalidatePath("/proyectos")
-    revalidatePath("/problemas")
+    revalidatePath("/planta/proyectos")
+    revalidatePath("/ordenes")
 
     return actionOk()
   } catch (error) {

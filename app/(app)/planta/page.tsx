@@ -19,7 +19,7 @@ import {
   getSerieGastoIa,
 } from "@/lib/db/queries/consumo"
 
-export const metadata: Metadata = { title: "Consumo · Taller" }
+export const metadata: Metadata = { title: "Planta · Taller" }
 
 /**
  * Monitor de consumo.

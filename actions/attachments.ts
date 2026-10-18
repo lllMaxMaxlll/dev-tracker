@@ -150,7 +150,7 @@ export async function registrarAdjunto(
       })
       .returning({ id: issueAttachments.id })
 
-    revalidatePath(`/problemas/${issue.number}`)
+    revalidatePath(`/ordenes/${issue.number}`)
 
     return actionOk(adjunto)
   } catch (error) {
@@ -195,7 +195,7 @@ export async function borrarAdjunto(id: string): Promise<ActionResult> {
       .limit(1)
 
     if (issue) {
-      revalidatePath(`/problemas/${issue.number}`)
+      revalidatePath(`/ordenes/${issue.number}`)
     }
 
     return actionOk()

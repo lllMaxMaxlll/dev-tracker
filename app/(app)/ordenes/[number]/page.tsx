@@ -38,7 +38,7 @@ import { getRelacionesDeIssue } from "@/lib/db/queries/relaciones"
 import { fechaLarga, haceCuanto } from "@/lib/utils/fechas"
 import type { Estado } from "@/lib/schemas/enums"
 
-export const metadata: Metadata = { title: "Problema · Taller" }
+export const metadata: Metadata = { title: "Orden · Taller" }
 
 type Params = Promise<{ number: string }>
 
@@ -84,10 +84,10 @@ async function Detalle({ params }: { params: Params }) {
           variant="ghost"
           size="sm"
           nativeButton={false}
-          render={<Link href="/problemas" />}
+          render={<Link href="/ordenes" />}
         >
           <ArrowLeftIcon data-icon="inline-start" />
-          Volver a problemas
+          Volver a órdenes
         </Button>
       </div>
 

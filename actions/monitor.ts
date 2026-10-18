@@ -33,7 +33,7 @@ export async function sincronizarAhora(): Promise<
 
     await evaluarReglas()
 
-    revalidatePath("/consumo")
+    revalidatePath("/planta")
 
     return actionOk({
       filas: fuentes.reduce((total, fuente) => total + fuente.filas, 0),
@@ -60,7 +60,7 @@ export async function alternarRegla(
       .set({ active: activa })
       .where(eq(alertRules.id, id))
 
-    revalidatePath("/consumo")
+    revalidatePath("/planta")
 
     return actionOk()
   } catch (error) {
@@ -86,7 +86,7 @@ export async function cambiarUmbral(
       .set({ threshold: umbral.toFixed(6) })
       .where(eq(alertRules.id, id))
 
-    revalidatePath("/consumo")
+    revalidatePath("/planta")
 
     return actionOk()
   } catch (error) {
@@ -114,7 +114,7 @@ export async function silenciarTodo(
       })
       .where(sql`true`)
 
-    revalidatePath("/consumo")
+    revalidatePath("/planta")
 
     return actionOk()
   } catch (error) {
@@ -143,7 +143,7 @@ export async function cambiarPlanDeVista(
   try {
     await setPlanDeVista(fuente, plan)
 
-    revalidatePath("/consumo")
+    revalidatePath("/planta")
 
     return actionOk()
   } catch (error) {

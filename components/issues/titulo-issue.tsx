@@ -37,7 +37,7 @@ export function TituloIssue({
 
   const enlace = (
     <Link
-      href={`/problemas/${numero}`}
+      href={`/ordenes/${numero}`}
       className={cn("underline-offset-4 hover:underline", className)}
       onPointerDown={onPointerDown}
     >

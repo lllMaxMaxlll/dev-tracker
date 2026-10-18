@@ -137,6 +137,7 @@ export async function getEstancados(userId: string, dias = 14) {
 export async function getAbiertosParaPriorizar(userId: string) {
   return db
     .select({
+      id: issues.id,
       number: issues.number,
       title: issues.title,
       type: issues.type,

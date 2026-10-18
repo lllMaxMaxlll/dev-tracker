@@ -11,8 +11,8 @@ import { slugify } from "@/lib/schemas/project"
 import { actionError, actionOk, type ActionResult } from "@/actions/types"
 
 function revalidarVistas() {
-  revalidatePath("/proyectos")
-  revalidatePath("/problemas")
+  revalidatePath("/planta/proyectos")
+  revalidatePath("/ordenes")
 }
 
 /** Postgres avisa el choque con el índice único (project_id, slug). */
