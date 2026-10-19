@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { BotonMenu } from "@/components/layout/boton-menu"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
+import { AvisoSinConexion } from "@/components/pwa/aviso-sin-conexion"
 import {
   UserMenuFallback,
   UserMenuSlot,
@@ -33,6 +34,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Suspense>
           </div>
         </header>
+
+        <AvisoSinConexion />
 
         <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
           {children}

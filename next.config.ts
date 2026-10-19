@@ -36,6 +36,25 @@ const nextConfig: NextConfig = {
       { source: "/resumenes", destination: "/informes", permanent: false },
     ]
   },
+  // El service worker nunca va al caché HTTP: si quedara una copia vieja, el
+  // navegador no se enteraría de los deploys nuevos.
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+          {
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
+          },
+        ],
+      },
+    ]
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "avatars.githubusercontent.com" },

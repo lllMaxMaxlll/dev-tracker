@@ -90,9 +90,11 @@ export const config = {
      * - favicon.ico, archivos con extensión (imágenes, fuentes, etc.)
      * - manifest.webmanifest      (Chrome lo pide SIN cookies: si lo
      *                               mandamos al login, la app no se instala)
+     * - sw.js, offline.html        (el service worker se instala también desde
+     *                               el login, y un redirect lo rompe)
      * - /api/health, /api/cron     (los valida su propio secreto, no la sesión)
      * - /api/telegram              (lo valida el secret_token de Telegram)
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/health|api/cron|api/telegram|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|webmanifest)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|offline.html|api/health|api/cron|api/telegram|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|webmanifest)$).*)",
   ],
 }

@@ -1,0 +1,202 @@
+<!doctype html>
+<!--
+  Lo que sirve el service worker (public/sw.js) cuando no hay red y la página
+  pedida no está guardada. Tiene que andar sin nada más: sin Next, sin las
+  fuentes, sin CSS externo. Los colores son los tokens de app/globals.css
+  resueltos a hex.
+-->
+<html lang="es" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#121211" />
+    <title>Sin conexión · Taller</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <script>
+      // Mismo tema que eligió en la app (next-themes lo guarda en "theme").
+      try {
+        if (localStorage.getItem("theme") === "light") {
+          document.documentElement.className = "light"
+        }
+      } catch {}
+    </script>
+    <style>
+      .dark {
+        --background: #121211;
+        --foreground: #ecebe4;
+        --card: #1a1a18;
+        --muted-foreground: #8d8c83;
+        --border: #2f2f2a;
+        --primary: #ff5f1f;
+        --primary-foreground: #111111;
+      }
+      .light {
+        --background: #eeece6;
+        --foreground: #191917;
+        --card: #f7f6f2;
+        --muted-foreground: #5f5d55;
+        --border: #d3cfc4;
+        --primary: #e2480a;
+        --primary-foreground: #111111;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px 16px;
+        background: var(--background);
+        color: var(--foreground);
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+      }
+      main {
+        width: 100%;
+        max-width: 360px;
+      }
+      svg {
+        width: 48px;
+        height: 48px;
+        display: block;
+      }
+      h1 {
+        margin: 20px 0 8px;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      p {
+        margin: 0;
+        color: var(--muted-foreground);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      button {
+        margin-top: 20px;
+        width: 100%;
+        height: 40px;
+        border: 0;
+        border-radius: 4px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      section {
+        margin-top: 28px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+      }
+      ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--card);
+      }
+      li + li {
+        border-top: 1px solid var(--border);
+      }
+      a {
+        display: block;
+        padding: 10px 12px;
+        color: inherit;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      a span {
+        color: var(--muted-foreground);
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="4" fill="var(--primary)" />
+        <g fill="var(--primary-foreground)">
+          <path d="M6 25V14l5-3.4v5l5-3.4v5l5-3.4V25z" />
+          <rect x="22.5" y="7" width="3.5" height="18" />
+          <rect x="4.5" y="25" width="23" height="2.5" />
+        </g>
+      </svg>
+      <h1>Sin conexión</h1>
+      <p>
+        Esta página no la tenés guardada. Cuando vuelva la red, Taller sigue
+        donde lo dejaste.
+      </p>
+      <button type="button" onclick="location.reload()">Reintentar</button>
+
+      <section id="guardadas" hidden>
+        <h2>Guardadas en este teléfono</h2>
+        <ul id="lista"></ul>
+      </section>
+    </main>
+
+    <script>
+      // Nombres de app/(app)/**/page.tsx. Lo que no figura muestra la ruta.
+      const NOMBRES = {
+        "/": "Banco",
+        "/bandeja": "Bandeja",
+        "/ordenes": "Órdenes",
+        "/informes": "Informes",
+        "/planta": "Planta",
+        "/planta/repos": "Repositorios",
+        "/planta/proyectos": "Proyectos",
+        "/planta/ajustes": "Ajustes",
+      }
+
+      function nombre(pathname) {
+        if (NOMBRES[pathname]) return NOMBRES[pathname]
+        const orden = pathname.match(/^\/ordenes\/(\d+)$/)
+        if (orden) return "Orden #" + orden[1]
+        return pathname
+      }
+
+      // El nombre del caché sale de public/sw.js: si sube VERSION, subirla acá.
+      // `has` antes de `open`: abrirlo lo crearía vacío.
+      const CACHE_PAGINAS = "taller-paginas-v1"
+      caches
+        .has(CACHE_PAGINAS)
+        .then((existe) =>
+          existe ? caches.open(CACHE_PAGINAS).then((c) => c.keys()) : []
+        )
+        .then((claves) => {
+          if (claves.length === 0) return
+          const lista = document.getElementById("lista")
+          for (const clave of claves) {
+            const url = new URL(clave.url)
+            const li = document.createElement("li")
+            const a = document.createElement("a")
+            a.href = url.pathname + url.search
+            a.textContent = nombre(url.pathname) + " "
+            const ruta = document.createElement("span")
+            ruta.textContent = url.pathname + url.search
+            a.append(ruta)
+            li.append(a)
+            lista.append(li)
+          }
+          document.getElementById("guardadas").hidden = false
+        })
+        .catch(() => {})
+    </script>
+  </body>
+</html>

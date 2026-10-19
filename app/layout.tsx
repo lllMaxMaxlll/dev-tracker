@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { Archivo, JetBrains_Mono } from "next/font/google"
 
 import "./globals.css"
+import { RegistrarServiceWorker } from "@/components/pwa/service-worker"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -92,6 +93,7 @@ export default function RootLayout({
             <Toaster>{children}</Toaster>
           </TooltipProvider>
         </ThemeProvider>
+        <RegistrarServiceWorker />
       </body>
     </html>
   )
