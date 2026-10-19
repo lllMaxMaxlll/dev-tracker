@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     template: "%s",
   },
   description:
-    "Dashboard personal para registrar y seguir problemas, bugs e ideas de desarrollo, con integración a GitHub.",
+    "Órdenes de trabajo para tus proyectos: bugs, ideas y deudas, conectados a tus repos.",
   applicationName: "Taller",
   manifest: "/manifest.webmanifest",
   robots: {
